@@ -5,20 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>장비 이력 관리</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
+    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
     input, select, button, textarea { display: block; margin: 10px 0; padding: 8px; width: 100%; }
     .entry { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; cursor: pointer; }
     .entry.completed { background: #e0ffe0; }
-    #detailView { display: none; border: 1px solid #999; padding: 10px; background: #f9f9f9; }
+    #detailView, #inputForm { display: none; border: 1px solid #999; padding: 10px; background: #f9f9f9; margin-top: 20px; }
+    #toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    #toolbar > * { flex: 1 1 200px; }
   </style>
 </head>
 <body>
   <h1>장비 이력 관리</h1>
 
-  <input type="text" id="search" placeholder="S/N 검색" />
-  <input type="date" id="dateFilter" />
-  <button onclick="exportExcel()">엑셀로 내보내기</button>
-  <button onclick="showInputForm()">장비 이력 입력</button>
+  <div id="toolbar">
+    <input type="text" id="search" placeholder="S/N 검색" />
+    <input type="date" id="dateFilter" />
+    <button onclick="exportExcel()">엑셀로 내보내기</button>
+    <button onclick="toggleInputForm()">이력 입력</button>
+  </div>
 
   <div id="list"></div>
 
@@ -63,8 +67,11 @@
     const detailView = document.getElementById('detailView');
     const inputForm = document.getElementById('inputForm');
 
-    function showInputForm() {
-      inputForm.scrollIntoView({ behavior: 'smooth' });
+    function toggleInputForm() {
+      inputForm.style.display = inputForm.style.display === 'block' ? 'none' : 'block';
+      if (inputForm.style.display === 'block') {
+        inputForm.scrollIntoView({ behavior: 'smooth' });
+      }
     }
 
     function loadEntries() {
@@ -72,31 +79,63 @@
       const keyword = search.value.trim();
       const date = dateFilter.value;
       list.innerHTML = '';
-      data.filter(d => d.sn.includes(keyword) && (!date || d.createdAt.startsWith(date))).forEach(d => {
+      data.filter(d => d.sn.includes(keyword) && (!date || d.createdAt.startsWith(date))).forEach((d, i) => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
         div.innerHTML = `<strong>${d.sn}</strong> (${d.status}) <br>등록일: ${d.createdAt.split('T')[0]}`;
-        div.onclick = () => showDetail(d);
+        div.onclick = () => showOptions(i);
         list.appendChild(div);
       });
     }
 
-    function showDetail(entry) {
+    function showOptions(index) {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const entry = data[index];
       detailView.style.display = 'block';
       detailView.innerHTML = `
         <h3>${entry.sn} 이력 상세</h3>
-        <p><strong>고객사:</strong> ${entry.customer || ''}</p>
-        <p><strong>접수자:</strong> ${entry.receiver || ''}</p>
-        <p><strong>스펙:</strong> ${entry.spec || ''}</p>
-        <p><strong>고장유형:</strong> ${entry.faultType || ''}</p>
-        <p><strong>접수내용:</strong> ${entry.receiveNote || ''}</p>
-        <p><strong>점검내용:</strong> ${entry.checkNote || ''}</p>
-        <p><strong>자재:</strong> ${entry.material || ''}</p>
-        <p><strong>수량:</strong> ${entry.quantity || ''}</p>
-        <p><strong>완료여부:</strong> ${entry.status}</p>
-        <p><strong>완료일:</strong> ${entry.completeDate || ''}</p>
+        <p><strong>고객사:</strong> ${entry.customer}</p>
+        <p><strong>접수자:</strong> ${entry.receiver}</p>
+        <p><strong>스펙:</strong> ${entry.spec}</p>
+        <p><strong>고장유형:</strong> ${entry.faultType}</p>
+        <p><strong>접수내용:</strong> ${entry.receiveNote}</p>
+        <p><strong>점검내용:</strong> ${entry.checkNote}</p>
+        <p><strong>자재:</strong> ${entry.material}</p>
+        <p><strong>수량:</strong> ${entry.quantity}</p>
+        <p><strong>상태:</strong> ${entry.status}</p>
+        <p><strong>완료일:</strong> ${entry.completeDate}</p>
+        <button onclick="editEntry(${index})">수정</button>
+        <button onclick="deleteEntry(${index})">삭제</button>
         <button onclick="detailView.style.display='none'">닫기</button>
       `;
+    }
+
+    function editEntry(index) {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const entry = data[index];
+      document.getElementById('sn').value = entry.sn;
+      document.getElementById('customer').value = entry.customer;
+      document.getElementById('receiver').value = entry.receiver;
+      document.getElementById('spec').value = entry.spec;
+      document.getElementById('faultType').value = entry.faultType;
+      document.getElementById('receiveNote').value = entry.receiveNote;
+      document.getElementById('checkNote').value = entry.checkNote;
+      document.getElementById('material').value = entry.material;
+      document.getElementById('quantity').value = entry.quantity;
+      document.getElementById('status').value = entry.status;
+      document.getElementById('completeDate').value = entry.completeDate;
+      deleteEntry(index);
+      toggleInputForm();
+    }
+
+    function deleteEntry(index) {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      if (confirm('삭제하시겠습니까?')) {
+        data.splice(index, 1);
+        localStorage.setItem('logs', JSON.stringify(data));
+        loadEntries();
+        detailView.style.display = 'none';
+      }
     }
 
     function saveEntry() {
@@ -120,13 +159,12 @@
       localStorage.setItem('logs', JSON.stringify(data));
       alert('저장 완료');
       loadEntries();
+      inputForm.style.display = 'none';
     }
 
     function exportExcel() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const filtered = dateFilter.value
-        ? data.filter(d => d.createdAt.startsWith(dateFilter.value))
-        : data;
+      const filtered = dateFilter.value ? data.filter(d => d.createdAt.startsWith(dateFilter.value)) : data;
       let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
       filtered.forEach(d => {
         csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
