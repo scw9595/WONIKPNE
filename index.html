@@ -62,6 +62,7 @@
   <h1>장비 이력 관리</h1>
 
   <input type="text" id="search" placeholder="전체 검색">
+  <label for="filterDate">등록일 기준 조회</label>
   <input type="date" id="filterDate">
   <button onclick="toggleForm()">이력 입력</button>
   <button onclick="exportExcel()">엑셀 추출</button>
@@ -152,7 +153,13 @@
       }).forEach(d => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.textContent = `${d.sn} - ${d.status} (${d.createdAt.split('T')[0]})`;
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
+        div.onclick = () => alert(`S/N: ${d.sn}
+고객사: ${d.customer}
+접수자: ${d.receiver}
+고장유형: ${d.faultType}
+접수내용: ${d.receiveNote}
+점검내용: ${d.checkNote}`);
         list.appendChild(div);
       });
     }
