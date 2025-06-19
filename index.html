@@ -77,8 +77,8 @@
   <input type="text" id="search" placeholder="전체 검색">
   <label for="filterDate">등록일 기준 조회</label>
   <input type="date" id="filterDate">
-  <button onclick="openFullForm()">이력 입력</button>
-  <button onclick="openHistoryPopup()">내역 확인</button>
+  <button id="btnFullForm">이력 입력</button>
+  <button id="btnHistoryPopup">내역 확인</button>
 
   <div id="list" style="display: none;"></div>
 
@@ -249,8 +249,8 @@
   if (container) loadEntries(container);
 });
     window.onload = () => {
-  document.querySelector('button[onclick="openFullForm()"]')?.addEventListener('click', openFullForm);
-  document.querySelector('button[onclick="openHistoryPopup()"]')?.addEventListener('click', openHistoryPopup);
+  document.getElementById('btnFullForm')?.addEventListener('click', openFullForm);
+  document.getElementById('btnHistoryPopup')?.addEventListener('click', openHistoryPopup);
 };
   function exportExcel() {
   const data = JSON.parse(localStorage.getItem('logs') || '[]');
