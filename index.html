@@ -224,6 +224,11 @@
   container.id = 'popupList';
   modal.appendChild(container);
 
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = '엑셀 추출';
+  exportBtn.onclick = exportExcel;
+  modal.appendChild(exportBtn);
+
   const close = document.createElement('button');
   close.textContent = '닫기';
   close.onclick = () => document.body.removeChild(overlay);
@@ -246,7 +251,35 @@
     window.onload = () => {
   // 초기화 필요시 여기에 작성
 };
-  </script>
+  function exportExcel() {
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  const keyword = search.value.trim().toLowerCase();
+  const date = filterDate.value;
+  const filtered = data.filter(d => {
+    const matchText = JSON.stringify(d).toLowerCase().includes(keyword);
+    const matchDate = !date || d.createdAt.startsWith(date);
+    return matchText && matchDate;
+  });
+  if (filtered.length === 0) {
+    alert('엑셀로 내보낼 데이터가 없습니다.');
+    return;
+  }
+  let csv = '일련번호,S/N,고객사,접수자,장비 스펙,접수 내용,점검 내용,자재,수량,상태,완료일,등록일
+';
+';
+  filtered.forEach(d => {
+    csv += `${filtered.indexOf(d) + 1},${d.sn},${d.customer},${d.receiver},${d.spec},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}
+`;
+  });
+  const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+  const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '장비이력.csv';
+  a.click();
+}
+</script>
 </body>
 </html>
+
 
