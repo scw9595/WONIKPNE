@@ -5,11 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>장비 이력 관리 앱</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
-    input, select, textarea, button { display: block; width: 100%; margin: 10px 0; padding: 8px; }
-    .entry { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; cursor: pointer; }
-    .entry.completed { background-color: #e0ffe0; }
-    #formSection { display: none; margin-top: 30px; border-top: 2px solid #000; padding-top: 20px; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f6f9;
+      margin: 0;
+      padding: 20px;
+      max-width: 900px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #004999;
+    }
+    .entry {
+      background-color: white;
+      border-left: 6px solid #999;
+      padding: 15px;
+      margin-bottom: 12px;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .entry.completed {
+      border-left-color: #2ecc71;
+      background-color: #e9fbee;
+    }
+    #formSection {
+      display: none;
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-top: 30px;
+    }
   </style>
 </head>
 <body>
