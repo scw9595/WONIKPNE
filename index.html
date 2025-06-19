@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0066cc">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="장비 이력 관리">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>장비 이력 관리 앱</title>
@@ -59,56 +66,29 @@
   </style>
 </head>
 <body>
-  <h1>장비 이력 관리</h1>
-
-  <input type="text" id="search" placeholder="전체 검색">
+  <div style="text-align: center; margin-bottom: 20px;">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Wonik_PNE_logo.svg/512px-Wonik_PNE_logo.svg.png" alt="WONIK PNE 로고" style="height: 50px;">
+    <div style="font-size: 20px; font-weight: bold; margin-top: 10px;">CS2그룹 장비이력관리 시스템</div>
+  </div>
+<input type="text" id="search" placeholder="전체 검색">
   <label for="filterDate">등록일 기준 조회</label>
   <input type="date" id="filterDate">
-  <button onclick="toggleForm()">이력 입력</button>
-  <button onclick="exportExcel()">엑셀 추출</button>
+  <button onclick="openFullForm()">이력 입력</button>
+  <button onclick="openHistoryPopup()">내역 확인</button>
+  
+  
 
-  <div id="list"></div>
-
-  <div id="formSection">
-    <h2>이력 등록</h2>
-    <input type="text" id="sn" placeholder="S/N">
-    <input type="text" id="customer" placeholder="고객사">
-    <input type="text" id="receiver" placeholder="접수자">
-    <input type="text" id="spec" placeholder="장비 스펙">
-    <select id="faultType">
-      <option value="">고장유형 선택</option>
-      <option>HW BLOCK</option>
-      <option>H/W PCB BD</option>
-      <option>성능</option>
-      <option>점검</option>
-      <option>초기불량</option>
-      <option>원인미도출</option>
-      <option>교정</option>
-      <option>복합</option>
-      <option>S/W</option>
-      <option>납품</option>
-      <option>기타</option>
-    </select>
-    <textarea id="receiveNote" placeholder="접수 내용"></textarea>
-    <textarea id="checkNote" placeholder="점검 내용"></textarea>
-    <input type="text" id="material" placeholder="자재">
-    <input type="number" id="quantity" placeholder="수량">
-    <select id="status">
-      <option value="미완료">미완료</option>
-      <option value="완료">완료</option>
-    </select>
-    <input type="date" id="completeDate" placeholder="완료일">
-    <button onclick="saveEntry()">저장</button>
-  </div>
+  
 
   <script>
     const list = document.getElementById('list');
+list.style.display = 'none';
     const search = document.getElementById('search');
     const filterDate = document.getElementById('filterDate');
     const formSection = document.getElementById('formSection');
 
     function toggleForm() {
-  formSection.style.display = 'block'; // 항상 열기
+  formSection.style.display = formSection.style.display === 'block' ? 'none' : 'block';
 }
 
     function clearForm() {
@@ -139,6 +119,8 @@
       clearForm();
       toggleForm();
       loadEntries();
+  document.getElementById('search').value = '';
+  document.getElementById('filterDate').value = '';
     }
 
     function loadEntries() {
@@ -153,7 +135,7 @@
   }).forEach((d, index) => {
     const div = document.createElement('div');
     div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-    div.innerHTML = <strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>;
+    div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
     div.addEventListener('click', () => {
       const modal = document.createElement('div');
       modal.style.position = 'fixed';
@@ -169,7 +151,7 @@
       modal.style.maxHeight = '80vh';
       modal.style.overflowY = 'auto';
 
-      modal.innerHTML = 
+      modal.innerHTML = `
         <h3>S/N: <input value="${d.sn}" id="edit-sn"></h3>
         <p>고객사: <input value="${d.customer}" id="edit-customer"></p>
         <p>접수자: <input value="${d.receiver}" id="edit-receiver"></p>
@@ -186,8 +168,8 @@
         <p>완료일: <input type="date" value="${d.completeDate}" id="edit-completeDate"></p>
         <button onclick="savePopup(${index})">수정 저장</button>
         <button onclick="deletePopup(${index})">삭제</button>
-        <button onclick="this.parentElement.remove()">닫기</button>
-      ;
+        <button onclick="this.closest('.overlay')?.remove()">닫기</button>
+      `;
 
       document.body.appendChild(modal);
     });
@@ -204,7 +186,7 @@
   }
   let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
       filtered.forEach(d => {
-        csv += ${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n;
+        csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
       });
       const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
       const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8;' });
@@ -245,8 +227,194 @@
   }
 }
 
+function savePopupEntry() {
+  const entry = {
+    sn: document.getElementById('popup-sn').value,
+    customer: document.getElementById('popup-customer').value,
+    receiver: document.getElementById('popup-receiver').value,
+    spec: document.getElementById('popup-spec').value,
+    faultType: document.getElementById('popup-faultType').value,
+    receiveNote: document.getElementById('popup-receiveNote').value,
+    checkNote: document.getElementById('popup-checkNote').value,
+    material: document.getElementById('popup-material').value,
+    quantity: document.getElementById('popup-quantity').value,
+    status: document.getElementById('popup-status').value,
+    completeDate: document.getElementById('popup-completeDate').value,
+    createdAt: new Date().toISOString()
+  };
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  data.push(entry);
+  localStorage.setItem('logs', JSON.stringify(data));
+  loadEntries();
+}
+
+function toggleHistory() {
+  const section = document.getElementById('historySection');
+  section.style.display = section.style.display === 'none' ? 'block' : 'none';
+  if (section.style.display === 'block') loadEntries();
+}
+
 window.onload = loadEntries;
   </script>
+<script>
+  function openFullForm() {
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.background = 'rgba(0,0,0,0.5)';
+    overlay.style.zIndex = '10000';
+
+    const modal = document.createElement('div');
+    modal.style.position = 'fixed';
+    modal.style.top = '50%';
+    modal.style.left = '50%';
+    modal.style.transform = 'translate(-50%, -50%)';
+    modal.style.background = '#fff';
+    modal.style.padding = '30px';
+    modal.style.borderRadius = '10px';
+    modal.style.width = '90vw';
+    modal.style.maxHeight = '90vh';
+    modal.style.overflowY = 'auto';
+    modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+
+    modal.innerHTML = `
+      <h2>이력 등록</h2>
+      <input type="text" id="popup-sn" placeholder="S/N">
+      <input type="text" id="popup-customer" placeholder="고객사">
+      <input type="text" id="popup-receiver" placeholder="접수자">
+      <input type="text" id="popup-spec" placeholder="장비 스펙">
+      <select id="popup-faultType">
+        <option value="">고장유형 선택</option>
+        <option>HW BLOCK</option>
+        <option>H/W PCB BD</option>
+        <option>성능</option>
+        <option>점검</option>
+        <option>초기불량</option>
+        <option>원인미도출</option>
+        <option>교정</option>
+        <option>복합</option>
+        <option>S/W</option>
+        <option>납품</option>
+        <option>기타</option>
+      </select>
+      <textarea id="popup-receiveNote" placeholder="접수 내용"></textarea>
+      <textarea id="popup-checkNote" placeholder="점검 내용"></textarea>
+      <input type="text" id="popup-material" placeholder="자재">
+      <input type="number" id="popup-quantity" placeholder="수량">
+      <select id="popup-status">
+        <option value="미완료">미완료</option>
+        <option value="완료">완료</option>
+      </select>
+      <label for="popup-completeDate">완료일</label>
+      <input type="date" id="popup-completeDate">
+      <button onclick="savePopupEntry(); document.body.removeChild(this.closest('.overlay')); loadEntries();">저장</button>
+      <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  }
+function openHistoryPopup() {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.background = 'rgba(0,0,0,0.5)';
+  overlay.style.zIndex = '10000';
+
+  const modal = document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.style.top = '50%';
+  modal.style.left = '50%';
+  modal.style.transform = 'translate(-50%, -50%)';
+  modal.style.background = '#fff';
+  modal.style.padding = '30px';
+  modal.style.borderRadius = '10px';
+  modal.style.width = '90vw';
+  modal.style.maxHeight = '90vh';
+  modal.style.overflowY = 'auto';
+  modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '닫기';
+  closeBtn.onclick = () => document.body.removeChild(overlay);
+  modal.appendChild(closeBtn);
+
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = '엑셀 추출';
+  exportBtn.onclick = exportExcel;
+  modal.appendChild(exportBtn);
+
+  const container = document.createElement('div');
+  container.id = 'popup-list';
+  modal.appendChild(container);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // 불러오기
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  container.innerHTML = '';
+  const listWrapper = document.createElement('div');
+  listWrapper.style.display = 'flex';
+  listWrapper.style.flexDirection = 'column';
+  listWrapper.style.gap = '12px';
+  container.appendChild(listWrapper);
+  data.forEach((d, index) => {
+    const div = document.createElement('div');
+    div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+    div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
+    div.addEventListener('click', () => {
+      const modal = document.createElement('div');
+      modal.style.position = 'fixed';
+      modal.style.top = '50%';
+      modal.style.left = '50%';
+      modal.style.transform = 'translate(-50%, -50%)';
+      modal.style.background = '#fff';
+      modal.style.border = '1px solid #ccc';
+      modal.style.padding = '20px';
+      modal.style.zIndex = '9999';
+      modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+      modal.style.width = '80vw';
+      modal.style.maxHeight = '80vh';
+      modal.style.overflowY = 'auto';
+      modal.innerHTML = `
+        <h3>S/N: <input value="${d.sn}" id="edit-sn"></h3>
+        <p>고객사: <input value="${d.customer}" id="edit-customer"></p>
+        <p>접수자: <input value="${d.receiver}" id="edit-receiver"></p>
+        <p>스펙: <input value="${d.spec}" id="edit-spec"></p>
+        <p>고장유형: <input value="${d.faultType}" id="edit-faultType"></p>
+        <p>접수내용: <textarea id="edit-receiveNote">${d.receiveNote}</textarea></p>
+        <p>점검내용: <textarea id="edit-checkNote">${d.checkNote}</textarea></p>
+        <p>자재: <input value="${d.material}" id="edit-material"></p>
+        <p>수량: <input type="number" value="${d.quantity}" id="edit-quantity"></p>
+        <p>상태: <select id="edit-status">
+          <option value="미완료" ${d.status === '미완료' ? 'selected' : ''}>미완료</option>
+          <option value="완료" ${d.status === '완료' ? 'selected' : ''}>완료</option>
+        </select></p>
+        <p>완료일: <input type="date" value="${d.completeDate}" id="edit-completeDate"></p>
+        <button onclick="savePopup(${index})">수정 저장</button>
+        <button onclick="deletePopup(${index})">삭제</button>
+        <button onclick="this.parentElement.remove()">닫기</button>
+      `;
+      document.body.appendChild(modal);
+    });
+    listWrapper.appendChild(div);
+  });
+}
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js').then(() => {
+      console.log('Service Worker Registered');
+    });
+  }
+</script>
 </body>
 </html>
 
