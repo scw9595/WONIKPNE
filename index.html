@@ -116,14 +116,9 @@
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
         else el.value = '';
       });
-      localStorage.removeItem('editIndex');
-    }
-      localStorage.removeItem('editIndex');
     }
 
     function saveEntry() {
-      const editIndex = localStorage.getItem('editIndex');
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const entry = {
         sn: document.getElementById('sn').value,
         customer: document.getElementById('customer').value,
@@ -137,12 +132,9 @@
         status: document.getElementById('status').value,
         completeDate: document.getElementById('completeDate').value,
         createdAt: new Date().toISOString()
-      };      if (editIndex !== null) {
-        data[editIndex] = entry;
-        localStorage.removeItem('editIndex');
-      } else {
-        data.push(entry);
-      }
+      };
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      data.push(entry);
       localStorage.setItem('logs', JSON.stringify(data));
       clearForm();
       toggleForm();
@@ -162,35 +154,6 @@
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
         div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
-        div.onclick = () => {
-          const index = data.indexOf(d);
-          document.getElementById('sn').value = d.sn;
-          document.getElementById('customer').value = d.customer;
-          document.getElementById('receiver').value = d.receiver;
-          document.getElementById('spec').value = d.spec;
-          document.getElementById('faultType').value = d.faultType;
-          document.getElementById('receiveNote').value = d.receiveNote;
-          document.getElementById('checkNote').value = d.checkNote;
-          document.getElementById('material').value = d.material;
-          document.getElementById('quantity').value = d.quantity;
-          document.getElementById('status').value = d.status;
-          document.getElementById('completeDate').value = d.completeDate;
-          localStorage.setItem('editIndex', index);
-          formSection.style.display = 'block';
-        };
-        const delBtn = document.createElement('button');
-        delBtn.textContent = '삭제';
-        delBtn.style.marginTop = '5px';
-        delBtn.onclick = (e) => {
-          e.stopPropagation();
-          if (confirm('정말 삭제하시겠습니까?')) {
-            const index = data.indexOf(d);
-            data.splice(index, 1);
-            localStorage.setItem('logs', JSON.stringify(data));
-            loadEntries();
-          }
-        };
-        div.appendChild(delBtn);
         list.appendChild(div);
       });
     }
