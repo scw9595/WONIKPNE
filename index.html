@@ -21,7 +21,7 @@
     <input type="text" id="search" placeholder="S/N 검색" />
     <input type="date" id="dateFilter" />
     <button onclick="exportExcel()">엑셀로 내보내기</button>
-    <button onclick="toggleInputForm()">이력 입력</button>
+    <button onclick="showInputForm(true)">이력 입력</button>
   </div>
 
   <div id="list"></div>
@@ -56,6 +56,7 @@
     </select>
     <input type="date" id="completeDate" />
     <button onclick="saveEntry()">저장</button>
+    <button onclick="showInputForm(false)">취소</button>
   </div>
 
   <div id="detailView"></div>
@@ -67,14 +68,13 @@
     const detailView = document.getElementById('detailView');
     const inputForm = document.getElementById('inputForm');
 
-    function toggleInputForm() {
-      inputForm.style.display = inputForm.style.display === 'block' ? 'none' : 'block';
-      if (inputForm.style.display === 'block') {
-        inputForm.scrollIntoView({ behavior: 'smooth' });
-      }
+    function showInputForm(show) {
+      inputForm.style.display = show ? 'block' : 'none';
+      if (show) inputForm.scrollIntoView({ behavior: 'smooth' });
     }
 
     function loadEntries() {
+      showInputForm(false);
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const keyword = search.value.trim();
       const date = dateFilter.value;
@@ -125,7 +125,7 @@
       document.getElementById('status').value = entry.status;
       document.getElementById('completeDate').value = entry.completeDate;
       deleteEntry(index);
-      toggleInputForm();
+      showInputForm(true);
     }
 
     function deleteEntry(index) {
@@ -159,7 +159,6 @@
       localStorage.setItem('logs', JSON.stringify(data));
       alert('저장 완료');
       loadEntries();
-      inputForm.style.display = 'none';
     }
 
     function exportExcel() {
@@ -179,7 +178,10 @@
 
     search.addEventListener('input', loadEntries);
     dateFilter.addEventListener('change', loadEntries);
-    window.onload = loadEntries;
+    window.onload = () => {
+      showInputForm(false);
+      loadEntries();
+    }
   </script>
 </body>
 </html>
