@@ -165,6 +165,9 @@
       modal.style.padding = '20px';
       modal.style.zIndex = '9999';
       modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+      modal.style.width = '80vw';
+      modal.style.maxHeight = '80vh';
+      modal.style.overflowY = 'auto';
 
       modal.innerHTML = `
         <h3>S/N: <input value="${d.sn}" id="edit-sn"></h3>
@@ -235,5 +238,7 @@
     window.onload = loadEntries;
   </script>
 </body>
+</html>
+
 </html>
 
