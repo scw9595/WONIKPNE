@@ -66,7 +66,6 @@
   </style>
 </head>
 <body>
-  $1
   <button onclick="openHistoryPopup()">내역 확인</button>
 
   <input type="text" id="search" placeholder="전체 검색">
@@ -74,14 +73,12 @@
   <input type="date" id="filterDate">
   <button onclick="openFullForm()">이력 입력</button>
   
-  $1
-<button onclick="loadEntries()">내역 확인</button>
-</div>
+  
 
   
 
   <script>
-    $1
+    const list = document.getElementById('list');
 list.style.display = 'none';
     const search = document.getElementById('search');
     const filterDate = document.getElementById('filterDate');
@@ -417,4 +414,5 @@ function openHistoryPopup() {
 </script>
 </body>
 </html>
+
 
