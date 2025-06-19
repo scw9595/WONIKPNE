@@ -18,10 +18,15 @@
   <h1>장비 이력 관리</h1>
 
   <div id="toolbar">
-    <input type="text" id="search" placeholder="S/N 검색" />
-    <input type="date" id="startDate" placeholder="시작일" />
-    <input type="date" id="endDate" placeholder="종료일" />
-    <button onclick="exportExcel()">엑셀로 내보내기</button>
+    <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px;">
+      <input type="text" id="search" placeholder="S/N 검색" style="flex: 1" />
+      <button onclick="showInputForm(true)" style="flex: none">이력 입력</button>
+    </div>
+    <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+      <input type="date" id="startDate" placeholder="시작일" style="flex: 1" />
+      <input type="date" id="endDate" placeholder="종료일" style="flex: 1" />
+      <button onclick="exportExcel()" style="flex: none">엑셀로 내보내기</button>
+    </div>
     <button onclick="showInputForm(true)">이력 입력</button>
   </div>
 
@@ -188,7 +193,8 @@
       filtered.forEach(d => {
         csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
       });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const utf8Bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([utf8Bom, csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -206,4 +212,3 @@
   </script>
 </body>
 </html>
-
