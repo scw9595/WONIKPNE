@@ -19,7 +19,8 @@
 
   <div id="toolbar">
     <input type="text" id="search" placeholder="S/N 검색" />
-    <input type="date" id="dateFilter" />
+    <input type="date" id="startDate" placeholder="시작일" />
+    <input type="date" id="endDate" placeholder="종료일" />
     <button onclick="exportExcel()">엑셀로 내보내기</button>
     <button onclick="showInputForm(true)">이력 입력</button>
   </div>
@@ -64,7 +65,8 @@
   <script>
     const list = document.getElementById('list');
     const search = document.getElementById('search');
-    const dateFilter = document.getElementById('dateFilter');
+    const startDate = document.getElementById('startDate');
+    const endDate = document.getElementById('endDate');
     const detailView = document.getElementById('detailView');
     const inputForm = document.getElementById('inputForm');
 
@@ -79,7 +81,12 @@
       const keyword = search.value.trim();
       const date = dateFilter.value;
       list.innerHTML = '';
-      data.filter(d => d.sn.includes(keyword) && (!date || d.createdAt.startsWith(date))).forEach((d, i) => {
+      data.filter(d => {
+        const created = d.createdAt.split('T')[0];
+        const afterStart = !startDate.value || created >= startDate.value;
+        const beforeEnd = !endDate.value || created <= endDate.value;
+        return d.sn.includes(keyword) && afterStart && beforeEnd;
+      }).forEach((d, i) => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
         div.innerHTML = `<strong>${d.sn}</strong> (${d.status}) <br>등록일: ${d.createdAt.split('T')[0]}`;
@@ -163,8 +170,14 @@
 
     function exportExcel() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const filtered = dateFilter.value ? data.filter(d => d.createdAt.startsWith(dateFilter.value)) : data;
-      let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
+      const filtered = data.filter(d => {
+        const created = d.createdAt.split('T')[0];
+        const afterStart = !startDate.value || created >= startDate.value;
+        const beforeEnd = !endDate.value || created <= endDate.value;
+        return afterStart && beforeEnd;
+      });
+      let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일
+';
       filtered.forEach(d => {
         csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
       });
@@ -177,7 +190,8 @@
     }
 
     search.addEventListener('input', loadEntries);
-    dateFilter.addEventListener('change', loadEntries);
+    startDate.addEventListener('change', loadEntries);
+    endDate.addEventListener('change', loadEntries);
     window.onload = () => {
       showInputForm(false);
       loadEntries();
