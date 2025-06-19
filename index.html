@@ -66,12 +66,13 @@
   </style>
 </head>
 <body>
-  <button onclick="openHistoryPopup()">내역 확인</button>
+  
 
   <input type="text" id="search" placeholder="전체 검색">
   <label for="filterDate">등록일 기준 조회</label>
   <input type="date" id="filterDate">
   <button onclick="openFullForm()">이력 입력</button>
+  <button onclick="openHistoryPopup()">내역 확인</button>
   
   
 
@@ -165,7 +166,7 @@ list.style.display = 'none';
         <p>완료일: <input type="date" value="${d.completeDate}" id="edit-completeDate"></p>
         <button onclick="savePopup(${index})">수정 저장</button>
         <button onclick="deletePopup(${index})">삭제</button>
-        <button onclick="this.parentElement.remove()">닫기</button>
+        <button onclick="this.closest('.overlay')?.remove()">닫기</button>
       `;
 
       document.body.appendChild(modal);
@@ -307,8 +308,8 @@ window.onload = loadEntries;
       </select>
       <label for="popup-completeDate">완료일</label>
       <input type="date" id="popup-completeDate">
-      <button onclick="savePopupEntry(); document.body.removeChild(overlay); loadEntries();">저장</button>
-      <button onclick="document.body.removeChild(overlay)">닫기</button>
+      <button onclick="savePopupEntry(); document.body.removeChild(this.closest('.overlay')); loadEntries();">저장</button>
+      <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
     `;
 
     overlay.appendChild(modal);
