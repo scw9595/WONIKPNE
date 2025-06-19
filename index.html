@@ -125,6 +125,13 @@
           <option value="유상" ${d.costType==='유상'?'selected':''}>유상</option>
           <option value="무상" ${d.costType==='무상'?'selected':''}>무상</option>
         </select>
+        <label for="status">진행 상태 (작업 완료 여부 선택)</label>
+        <select id="status">
+          <option value="미완료" ${d.status==='미완료'?'selected':''}>미완료</option>
+          <option value="완료" ${d.status==='완료'?'selected':''}>완료</option>
+        </select>
+        <label for="completeDate">완료일 (완료된 날짜를 선택하세요)</label>
+        <input type="date" id="completeDate" value="${d.completeDate || ''}">
         <button onclick="${index !== null ? `updateEntry(${index})` : 'saveEntry()'}">저장</button>
         <button onclick="toggleForm(true)">닫기</button>
       `;
@@ -145,11 +152,11 @@
         material: document.getElementById('material').value,
         quantity: document.getElementById('quantity').value,
         costType: document.getElementById('costType').value,
+        status: document.getElementById('status').value,
+        completeDate: document.getElementById('completeDate').value,
         createdAt: new Date().toISOString()
       };
     }
-
-    // 나머지 기존 함수 유지 (saveEntry, updateEntry, deleteEntry, showDetail, showHistory, exportExcel 등)
   </script>
 </body>
 </html>
