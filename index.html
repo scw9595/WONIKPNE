@@ -80,18 +80,18 @@
   <button onclick="openFullForm()">이력 입력</button>
   <button onclick="openHistoryPopup()">내역 확인</button>
 
-  <div id="list"></div>
+  <div id="list" style="display: none;"></div>
 
   <script>
     const list = document.getElementById('list');
     const search = document.getElementById('search');
     const filterDate = document.getElementById('filterDate');
 
-    function loadEntries() {
+    function loadEntries(target = list) {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const keyword = search.value.trim().toLowerCase();
       const date = filterDate.value;
-      list.innerHTML = '';
+      target.innerHTML = '';
       data.filter(d => {
         const matchText = JSON.stringify(d).toLowerCase().includes(keyword);
         const matchDate = !date || d.createdAt.startsWith(date);
@@ -101,7 +101,7 @@
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
         div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
         div.addEventListener('click', () => openEntryModal(d, index));
-        list.appendChild(div);
+        target.appendChild(div);
       });
     }
 
@@ -211,9 +211,42 @@
       }
     }
 
-    search.addEventListener('input', loadEntries);
-    filterDate.addEventListener('change', loadEntries);
-    window.onload = loadEntries;
+    function openHistoryPopup() {
+  if (document.querySelector('.overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = '<h3>이력 목록</h3>';
+
+  const container = document.createElement('div');
+  container.id = 'popupList';
+  modal.appendChild(container);
+
+  const close = document.createElement('button');
+  close.textContent = '닫기';
+  close.onclick = () => document.body.removeChild(overlay);
+  modal.appendChild(close);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  loadEntries(container);
+    }
+
+    search.addEventListener('input', () => {
+  const container = document.getElementById('popupList');
+  if (container) loadEntries(container);
+});
+    filterDate.addEventListener('change', () => {
+  const container = document.getElementById('popupList');
+  if (container) loadEntries(container);
+});
+    window.onload = () => {
+  // 초기화 필요시 여기에 작성
+};
   </script>
 </body>
 </html>
+
