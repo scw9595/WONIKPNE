@@ -184,7 +184,8 @@
           <option value="완료" ${d.status === '완료' ? 'selected' : ''}>완료</option>
         </select></p>
         <p>완료일: <input type="date" value="${d.completeDate}" id="edit-completeDate"></p>
-        <button onclick="savePopup(${index})">수정 저장</button>
+        $1
+        <button onclick="deletePopup(${index})">삭제</button>
         <button onclick="this.parentElement.remove()">닫기</button>
       `;
 
@@ -235,10 +236,18 @@
       loadEntries();
     }
 
-    window.onload = loadEntries;
+    function deletePopup(index) {
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  if (confirm('정말 삭제하시겠습니까?')) {
+    data.splice(index, 1);
+    localStorage.setItem('logs', JSON.stringify(data));
+    document.querySelectorAll('div[style*="position: fixed"]').forEach(el => el.remove());
+    loadEntries();
+  }
+}
+
+window.onload = loadEntries;
   </script>
 </body>
-</html>
-
 </html>
 
