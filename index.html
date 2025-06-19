@@ -117,28 +117,14 @@
         else el.value = '';
       });
       localStorage.removeItem('editIndex');
+    }
+      localStorage.removeItem('editIndex');
     });
     }
 
     function saveEntry() {
       const editIndex = localStorage.getItem('editIndex');
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const entry = {
-        sn: document.getElementById('sn').value,
-        customer: document.getElementById('customer').value,
-        receiver: document.getElementById('receiver').value,
-        spec: document.getElementById('spec').value,
-        faultType: document.getElementById('faultType').value,
-        receiveNote: document.getElementById('receiveNote').value,
-        checkNote: document.getElementById('checkNote').value,
-        material: document.getElementById('material').value,
-        quantity: document.getElementById('quantity').value,
-        status: document.getElementById('status').value,
-        completeDate: document.getElementById('completeDate').value,
-        createdAt: new Date().toISOString()
-      };
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      data.push(entry);
       if (editIndex !== null) {
         data[editIndex] = entry;
         localStorage.removeItem('editIndex');
