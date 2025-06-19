@@ -57,7 +57,7 @@
       background: white;
       border: 1px solid #ccc;
       padding: 20px;
-      z-index: 1000;
+      z-index: 10002; /* 수정된 z-index */
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
       width: 90vw;
       max-height: 90vh;
@@ -71,7 +71,7 @@
       width: 100vw;
       height: 100vh;
       background: rgba(0,0,0,0.5);
-      z-index: 999;
+      z-index: 10001; /* 수정된 z-index */
     }
   </style>
 </head>
@@ -169,8 +169,10 @@
       const d = data[index];
       const overlay = document.createElement('div');
       overlay.className = 'overlay';
+      overlay.style.zIndex = '10001';
       const modal = document.createElement('div');
       modal.className = 'modal';
+      modal.style.zIndex = '10002';
       modal.innerHTML = `
         <h3>S/N: ${d.sn}</h3>
         <p>고객사: ${d.customer}</p>
