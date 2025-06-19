@@ -22,9 +22,7 @@
     <input type="text" id="search" placeholder="S/N 검색" style="flex: 1" />
     <button onclick="showInputForm(true)" style="flex: none">이력 입력</button>
   </div>
-  <div style="margin-top: 10px;">
-    
-  </div>
+  
   
 </div>
     <div style="margin-top: 10px;">
@@ -34,8 +32,7 @@
       <button onclick="openExportModal()" style="flex: none">엑셀로 내보내기</button>
     </div>
   </div>
-      <label><strong>A/S 날짜 조회:</strong></label>
-      <input type="date" id="searchDate" onchange="filterByASDate()" />
+      
     </div>
     <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
       <button onclick="openExportModal()" style="flex: none">엑셀로 내보내기</button>
@@ -97,13 +94,13 @@
       showInputForm(false);
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const keyword = search.value.trim();
-      const searchDate = document.getElementById('searchDate')?.value || '';
+      const searchDate = '';
       list.innerHTML = '';
       data.filter(d => {
         const created = d.createdAt.split('T')[0];
         const afterStart = !startDate.value || created >= startDate.value;
         const beforeEnd = !endDate.value || created <= endDate.value;
-        return d.sn.includes(keyword) && afterStart && beforeEnd && (!searchDate || d.createdAt.startsWith(searchDate));
+        return d.sn.includes(keyword) && afterStart && beforeEnd ;
       }).forEach((d, i) => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
@@ -231,9 +228,7 @@
       showInputForm(false);
       loadEntries();
     }
-  function filterByASDate() {
-      loadEntries();
-    }
+  
 </script>
 <div id="exportModal" style="display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); background:#fff; border:1px solid #ccc; padding:20px; z-index:1000;">
   <h3>엑셀 추출 날짜 선택</h3>
@@ -244,4 +239,5 @@
 </div>
 </body>
 </html>
+
 
