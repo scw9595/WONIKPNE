@@ -108,8 +108,8 @@
     const formSection = document.getElementById('formSection');
 
     function toggleForm() {
-      formSection.style.display = formSection.style.display === 'block' ? 'none' : 'block';
-    }
+  formSection.style.display = 'block'; // 항상 열기
+}
 
     function clearForm() {
       document.querySelectorAll('#formSection input, #formSection textarea, #formSection select').forEach(el => {
@@ -192,10 +192,14 @@
 }
 
     function exportExcel() {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const date = filterDate.value;
-      const filtered = date ? data.filter(d => d.createdAt.startsWith(date)) : data;
-      let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  const date = filterDate.value;
+  const filtered = date ? data.filter(d => d.createdAt.startsWith(date)) : data;
+  if (filtered.length === 0) {
+    alert('엑셀로 내보낼 데이터가 없습니다.');
+    return;
+  }
+  let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
       filtered.forEach(d => {
         csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
       });
@@ -232,5 +236,4 @@
   </script>
 </body>
 </html>
-
 
