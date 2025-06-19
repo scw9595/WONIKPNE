@@ -9,40 +9,19 @@
     input, select, button, textarea { display: block; margin: 10px 0; padding: 8px; width: 100%; }
     .entry { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; cursor: pointer; }
     .entry.completed { background: #e0ffe0; }
-    #detailView, #inputForm { display: none; border: 1px solid #999; padding: 10px; background: #f9f9f9; margin-top: 20px; }
-    #toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    #toolbar > * { flex: 1 1 200px; }
+    #formSection { display: none; border-top: 2px solid #000; margin-top: 20px; padding-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>장비 이력 관리</h1>
+  <h1>장비 이력 관리 (홈)</h1>
 
-  <div id="toolbar">
-  <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px;">
-    <input type="text" id="search" placeholder="S/N 검색" style="flex: 1" />
-    <button onclick="showInputForm(true)" style="flex: none">이력 입력</button>
-  </div>
-  
-  
-</div>
-    <div style="margin-top: 10px;">
-      
-    </div>
-    <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-      <button onclick="openExportModal()" style="flex: none">엑셀로 내보내기</button>
-    </div>
-  </div>
-      
-    </div>
-    <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-      <button onclick="openExportModal()" style="flex: none">엑셀로 내보내기</button>
-    </div>
-    
-  </div>
-
+  <input type="text" id="search" placeholder="S/N 검색" />
+  <input type="date" id="exportDate" />
+  <button onclick="exportExcel()">엑셀로 추출</button>
+  <button onclick="toggleForm()">이력 입력</button>
   <div id="list"></div>
 
-  <div id="inputForm">
+  <div id="formSection">
     <h2>이력 등록</h2>
     <input type="text" id="sn" placeholder="S/N" />
     <input type="text" id="customer" placeholder="고객사" />
@@ -72,97 +51,58 @@
     </select>
     <input type="date" id="completeDate" />
     <button onclick="saveEntry()">저장</button>
-    <button onclick="showInputForm(false)">취소</button>
   </div>
-
-  <div id="detailView"></div>
 
   <script>
     const list = document.getElementById('list');
     const search = document.getElementById('search');
-    const startDate = document.getElementById('startDate');
-    const endDate = document.getElementById('endDate');
-    const detailView = document.getElementById('detailView');
-    const inputForm = document.getElementById('inputForm');
+    const formSection = document.getElementById('formSection');
 
-    function showInputForm(show) {
-      inputForm.style.display = show ? 'block' : 'none';
-      if (show) inputForm.scrollIntoView({ behavior: 'smooth' });
+    function toggleForm() {
+      formSection.style.display = formSection.style.display === 'block' ? 'none' : 'block';
     }
 
     function loadEntries() {
-      showInputForm(false);
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const keyword = search.value.trim();
-      const searchDate = '';
       list.innerHTML = '';
-      data.filter(d => {
-        const created = d.createdAt.split('T')[0];
-        const afterStart = !startDate.value || created >= startDate.value;
-        const beforeEnd = !endDate.value || created <= endDate.value;
-        return d.sn.includes(keyword) && afterStart && beforeEnd ;
-      }).forEach((d, i) => {
+      data.filter(d => d.sn.includes(keyword)).forEach((d, index) => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> (${d.status}) <br>등록일: ${d.createdAt.split('T')[0]}`;
-        div.onclick = () => showOptions(i);
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}`;
+        div.onclick = () => showEntryOptions(index);
         list.appendChild(div);
       });
     }
 
-    function showOptions(index) {
+    function showEntryOptions(index) {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const entry = data[index];
-      detailView.style.display = 'block';
-      detailView.innerHTML = `
-        <h3>${entry.sn} 이력 상세</h3>
-        <p><strong>고객사:</strong> ${entry.customer}</p>
-        <p><strong>접수자:</strong> ${entry.receiver}</p>
-        <p><strong>스펙:</strong> ${entry.spec}</p>
-        <p><strong>고장유형:</strong> ${entry.faultType}</p>
-        <p><strong>접수내용:</strong> ${entry.receiveNote}</p>
-        <p><strong>점검내용:</strong> ${entry.checkNote}</p>
-        <p><strong>자재:</strong> ${entry.material}</p>
-        <p><strong>수량:</strong> ${entry.quantity}</p>
-        <p><strong>상태:</strong> ${entry.status}</p>
-        <p><strong>완료일:</strong> ${entry.completeDate}</p>
-        <button onclick="editEntry(${index})">수정</button>
-        <button onclick="deleteEntry(${index})">삭제</button>
-        <button onclick="detailView.style.display='none'">닫기</button>
-      `;
-    }
-
-    function editEntry(index) {
-  const data = JSON.parse(localStorage.getItem('logs') || '[]');
-  const entry = data[index];
-  document.getElementById('sn').value = entry.sn;
-  document.getElementById('customer').value = entry.customer;
-  document.getElementById('receiver').value = entry.receiver;
-  document.getElementById('spec').value = entry.spec;
-  document.getElementById('faultType').value = entry.faultType;
-  document.getElementById('receiveNote').value = entry.receiveNote;
-  document.getElementById('checkNote').value = entry.checkNote;
-  document.getElementById('material').value = entry.material;
-  document.getElementById('quantity').value = entry.quantity;
-  document.getElementById('status').value = entry.status;
-  document.getElementById('completeDate').value = entry.completeDate;
-  localStorage.setItem('editIndex', index);
-  showInputForm(true);
-    }
-
-    function deleteEntry(index) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      if (confirm('삭제하시겠습니까?')) {
-        data.splice(index, 1);
-        localStorage.setItem('logs', JSON.stringify(data));
-        loadEntries();
-        detailView.style.display = 'none';
+      if (!confirm('수정하시겠습니까? 취소하면 삭제됩니다.')) {
+        if (confirm('정말 삭제하시겠습니까?')) {
+          data.splice(index, 1);
+          localStorage.setItem('logs', JSON.stringify(data));
+          loadEntries();
+        }
+        return;
       }
+      const d = data[index];
+      document.getElementById('sn').value = d.sn;
+      document.getElementById('customer').value = d.customer;
+      document.getElementById('receiver').value = d.receiver;
+      document.getElementById('spec').value = d.spec;
+      document.getElementById('faultType').value = d.faultType;
+      document.getElementById('receiveNote').value = d.receiveNote;
+      document.getElementById('checkNote').value = d.checkNote;
+      document.getElementById('material').value = d.material;
+      document.getElementById('quantity').value = d.quantity;
+      document.getElementById('status').value = d.status;
+      document.getElementById('completeDate').value = d.completeDate;
+      data.splice(index, 1);
+      localStorage.setItem('logs', JSON.stringify(data));
+      toggleForm();
     }
 
     function saveEntry() {
-  const editIndex = localStorage.getItem('editIndex');
-  const parsedIndex = editIndex !== null ? parseInt(editIndex, 10) : null;
       const entry = {
         id: Date.now(),
         sn: document.getElementById('sn').value,
@@ -179,28 +119,18 @@
         createdAt: new Date().toISOString()
       };
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      if (parsedIndex !== null && !isNaN(parsedIndex)) {
-        data[parsedIndex] = entry;
-        localStorage.removeItem('editIndex');
-      } else {
-        data.push(entry);
-      }
+      data.push(entry);
       localStorage.setItem('logs', JSON.stringify(data));
-      alert('저장 완료');
+      alert('저장되었습니다.');
       loadEntries();
+      formSection.style.display = 'none';
     }
 
     function exportExcel() {
-      closeExportModal();
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const filtered = data.filter(d => {
-        const created = d.createdAt.split('T')[0];
-        const afterStart = !startDate.value || created >= startDate.value;
-        const beforeEnd = !endDate.value || created <= endDate.value;
-        return afterStart && beforeEnd;
-      });
-      let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일
-';
+      const selectedDate = document.getElementById('exportDate').value;
+      const filtered = selectedDate ? data.filter(d => d.createdAt.startsWith(selectedDate)) : data;
+      let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
       filtered.forEach(d => {
         csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
       });
@@ -214,30 +144,8 @@
     }
 
     search.addEventListener('input', loadEntries);
-    startDate.addEventListener('change', loadEntries);
-    endDate.addEventListener('change', loadEntries);
-    function openExportModal() {
-      document.getElementById('exportModal').style.display = 'block';
-    }
-
-    function closeExportModal() {
-      document.getElementById('exportModal').style.display = 'none';
-    }
-
-    window.onload = () => {
-      showInputForm(false);
-      loadEntries();
-    }
-  
-</script>
-<div id="exportModal" style="display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); background:#fff; border:1px solid #ccc; padding:20px; z-index:1000;">
-  <h3>엑셀 추출 날짜 선택</h3>
-  <input type="date" id="startDate" placeholder="시작일" />
-  <input type="date" id="endDate" placeholder="종료일" />
-  <button onclick="exportExcel()">추출하기</button>
-  <button onclick="closeExportModal()">취소</button>
-</div>
+    window.onload = loadEntries;
+  </script>
 </body>
 </html>
-
 
