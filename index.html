@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>장비 이력 관리</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, select, button, textarea { display: block; margin: 10px 0; padding: 8px; width: 100%; }
+    .entry { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .entry.completed { background: #e0ffe0; }
+  </style>
+</head>
+<body>
+  <h1>장비 이력 관리</h1>
+
+  <input type="text" id="search" placeholder="S/N 검색" />
+  <div id="list"></div>
+
+  <h2>이력 등록</h2>
+  <input type="text" id="sn" placeholder="S/N" />
+  <input type="text" id="customer" placeholder="고객사" />
+  <input type="text" id="receiver" placeholder="접수자" />
+  <input type="text" id="spec" placeholder="장비 스펙" />
+  <select id="faultType">
+    <option value="">고장유형 선택</option>
+    <option>HW BLOCK</option>
+    <option>H/W PCB BD</option>
+    <option>성능</option>
+    <option>점검</option>
+    <option>초기불량</option>
+    <option>원인미도출</option>
+    <option>교정</option>
+    <option>복합</option>
+    <option>S/W</option>
+    <option>납품</option>
+    <option>기타</option>
+  </select>
+  <textarea id="receiveNote" placeholder="접수 내용"></textarea>
+  <textarea id="checkNote" placeholder="점검 내용"></textarea>
+  <input type="text" id="material" placeholder="자재" />
+  <input type="number" id="quantity" placeholder="수량" />
+  <select id="status">
+    <option value="미완료">미완료</option>
+    <option value="완료">완료</option>
+  </select>
+  <input type="date" id="completeDate" />
+  <button onclick="saveEntry()">저장</button>
+
+  <script>
+    const list = document.getElementById('list');
+    const search = document.getElementById('search');
+
+    function loadEntries() {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const keyword = search.value.trim();
+      list.innerHTML = '';
+      data.filter(d => d.sn.includes(keyword)).forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+        div.innerHTML = `<strong>${d.sn}</strong> (${d.status})<br>${d.faultType || ''}<br>${d.receiveNote || ''}`;
+        list.appendChild(div);
+      });
+    }
+
+    function saveEntry() {
+      const entry = {
+        id: Date.now(),
+        sn: document.getElementById('sn').value,
+        customer: document.getElementById('customer').value,
+        receiver: document.getElementById('receiver').value,
+        spec: document.getElementById('spec').value,
+        faultType: document.getElementById('faultType').value,
+        receiveNote: document.getElementById('receiveNote').value,
+        checkNote: document.getElementById('checkNote').value,
+        material: document.getElementById('material').value,
+        quantity: document.getElementById('quantity').value,
+        status: document.getElementById('status').value,
+        completeDate: document.getElementById('completeDate').value,
+        createdAt: new Date().toISOString()
+      };
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      data.push(entry);
+      localStorage.setItem('logs', JSON.stringify(data));
+      alert('저장 완료');
+      loadEntries();
+    }
+
+    search.addEventListener('input', loadEntries);
+    window.onload = loadEntries;
+  </script>
+</body>
+</html>
