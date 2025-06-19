@@ -57,7 +57,7 @@
       background: white;
       border: 1px solid #ccc;
       padding: 20px;
-      z-index: 10002; /* 수정된 z-index */
+      z-index: 10002;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
       width: 90vw;
       max-height: 90vh;
@@ -71,7 +71,7 @@
       width: 100vw;
       height: 100vh;
       background: rgba(0,0,0,0.5);
-      z-index: 10001; /* 수정된 z-index */
+      z-index: 10001;
     }
   </style>
 </head>
@@ -100,37 +100,54 @@
       }
     }
 
-    function getFormHTML() {
+    function getFormHTML(index = null) {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const d = index !== null ? data[index] : {};
       return `
-        <h2>이력 등록</h2>
-        <input type="text" id="sn" placeholder="S/N">
-        <input type="text" id="customer" placeholder="고객사">
-        <input type="text" id="receiver" placeholder="접수자">
-        <input type="text" id="spec" placeholder="장비 스펙">
+        <h2>${index !== null ? '이력 수정' : '이력 등록'}</h2>
+        <input type="text" id="sn" placeholder="S/N" value="${d.sn || ''}">
+        <input type="text" id="customer" placeholder="고객사" value="${d.customer || ''}">
+        <input type="text" id="receiver" placeholder="접수자" value="${d.receiver || ''}">
+        <input type="text" id="spec" placeholder="장비 스펙" value="${d.spec || ''}">
         <select id="faultType">
           <option value="">고장유형 선택</option>
-          <option>HW BLOCK</option><option>H/W PCB BD</option><option>성능</option>
-          <option>점검</option><option>초기불량</option><option>원인미도출</option>
-          <option>교정</option><option>복합</option><option>S/W</option>
-          <option>납품</option><option>기타</option>
+          ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}" ${d.faultType===opt?'selected':''}>${opt}</option>`).join('')}
         </select>
-        <textarea id="receiveNote" placeholder="접수 내용"></textarea>
-        <textarea id="checkNote" placeholder="점검 내용"></textarea>
-        <input type="text" id="material" placeholder="자재">
-        <input type="number" id="quantity" placeholder="수량">
+        <textarea id="receiveNote" placeholder="접수 내용">${d.receiveNote || ''}</textarea>
+        <textarea id="checkNote" placeholder="점검 내용">${d.checkNote || ''}</textarea>
+        <input type="text" id="material" placeholder="자재" value="${d.material || ''}">
+        <input type="number" id="quantity" placeholder="수량" value="${d.quantity || ''}">
         <select id="status">
-          <option value="미완료">미완료</option>
-          <option value="완료">완료</option>
+          <option value="미완료" ${d.status==='미완료'?'selected':''}>미완료</option>
+          <option value="완료" ${d.status==='완료'?'selected':''}>완료</option>
         </select>
         <label for="completeDate">완료일</label>
-        <input type="date" id="completeDate">
-        <button onclick="saveEntry()">저장</button>
+        <input type="date" id="completeDate" value="${d.completeDate || ''}">
+        <button onclick="${index !== null ? `updateEntry(${index})` : 'saveEntry()'}">저장</button>
         <button onclick="toggleForm(true)">닫기</button>
       `;
     }
 
     function saveEntry() {
-      const entry = {
+      const entry = collectFormData();
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      data.push(entry);
+      localStorage.setItem('logs', JSON.stringify(data));
+      alert('저장되었습니다.');
+      toggleForm(true);
+    }
+
+    function updateEntry(index) {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      data[index] = collectFormData();
+      localStorage.setItem('logs', JSON.stringify(data));
+      alert('수정되었습니다.');
+      toggleForm(true);
+      showHistory();
+    }
+
+    function collectFormData() {
+      return {
         sn: document.getElementById('sn').value,
         customer: document.getElementById('customer').value,
         receiver: document.getElementById('receiver').value,
@@ -144,11 +161,6 @@
         completeDate: document.getElementById('completeDate').value,
         createdAt: new Date().toISOString()
       };
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      data.push(entry);
-      localStorage.setItem('logs', JSON.stringify(data));
-      alert('저장되었습니다.');
-      toggleForm(true);
     }
 
     function showHistory() {
@@ -186,7 +198,8 @@
         <p>상태: ${d.status}</p>
         <p>완료일: ${d.completeDate}</p>
         <p>등록일: ${d.createdAt.split('T')[0]}</p>
-        <button onclick="this.closest('.overlay').remove()">닫기</button>
+        <button onclick="toggleForm(true); document.body.removeChild(this.closest('.overlay')); document.getElementById('formSection').innerHTML = getFormHTML(${index}); document.getElementById('formSection').style.display = 'block';">수정하기</button>
+        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
       `;
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
