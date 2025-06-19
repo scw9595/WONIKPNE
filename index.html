@@ -7,60 +7,96 @@
   <style>
     body { font-family: sans-serif; padding: 20px; }
     input, select, button, textarea { display: block; margin: 10px 0; padding: 8px; width: 100%; }
-    .entry { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .entry { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; cursor: pointer; }
     .entry.completed { background: #e0ffe0; }
+    #detailView { display: none; border: 1px solid #999; padding: 10px; background: #f9f9f9; }
   </style>
 </head>
 <body>
   <h1>장비 이력 관리</h1>
 
   <input type="text" id="search" placeholder="S/N 검색" />
+  <input type="date" id="dateFilter" />
+  <button onclick="exportExcel()">엑셀로 내보내기</button>
+  <button onclick="showInputForm()">장비 이력 입력</button>
+
   <div id="list"></div>
 
-  <h2>이력 등록</h2>
-  <input type="text" id="sn" placeholder="S/N" />
-  <input type="text" id="customer" placeholder="고객사" />
-  <input type="text" id="receiver" placeholder="접수자" />
-  <input type="text" id="spec" placeholder="장비 스펙" />
-  <select id="faultType">
-    <option value="">고장유형 선택</option>
-    <option>HW BLOCK</option>
-    <option>H/W PCB BD</option>
-    <option>성능</option>
-    <option>점검</option>
-    <option>초기불량</option>
-    <option>원인미도출</option>
-    <option>교정</option>
-    <option>복합</option>
-    <option>S/W</option>
-    <option>납품</option>
-    <option>기타</option>
-  </select>
-  <textarea id="receiveNote" placeholder="접수 내용"></textarea>
-  <textarea id="checkNote" placeholder="점검 내용"></textarea>
-  <input type="text" id="material" placeholder="자재" />
-  <input type="number" id="quantity" placeholder="수량" />
-  <select id="status">
-    <option value="미완료">미완료</option>
-    <option value="완료">완료</option>
-  </select>
-  <input type="date" id="completeDate" />
-  <button onclick="saveEntry()">저장</button>
+  <div id="inputForm">
+    <h2>이력 등록</h2>
+    <input type="text" id="sn" placeholder="S/N" />
+    <input type="text" id="customer" placeholder="고객사" />
+    <input type="text" id="receiver" placeholder="접수자" />
+    <input type="text" id="spec" placeholder="장비 스펙" />
+    <select id="faultType">
+      <option value="">고장유형 선택</option>
+      <option>HW BLOCK</option>
+      <option>H/W PCB BD</option>
+      <option>성능</option>
+      <option>점검</option>
+      <option>초기불량</option>
+      <option>원인미도출</option>
+      <option>교정</option>
+      <option>복합</option>
+      <option>S/W</option>
+      <option>납품</option>
+      <option>기타</option>
+    </select>
+    <textarea id="receiveNote" placeholder="접수 내용"></textarea>
+    <textarea id="checkNote" placeholder="점검 내용"></textarea>
+    <input type="text" id="material" placeholder="자재" />
+    <input type="number" id="quantity" placeholder="수량" />
+    <select id="status">
+      <option value="미완료">미완료</option>
+      <option value="완료">완료</option>
+    </select>
+    <input type="date" id="completeDate" />
+    <button onclick="saveEntry()">저장</button>
+  </div>
+
+  <div id="detailView"></div>
 
   <script>
     const list = document.getElementById('list');
     const search = document.getElementById('search');
+    const dateFilter = document.getElementById('dateFilter');
+    const detailView = document.getElementById('detailView');
+    const inputForm = document.getElementById('inputForm');
+
+    function showInputForm() {
+      inputForm.scrollIntoView({ behavior: 'smooth' });
+    }
 
     function loadEntries() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const keyword = search.value.trim();
+      const date = dateFilter.value;
       list.innerHTML = '';
-      data.filter(d => d.sn.includes(keyword)).forEach(d => {
+      data.filter(d => d.sn.includes(keyword) && (!date || d.createdAt.startsWith(date))).forEach(d => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> (${d.status})<br>${d.faultType || ''}<br>${d.receiveNote || ''}`;
+        div.innerHTML = `<strong>${d.sn}</strong> (${d.status}) <br>등록일: ${d.createdAt.split('T')[0]}`;
+        div.onclick = () => showDetail(d);
         list.appendChild(div);
       });
+    }
+
+    function showDetail(entry) {
+      detailView.style.display = 'block';
+      detailView.innerHTML = `
+        <h3>${entry.sn} 이력 상세</h3>
+        <p><strong>고객사:</strong> ${entry.customer || ''}</p>
+        <p><strong>접수자:</strong> ${entry.receiver || ''}</p>
+        <p><strong>스펙:</strong> ${entry.spec || ''}</p>
+        <p><strong>고장유형:</strong> ${entry.faultType || ''}</p>
+        <p><strong>접수내용:</strong> ${entry.receiveNote || ''}</p>
+        <p><strong>점검내용:</strong> ${entry.checkNote || ''}</p>
+        <p><strong>자재:</strong> ${entry.material || ''}</p>
+        <p><strong>수량:</strong> ${entry.quantity || ''}</p>
+        <p><strong>완료여부:</strong> ${entry.status}</p>
+        <p><strong>완료일:</strong> ${entry.completeDate || ''}</p>
+        <button onclick="detailView.style.display='none'">닫기</button>
+      `;
     }
 
     function saveEntry() {
@@ -86,7 +122,25 @@
       loadEntries();
     }
 
+    function exportExcel() {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const filtered = dateFilter.value
+        ? data.filter(d => d.createdAt.startsWith(dateFilter.value))
+        : data;
+      let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
+      filtered.forEach(d => {
+        csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '장비이력.csv';
+      a.click();
+    }
+
     search.addEventListener('input', loadEntries);
+    dateFilter.addEventListener('change', loadEntries);
     window.onload = loadEntries;
   </script>
 </body>
