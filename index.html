@@ -87,10 +87,17 @@
   <div id="historyList"></div>
 
   <script>
-    function toggleForm() {
+    function toggleForm(closeOnly = false) {
       const form = document.getElementById('formSection');
-      form.innerHTML = getFormHTML();
-      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      if (form.style.display === 'none') {
+        if (!closeOnly) {
+          form.innerHTML = getFormHTML();
+          form.style.display = 'block';
+        }
+      } else {
+        form.style.display = 'none';
+        form.innerHTML = '';
+      }
     }
 
     function getFormHTML() {
@@ -118,7 +125,7 @@
         <label for="completeDate">완료일</label>
         <input type="date" id="completeDate">
         <button onclick="saveEntry()">저장</button>
-        <button onclick="toggleForm()">닫기</button>
+        <button onclick="toggleForm(true)">닫기</button>
       `;
     }
 
@@ -140,8 +147,8 @@
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       data.push(entry);
       localStorage.setItem('logs', JSON.stringify(data));
-      toggleForm();
       alert('저장되었습니다.');
+      toggleForm(true);
     }
 
     function showHistory() {
@@ -197,6 +204,10 @@
       a.download = '장비이력.csv';
       a.click();
     }
+
+    window.onload = () => {
+      document.getElementById('formSection').style.display = 'none';
+    };
   </script>
 </body>
 </html>
