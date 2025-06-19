@@ -249,7 +249,8 @@
   if (container) loadEntries(container);
 });
     window.onload = () => {
-  // 초기화 필요시 여기에 작성
+  document.querySelector('button[onclick="openFullForm()"]')?.addEventListener('click', openFullForm);
+  document.querySelector('button[onclick="openHistoryPopup()"]')?.addEventListener('click', openHistoryPopup);
 };
   function exportExcel() {
   const data = JSON.parse(localStorage.getItem('logs') || '[]');
@@ -281,5 +282,6 @@
 </script>
 </body>
 </html>
+
 
 
