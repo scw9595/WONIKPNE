@@ -118,20 +118,21 @@
     }
 
     function editEntry(index) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const entry = data[index];
-      document.getElementById('sn').value = entry.sn;
-      document.getElementById('customer').value = entry.customer;
-      document.getElementById('receiver').value = entry.receiver;
-      document.getElementById('spec').value = entry.spec;
-      document.getElementById('faultType').value = entry.faultType;
-      document.getElementById('receiveNote').value = entry.receiveNote;
-      document.getElementById('checkNote').value = entry.checkNote;
-      document.getElementById('material').value = entry.material;
-      document.getElementById('quantity').value = entry.quantity;
-      document.getElementById('status').value = entry.status;
-      document.getElementById('completeDate').value = entry.completeDate;
-      deleteEntry(index);
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  const entry = data[index];
+  document.getElementById('sn').value = entry.sn;
+  document.getElementById('customer').value = entry.customer;
+  document.getElementById('receiver').value = entry.receiver;
+  document.getElementById('spec').value = entry.spec;
+  document.getElementById('faultType').value = entry.faultType;
+  document.getElementById('receiveNote').value = entry.receiveNote;
+  document.getElementById('checkNote').value = entry.checkNote;
+  document.getElementById('material').value = entry.material;
+  document.getElementById('quantity').value = entry.quantity;
+  document.getElementById('status').value = entry.status;
+  document.getElementById('completeDate').value = entry.completeDate;
+  localStorage.setItem('editIndex', index);
+  showInputForm(true);
       showInputForm(true);
     }
 
@@ -146,6 +147,7 @@
     }
 
     function saveEntry() {
+  const editIndex = localStorage.getItem('editIndex');
       const entry = {
         id: Date.now(),
         sn: document.getElementById('sn').value,
@@ -162,7 +164,12 @@
         createdAt: new Date().toISOString()
       };
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      data.push(entry);
+      if (editIndex !== null) {
+        data[editIndex] = entry;
+        localStorage.removeItem('editIndex');
+      } else {
+        data.push(entry);
+      }
       localStorage.setItem('logs', JSON.stringify(data));
       alert('저장 완료');
       loadEntries();
@@ -199,3 +206,4 @@
   </script>
 </body>
 </html>
+
