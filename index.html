@@ -165,6 +165,7 @@
 
     function saveEntry() {
   const editIndex = localStorage.getItem('editIndex');
+  const parsedIndex = editIndex !== null ? parseInt(editIndex, 10) : null;
       const entry = {
         id: Date.now(),
         sn: document.getElementById('sn').value,
@@ -181,8 +182,8 @@
         createdAt: new Date().toISOString()
       };
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      if (editIndex !== null) {
-        data[editIndex] = entry;
+      if (parsedIndex !== null && !isNaN(parsedIndex)) {
+        data[parsedIndex] = entry;
         localStorage.removeItem('editIndex');
       } else {
         data.push(entry);
@@ -243,5 +244,4 @@
 </div>
 </body>
 </html>
-
 
