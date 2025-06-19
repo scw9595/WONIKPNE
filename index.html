@@ -49,36 +49,12 @@
       border-left-color: #2ecc71;
       background-color: #e9fbee;
     }
-    .modal {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      border: 1px solid #ccc;
-      padding: 20px;
-      z-index: 10003;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      width: 90vw;
-      max-height: 90vh;
-      overflow-y: auto;
-      border-radius: 10px;
-    }
-    .overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0,0,0,0.5);
-      z-index: 10002;
-    }
   </style>
 </head>
 <body>
   <h1>장비 이력 관리 시스템</h1>
   <input type="text" id="search" placeholder="전체 검색">
-  <input type="date" id="filterDate" onchange="showHistory()">
+  <input type="date" id="filterDate">
   <button onclick="toggleForm()">이력 입력</button>
   <button onclick="showHistory()">내역 확인</button>
   <button onclick="exportExcel()">엑셀 추출</button>
@@ -100,45 +76,43 @@
       }
     }
 
-    function getFormHTML(index = null) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const d = index !== null ? data[index] : {};
+    function getFormHTML() {
       const today = new Date().toISOString().split('T')[0];
       return `
-        <h2>${index !== null ? '이력 수정' : '이력 등록'}</h2>
-        <input type="text" id="customer" placeholder="고객사" value="${d.customer || ''}">
-        <input type="text" id="sn" placeholder="S/N" value="${d.sn || ''}">
-        <input type="text" id="model" placeholder="모델" value="${d.model || ''}">
-        <input type="text" id="spec" placeholder="스펙" value="${d.spec || ''}">
+        <h2>이력 등록</h2>
+        <input type="text" id="customer" placeholder="고객사">
+        <input type="text" id="sn" placeholder="S/N">
+        <input type="text" id="model" placeholder="모델">
+        <input type="text" id="spec" placeholder="스펙">
         <select id="faultType">
           <option value="">고장유형 선택</option>
-          ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}" ${d.faultType===opt?'selected':''}>${opt}</option>`).join('')}
+          ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}">${opt}</option>`).join('')}
         </select>
-        <textarea id="receiveNote" placeholder="접수 내용">${d.receiveNote || ''}</textarea>
-        <input type="text" id="receiver" placeholder="담당자" value="${d.receiver || ''}">
-        <input type="text" id="inspector" placeholder="점검자" value="${d.inspector || ''}">
-        <input type="date" id="inspectDate" value="${d.inspectDate || today}" readonly>
-        <textarea id="checkNote" placeholder="조치 내용">${d.checkNote || ''}</textarea>
-        <input type="text" id="material" placeholder="교체부품" value="${d.material || ''}">
-        <input type="number" id="quantity" placeholder="수량" value="${d.quantity || ''}">
+        <textarea id="receiveNote" placeholder="접수 내용"></textarea>
+        <input type="text" id="receiver" placeholder="담당자">
+        <input type="text" id="inspector" placeholder="점검자">
+        <input type="date" id="inspectDate" value="${today}" readonly>
+        <textarea id="checkNote" placeholder="조치 내용"></textarea>
+        <input type="text" id="material" placeholder="교체부품">
+        <input type="number" id="quantity" placeholder="수량">
         <select id="costType">
-          <option value="유상" ${d.costType==='유상'?'selected':''}>유상</option>
-          <option value="무상" ${d.costType==='무상'?'selected':''}>무상</option>
+          <option value="유상">유상</option>
+          <option value="무상">무상</option>
         </select>
         <label for="status">진행 상태 (작업 완료 여부 선택)</label>
         <select id="status">
-          <option value="미완료" ${d.status==='미완료'?'selected':''}>미완료</option>
-          <option value="완료" ${d.status==='완료'?'selected':''}>완료</option>
+          <option value="미완료">미완료</option>
+          <option value="완료">완료</option>
         </select>
         <label for="completeDate">완료일 (완료된 날짜를 선택하세요)</label>
-        <input type="date" id="completeDate" value="${d.completeDate || ''}">
-        <button onclick="${index !== null ? `updateEntry(${index})` : 'saveEntry()'}">저장</button>
+        <input type="date" id="completeDate">
+        <button onclick="saveEntry()">저장</button>
         <button onclick="toggleForm(true)">닫기</button>
       `;
     }
 
-    function collectFormData() {
-      return {
+    function saveEntry() {
+      const entry = {
         customer: document.getElementById('customer').value,
         sn: document.getElementById('sn').value,
         model: document.getElementById('model').value,
@@ -156,7 +130,45 @@
         completeDate: document.getElementById('completeDate').value,
         createdAt: new Date().toISOString()
       };
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      data.push(entry);
+      localStorage.setItem('logs', JSON.stringify(data));
+      toggleForm(true);
+      showHistory();
     }
+
+    function showHistory() {
+      const list = document.getElementById('historyList');
+      const keyword = document.getElementById('search').value.toLowerCase();
+      const date = document.getElementById('filterDate').value;
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      list.innerHTML = '';
+
+      data.filter(d => {
+        const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
+        const matchDate = !date || d.createdAt.startsWith(date);
+        return matchKeyword && matchDate;
+      }).forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>${d.createdAt.split('T')[0]}</small>`;
+        list.appendChild(div);
+      });
+    }
+
+    function exportExcel() {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      if (!data.length) return alert('데이터가 없습니다.');
+      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
+      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('\n');
+      const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '장비이력.csv';
+      a.click();
+    }
+
+    window.onload = showHistory;
   </script>
 </body>
 </html>
