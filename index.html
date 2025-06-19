@@ -2,34 +2,32 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>장비 이력 관리</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>장비 이력 관리 앱</title>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
-    input, select, button, textarea { display: block; margin: 10px 0; padding: 8px; width: 100%; }
+    input, select, textarea, button { display: block; width: 100%; margin: 10px 0; padding: 8px; }
     .entry { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; cursor: pointer; }
-    .entry.completed { background: #e0ffe0; }
-    #formSection { display: none; border-top: 2px solid #000; margin-top: 20px; padding-top: 20px; }
+    .entry.completed { background-color: #e0ffe0; }
+    #formSection { display: none; margin-top: 30px; border-top: 2px solid #000; padding-top: 20px; }
   </style>
 </head>
 <body>
   <h1>장비 이력 관리</h1>
 
-  <div id="toolbar">
-    <input type="text" id="search" placeholder="검색어 입력 (전체 검색)" />
-    <input type="date" id="filterDate" placeholder="날짜 선택" />
-    <button onclick="toggleForm()">이력 입력</button>
-    <button onclick="exportExcel()">엑셀로 추출</button>
-  </div>
+  <input type="text" id="search" placeholder="전체 검색">
+  <input type="date" id="filterDate">
+  <button onclick="toggleForm()">이력 입력</button>
+  <button onclick="exportExcel()">엑셀 추출</button>
 
   <div id="list"></div>
 
   <div id="formSection">
     <h2>이력 등록</h2>
-    <input type="text" id="sn" placeholder="S/N" />
-    <input type="text" id="customer" placeholder="고객사" />
-    <input type="text" id="receiver" placeholder="접수자" />
-    <input type="text" id="spec" placeholder="장비 스펙" />
+    <input type="text" id="sn" placeholder="S/N">
+    <input type="text" id="customer" placeholder="고객사">
+    <input type="text" id="receiver" placeholder="접수자">
+    <input type="text" id="spec" placeholder="장비 스펙">
     <select id="faultType">
       <option value="">고장유형 선택</option>
       <option>HW BLOCK</option>
@@ -46,13 +44,13 @@
     </select>
     <textarea id="receiveNote" placeholder="접수 내용"></textarea>
     <textarea id="checkNote" placeholder="점검 내용"></textarea>
-    <input type="text" id="material" placeholder="자재" />
-    <input type="number" id="quantity" placeholder="수량" />
+    <input type="text" id="material" placeholder="자재">
+    <input type="number" id="quantity" placeholder="수량">
     <select id="status">
       <option value="미완료">미완료</option>
       <option value="완료">완료</option>
     </select>
-    <input type="date" id="completeDate" placeholder="완료일" />
+    <input type="date" id="completeDate" placeholder="완료일">
     <button onclick="saveEntry()">저장</button>
   </div>
 
@@ -66,26 +64,15 @@
       formSection.style.display = formSection.style.display === 'block' ? 'none' : 'block';
     }
 
-    function loadEntries() {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const keyword = search.value.trim();
-      const date = filterDate.value;
-      list.innerHTML = '';
-      data.filter(d => {
-        const matchText = JSON.stringify(d).includes(keyword);
-        const matchDate = !date || d.createdAt.startsWith(date);
-        return matchText && matchDate;
-      }).forEach(d => {
-        const div = document.createElement('div');
-        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} (${d.createdAt.split('T')[0]})`;
-        list.appendChild(div);
+    function clearForm() {
+      document.querySelectorAll('#formSection input, #formSection textarea, #formSection select').forEach(el => {
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = '';
       });
     }
 
     function saveEntry() {
       const entry = {
-        id: Date.now(),
         sn: document.getElementById('sn').value,
         customer: document.getElementById('customer').value,
         receiver: document.getElementById('receiver').value,
@@ -102,18 +89,26 @@
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       data.push(entry);
       localStorage.setItem('logs', JSON.stringify(data));
-      alert('저장되었습니다.');
       clearForm();
       toggleForm();
       loadEntries();
     }
 
-    function clearForm() {
-      document.querySelectorAll('#formSection input, #formSection textarea, #formSection select').forEach(el => {
-        if (el.tagName === 'SELECT') el.selectedIndex = 0;
-        else el.value = '';
+    function loadEntries() {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const keyword = search.value.trim().toLowerCase();
+      const date = filterDate.value;
+      list.innerHTML = '';
+      data.filter(d => {
+        const matchText = JSON.stringify(d).toLowerCase().includes(keyword);
+        const matchDate = !date || d.createdAt.startsWith(date);
+        return matchText && matchDate;
+      }).forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+        div.textContent = `${d.sn} - ${d.status} (${d.createdAt.split('T')[0]})`;
+        list.appendChild(div);
       });
-      document.getElementById('status').value = '미완료';
     }
 
     function exportExcel() {
@@ -124,11 +119,10 @@
       filtered.forEach(d => {
         csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
       });
-      const utf8Bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-      const blob = new Blob([utf8Bom, csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
+      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
-      a.href = url;
+      a.href = URL.createObjectURL(blob);
       a.download = '장비이력.csv';
       a.click();
     }
@@ -139,4 +133,3 @@
   </script>
 </body>
 </html>
-
