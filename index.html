@@ -17,8 +17,19 @@
 <body>
   <h1>장비 이력 관리</h1>
 
-  $1
+  <div id="toolbar">
+    <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px;">
+      <input type="text" id="search" placeholder="S/N 검색" style="flex: 1" />
+      <button onclick="showInputForm(true)" style="flex: none">이력 입력</button>
+    </div>
     <div style="margin-top: 10px;">
+      <label><strong>A/S 날짜 조회:</strong></label>
+      <input type="date" id="searchDate" onchange="filterByASDate()" />
+    </div>
+    <div style="flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+      <button onclick="openExportModal()" style="flex: none">엑셀로 내보내기</button>
+    </div>
+  </div>
       <label><strong>A/S 날짜 조회:</strong></label>
       <input type="date" id="searchDate" onchange="filterByASDate()" />
     </div>
@@ -136,7 +147,6 @@
   document.getElementById('completeDate').value = entry.completeDate;
   localStorage.setItem('editIndex', index);
   showInputForm(true);
-      showInputForm(true);
     }
 
     function deleteEntry(index) {
