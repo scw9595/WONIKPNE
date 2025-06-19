@@ -109,7 +109,7 @@
     const formSection = document.getElementById('formSection');
 
     function toggleForm() {
-  formSection.style.display = 'block'; // 항상 열기
+  formSection.style.display = formSection.style.display === 'block' ? 'none' : 'block';
 }
 
     function clearForm() {
@@ -250,5 +250,4 @@ window.onload = loadEntries;
   </script>
 </body>
 </html>
-
 
