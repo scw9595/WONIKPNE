@@ -142,63 +142,54 @@
     }
 
     function loadEntries() {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const keyword = search.value.trim().toLowerCase();
-      const date = filterDate.value;
-      list.innerHTML = '';
-      data.forEach((d, index) => {
-        const div = document.createElement('div');
-        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
-        div.addEventListener('click', () => {
-          const modal = document.createElement('div');
-          modal.style.position = 'fixed';
-          modal.style.top = '50%';
-          modal.style.left = '50%';
-          modal.style.transform = 'translate(-50%, -50%)';
-          modal.style.background = '#fff';
-          modal.style.border = '1px solid #ccc';
-          modal.style.padding = '20px';
-          modal.style.zIndex = '9999';
-          modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  const keyword = search.value.trim().toLowerCase();
+  const date = filterDate.value;
+  list.innerHTML = '';
+  data.filter(d => {
+    const matchText = JSON.stringify(d).toLowerCase().includes(keyword);
+    const matchDate = !date || d.createdAt.startsWith(date);
+    return matchText && matchDate;
+  }).forEach((d, index) => {
+    const div = document.createElement('div');
+    div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+    div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
+    div.addEventListener('click', () => {
+      const modal = document.createElement('div');
+      modal.style.position = 'fixed';
+      modal.style.top = '50%';
+      modal.style.left = '50%';
+      modal.style.transform = 'translate(-50%, -50%)';
+      modal.style.background = '#fff';
+      modal.style.border = '1px solid #ccc';
+      modal.style.padding = '20px';
+      modal.style.zIndex = '9999';
+      modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
 
-          modal.innerHTML = `
-            <h3>S/N: <input value="${d.sn}" id="edit-sn"></h3>
-            <p>고객사: <input value="${d.customer}" id="edit-customer"></p>
-            <p>접수자: <input value="${d.receiver}" id="edit-receiver"></p>
-            <p>스펙: <input value="${d.spec}" id="edit-spec"></p>
-            <p>고장유형: <input value="${d.faultType}" id="edit-faultType"></p>
-            <p>접수내용: <textarea id="edit-receiveNote">${d.receiveNote}</textarea></p>
-            <p>점검내용: <textarea id="edit-checkNote">${d.checkNote}</textarea></p>
-            <p>자재: <input value="${d.material}" id="edit-material"></p>
-            <p>수량: <input type="number" value="${d.quantity}" id="edit-quantity"></p>
-            <p>상태: <select id="edit-status">
-              <option value="미완료" ${d.status === '미완료' ? 'selected' : ''}>미완료</option>
-              <option value="완료" ${d.status === '완료' ? 'selected' : ''}>완료</option>
-            </select></p>
-            <p>완료일: <input type="date" value="${d.completeDate}" id="edit-completeDate"></p>
-            <button onclick="savePopup(${index})">수정 저장</button>
-            <button onclick="this.parentElement.remove()">닫기</button>
-          `;
+      modal.innerHTML = `
+        <h3>S/N: <input value="${d.sn}" id="edit-sn"></h3>
+        <p>고객사: <input value="${d.customer}" id="edit-customer"></p>
+        <p>접수자: <input value="${d.receiver}" id="edit-receiver"></p>
+        <p>스펙: <input value="${d.spec}" id="edit-spec"></p>
+        <p>고장유형: <input value="${d.faultType}" id="edit-faultType"></p>
+        <p>접수내용: <textarea id="edit-receiveNote">${d.receiveNote}</textarea></p>
+        <p>점검내용: <textarea id="edit-checkNote">${d.checkNote}</textarea></p>
+        <p>자재: <input value="${d.material}" id="edit-material"></p>
+        <p>수량: <input type="number" value="${d.quantity}" id="edit-quantity"></p>
+        <p>상태: <select id="edit-status">
+          <option value="미완료" ${d.status === '미완료' ? 'selected' : ''}>미완료</option>
+          <option value="완료" ${d.status === '완료' ? 'selected' : ''}>완료</option>
+        </select></p>
+        <p>완료일: <input type="date" value="${d.completeDate}" id="edit-completeDate"></p>
+        <button onclick="savePopup(${index})">수정 저장</button>
+        <button onclick="this.parentElement.remove()">닫기</button>
+      `;
 
-          document.body.appendChild(modal);
-        });
-        });
-        });
-        list.appendChild(div);
-      });
-      return;
-      data.filter(d => {
-        const matchText = JSON.stringify(d).toLowerCase().includes(keyword);
-        const matchDate = !date || d.createdAt.startsWith(date);
-        return matchText && matchDate;
-      }).forEach(d => {
-        const div = document.createElement('div');
-        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
-        list.appendChild(div);
-      });
-    }
+      document.body.appendChild(modal);
+    });
+    list.appendChild(div);
+  });
+}
 
     function exportExcel() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
