@@ -66,10 +66,7 @@
   <input type="date" id="filterDate">
   <button onclick="openFullForm()">이력 입력</button>
   
-  <button onclick="toggleHistory()">이력 보기</button>
-<div id="historySection" style="display: none;">
-  <button onclick="exportExcel()">엑셀 추출</button>
-  <div id="list" style="display:none;"></div>
+  <button onclick="openHistoryPopup()">이력 보기</button>
 </div>
 
   
@@ -308,6 +305,92 @@ window.onload = loadEntries;
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
   }
+function openHistoryPopup() {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.background = 'rgba(0,0,0,0.5)';
+  overlay.style.zIndex = '10000';
+
+  const modal = document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.style.top = '50%';
+  modal.style.left = '50%';
+  modal.style.transform = 'translate(-50%, -50%)';
+  modal.style.background = '#fff';
+  modal.style.padding = '30px';
+  modal.style.borderRadius = '10px';
+  modal.style.width = '90vw';
+  modal.style.maxHeight = '90vh';
+  modal.style.overflowY = 'auto';
+  modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '닫기';
+  closeBtn.onclick = () => document.body.removeChild(overlay);
+  modal.appendChild(closeBtn);
+
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = '엑셀 추출';
+  exportBtn.onclick = exportExcel;
+  modal.appendChild(exportBtn);
+
+  const container = document.createElement('div');
+  container.id = 'popup-list';
+  modal.appendChild(container);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // 불러오기
+  const data = JSON.parse(localStorage.getItem('logs') || '[]');
+  container.innerHTML = '';
+  data.forEach((d, index) => {
+    const div = document.createElement('div');
+    div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+    div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} <br><small>등록일: ${d.createdAt.split('T')[0]}</small>`;
+    div.addEventListener('click', () => {
+      const modal = document.createElement('div');
+      modal.style.position = 'fixed';
+      modal.style.top = '50%';
+      modal.style.left = '50%';
+      modal.style.transform = 'translate(-50%, -50%)';
+      modal.style.background = '#fff';
+      modal.style.border = '1px solid #ccc';
+      modal.style.padding = '20px';
+      modal.style.zIndex = '9999';
+      modal.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+      modal.style.width = '80vw';
+      modal.style.maxHeight = '80vh';
+      modal.style.overflowY = 'auto';
+      modal.innerHTML = `
+        <h3>S/N: <input value="${d.sn}" id="edit-sn"></h3>
+        <p>고객사: <input value="${d.customer}" id="edit-customer"></p>
+        <p>접수자: <input value="${d.receiver}" id="edit-receiver"></p>
+        <p>스펙: <input value="${d.spec}" id="edit-spec"></p>
+        <p>고장유형: <input value="${d.faultType}" id="edit-faultType"></p>
+        <p>접수내용: <textarea id="edit-receiveNote">${d.receiveNote}</textarea></p>
+        <p>점검내용: <textarea id="edit-checkNote">${d.checkNote}</textarea></p>
+        <p>자재: <input value="${d.material}" id="edit-material"></p>
+        <p>수량: <input type="number" value="${d.quantity}" id="edit-quantity"></p>
+        <p>상태: <select id="edit-status">
+          <option value="미완료" ${d.status === '미완료' ? 'selected' : ''}>미완료</option>
+          <option value="완료" ${d.status === '완료' ? 'selected' : ''}>완료</option>
+        </select></p>
+        <p>완료일: <input type="date" value="${d.completeDate}" id="edit-completeDate"></p>
+        <button onclick="savePopup(${index})">수정 저장</button>
+        <button onclick="deletePopup(${index})">삭제</button>
+        <button onclick="this.parentElement.remove()">닫기</button>
+      `;
+      document.body.appendChild(modal);
+    });
+    container.appendChild(div);
+  });
+}
 </script>
 </body>
 </html>
+
