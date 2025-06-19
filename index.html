@@ -13,12 +13,15 @@
   </style>
 </head>
 <body>
-  <h1>장비 이력 관리 (홈)</h1>
+  <h1>장비 이력 관리</h1>
 
-  <input type="text" id="search" placeholder="S/N 검색" />
-  <input type="date" id="exportDate" />
-  <button onclick="exportExcel()">엑셀로 추출</button>
-  <button onclick="toggleForm()">이력 입력</button>
+  <div id="toolbar">
+    <input type="text" id="search" placeholder="검색어 입력 (전체 검색)" />
+    <input type="date" id="filterDate" placeholder="날짜 선택" />
+    <button onclick="toggleForm()">이력 입력</button>
+    <button onclick="exportExcel()">엑셀로 추출</button>
+  </div>
+
   <div id="list"></div>
 
   <div id="formSection">
@@ -49,13 +52,14 @@
       <option value="미완료">미완료</option>
       <option value="완료">완료</option>
     </select>
-    <input type="date" id="completeDate" />
+    <input type="date" id="completeDate" placeholder="완료일" />
     <button onclick="saveEntry()">저장</button>
   </div>
 
   <script>
     const list = document.getElementById('list');
     const search = document.getElementById('search');
+    const filterDate = document.getElementById('filterDate');
     const formSection = document.getElementById('formSection');
 
     function toggleForm() {
@@ -65,41 +69,18 @@
     function loadEntries() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const keyword = search.value.trim();
+      const date = filterDate.value;
       list.innerHTML = '';
-      data.filter(d => d.sn.includes(keyword)).forEach((d, index) => {
+      data.filter(d => {
+        const matchText = JSON.stringify(d).includes(keyword);
+        const matchDate = !date || d.createdAt.startsWith(date);
+        return matchText && matchDate;
+      }).forEach(d => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}`;
-        div.onclick = () => showEntryOptions(index);
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status} (${d.createdAt.split('T')[0]})`;
         list.appendChild(div);
       });
-    }
-
-    function showEntryOptions(index) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      if (!confirm('수정하시겠습니까? 취소하면 삭제됩니다.')) {
-        if (confirm('정말 삭제하시겠습니까?')) {
-          data.splice(index, 1);
-          localStorage.setItem('logs', JSON.stringify(data));
-          loadEntries();
-        }
-        return;
-      }
-      const d = data[index];
-      document.getElementById('sn').value = d.sn;
-      document.getElementById('customer').value = d.customer;
-      document.getElementById('receiver').value = d.receiver;
-      document.getElementById('spec').value = d.spec;
-      document.getElementById('faultType').value = d.faultType;
-      document.getElementById('receiveNote').value = d.receiveNote;
-      document.getElementById('checkNote').value = d.checkNote;
-      document.getElementById('material').value = d.material;
-      document.getElementById('quantity').value = d.quantity;
-      document.getElementById('status').value = d.status;
-      document.getElementById('completeDate').value = d.completeDate;
-      data.splice(index, 1);
-      localStorage.setItem('logs', JSON.stringify(data));
-      toggleForm();
     }
 
     function saveEntry() {
@@ -122,14 +103,23 @@
       data.push(entry);
       localStorage.setItem('logs', JSON.stringify(data));
       alert('저장되었습니다.');
+      clearForm();
+      toggleForm();
       loadEntries();
-      formSection.style.display = 'none';
+    }
+
+    function clearForm() {
+      document.querySelectorAll('#formSection input, #formSection textarea, #formSection select').forEach(el => {
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = '';
+      });
+      document.getElementById('status').value = '미완료';
     }
 
     function exportExcel() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const selectedDate = document.getElementById('exportDate').value;
-      const filtered = selectedDate ? data.filter(d => d.createdAt.startsWith(selectedDate)) : data;
+      const date = filterDate.value;
+      const filtered = date ? data.filter(d => d.createdAt.startsWith(date)) : data;
       let csv = 'S/N,고객사,접수자,스펙,고장유형,접수내용,점검내용,자재,수량,상태,완료일,등록일\n';
       filtered.forEach(d => {
         csv += `${d.sn},${d.customer},${d.receiver},${d.spec},${d.faultType},${d.receiveNote},${d.checkNote},${d.material},${d.quantity},${d.status},${d.completeDate},${d.createdAt.split('T')[0]}\n`;
@@ -144,6 +134,7 @@
     }
 
     search.addEventListener('input', loadEntries);
+    filterDate.addEventListener('change', loadEntries);
     window.onload = loadEntries;
   </script>
 </body>
