@@ -119,18 +119,25 @@
     }
 
     function saveEntry() {
-      const editIndex = localStorage.getItem('editIndex');
+      const entry = {
+        sn: document.getElementById('sn').value,
+        customer: document.getElementById('customer').value,
+        receiver: document.getElementById('receiver').value,
+        spec: document.getElementById('spec').value,
+        faultType: document.getElementById('faultType').value,
+        receiveNote: document.getElementById('receiveNote').value,
+        checkNote: document.getElementById('checkNote').value,
+        material: document.getElementById('material').value,
+        quantity: document.getElementById('quantity').value,
+        status: document.getElementById('status').value,
+        completeDate: document.getElementById('completeDate').value,
+        createdAt: new Date().toISOString()
+      };
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      if (editIndex !== null) {
-        data[parseInt(editIndex)] = entry;
-        localStorage.removeItem('editIndex');
-      } else {
-        data.push(entry);
-      }
+      data.push(entry);
       localStorage.setItem('logs', JSON.stringify(data));
       clearForm();
       toggleForm();
-      localStorage.removeItem('editIndex');
       loadEntries();
     }
 
@@ -138,24 +145,7 @@
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const keyword = search.value.trim().toLowerCase();
       const date = filterDate.value;
-      $1
-        const delBtn = document.createElement('button');
-        delBtn.textContent = '삭제';
-        delBtn.style.marginTop = '10px';
-        delBtn.onclick = (e) => {
-          e.stopPropagation();
-          if (confirm('정말 삭제하시겠습니까?')) {
-            data.splice(index, 1);
-            localStorage.setItem('logs', JSON.stringify(data));
-            loadEntries();
-            clearForm();
-            formSection.style.display = 'none';
-          }
-        };
-        div.appendChild(delBtn);
-        $2
-      });
-      return;
+      list.innerHTML = '';
       data.filter(d => {
         const matchText = JSON.stringify(d).toLowerCase().includes(keyword);
         const matchDate = !date || d.createdAt.startsWith(date);
@@ -190,4 +180,5 @@
   </script>
 </body>
 </html>
+
 
