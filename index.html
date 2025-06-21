@@ -232,7 +232,7 @@
 
     function showHistory() {
       if (!currentUser) return;
-      db.collection('logs').where('uid', '==', currentUser.uid).orderBy('createdAt').get().then(snapshot => {
+      db.collection('logs').orderBy('createdAt', 'desc').get().then(snapshot => {
         const list = document.getElementById('historyList');
         list.innerHTML = '';
         snapshot.forEach(doc => {
@@ -287,7 +287,7 @@
     }
 
     function exportExcel() {
-      db.collection("logs").where("uid", "==", currentUser.uid).orderBy('createdAt').get().then(snapshot => {
+      db.collection("logs").orderBy('createdAt', 'desc').get().then(snapshot => {
         const data = [];
         snapshot.forEach(doc => data.push(doc.data()));
         if (!data.length) return alert('데이터가 없습니다.');
