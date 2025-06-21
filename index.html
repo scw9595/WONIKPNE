@@ -38,10 +38,11 @@
       background-color: #9ca3af;
     }
     .toolbar {
-      display: none;
+      display: flex;
       flex-direction: column;
       gap: 10px;
       margin-bottom: 15px;
+      display: none;
     }
     .toolbar input, .toolbar button {
       padding: 10px;
@@ -62,7 +63,7 @@
     }
     .entry {
       background: white;
-      border-left: 5px solid #9ca3af;
+      border-left: 5px solid #999;
       padding: 12px;
       margin-bottom: 10px;
       border-radius: 6px;
@@ -75,16 +76,25 @@
     }
     #formSection {
       background: white;
-      padding: 16px;
-      border-radius: 8px;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      padding: 24px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
       margin-bottom: 20px;
       display: none;
+    }
+    #formSection input, #formSection textarea, #formSection select {
+      width: 100%;
+      padding: 18px;
+      font-size: 16px;
+      margin-top: 6px;
+      margin-bottom: 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      box-sizing: border-box;
     }
     label {
       font-weight: bold;
       font-size: 14px;
-      margin-top: 10px;
       display: block;
     }
     .modal {
@@ -95,7 +105,7 @@
       background: #fff;
       padding: 20px;
       z-index: 10001;
-      box-shadow: 0 0 10px rgba(0,0,0,0.15);
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
       width: 90vw;
       max-height: 85vh;
       overflow-y: auto;
@@ -115,11 +125,36 @@
 </head>
 <body>
   <h1>장비 이력 관리 시스템</h1>
-  <div class="name-grid" id="userGrid"></div>
-  <div class="toolbar" id="userToolbar">
-    <label>검색</label>
-    <input type="text" id="search" placeholder="전체 검색" oninput="showHistory()">
-    <label>날짜 선택 (등록일 기준)</label>
+  <div class="name-grid">
+    <button onclick="enterUser('박형우')">박형우</button>
+    <button onclick="enterUser('정진배')">정진배</button>
+    <button onclick="enterUser('권용진')">권용진</button>
+    <button onclick="enterUser('김수빈')">김수빈</button>
+    <button onclick="enterUser('김주완')">김주완</button>
+    <button onclick="enterUser('박동준')">박동준</button>
+    <button onclick="enterUser('박준영')">박준영</button>
+    <button onclick="enterUser('오정현')">오정현</button>
+    <button onclick="enterUser('유병규')">유병규</button>
+    <button onclick="enterUser('최영훈')">최영훈</button>
+    <button onclick="enterUser('김창훈')">김창훈</button>
+    <button onclick="enterUser('박강훈')">박강훈</button>
+    <button onclick="enterUser('서정우')">서정우</button>
+    <button onclick="enterUser('이진수')">이진수</button>
+    <button onclick="enterUser('진주화')">진주화</button>
+    <button onclick="enterUser('김민섭')">김민섭</button>
+    <button onclick="enterUser('김정호')">김정호</button>
+    <button onclick="enterUser('마진영')">마진영</button>
+    <button onclick="enterUser('송태현')">송태현</button>
+    <button onclick="enterUser('심우민')">심우민</button>
+    <button onclick="enterUser('오기석')">오기석</button>
+    <button onclick="enterUser('오창호')">오창호</button>
+    <button onclick="enterUser('윤상빈')">윤상빈</button>
+    <button onclick="enterUser('이호승')">이호승</button>
+  </div>
+  <div class="toolbar" id="toolbar">
+    <label for="search">전체 검색</label>
+    <input type="text" id="search" placeholder="검색어 입력" oninput="showHistory()">
+    <label for="filterDate">날짜 선택 (해당 날짜의 이력만 표시됩니다)</label>
     <input type="date" id="filterDate" onchange="showHistory()">
     <button class="primary" onclick="toggleForm()">이력 입력</button>
     <button class="primary" onclick="exportExcel()">엑셀 추출</button>
@@ -127,163 +162,16 @@
   <div id="formSection"></div>
   <div id="historyList"></div>
   <script>
-    const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
-    let currentUser = null;
-    const userGrid = document.getElementById('userGrid');
-    users.forEach(name => {
-      const btn = document.createElement('button');
-      btn.textContent = name;
-      btn.onclick = () => {
-        currentUser = name;
-        document.getElementById('userToolbar').style.display = 'flex';
-        showHistory();
-      };
-      userGrid.appendChild(btn);
-    });
-
-    function toggleForm(closeOnly = false) {
-      const form = document.getElementById('formSection');
-      if (closeOnly || form.style.display === 'block') {
-        form.style.display = 'none';
-        form.innerHTML = '';
-        return;
-      }
-      const today = new Date().toISOString().split('T')[0];
-      form.innerHTML = `
-        <h2>이력 등록</h2>
-        <label>고객사</label><input type="text" id="customer">
-        <label>S/N</label><input type="text" id="sn">
-        <label>모델</label><input type="text" id="model">
-        <label>스펙</label><input type="text" id="spec">
-        <label>고장유형</label>
-        <select id="faultType">
-          <option value="">선택</option>
-          ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}">${opt}</option>`).join('')}
-        </select>
-        <label>접수 내용</label><textarea id="receiveNote"></textarea>
-        <label>담당자</label><input type="text" id="receiver">
-        <label>점검자</label><input type="text" id="inspector">
-        <label>점검일자</label><input type="date" id="inspectDate" value="${today}" readonly>
-        <label>조치 내용</label><textarea id="checkNote"></textarea>
-        <label>교체 부품</label><input type="text" id="material">
-        <label>수량</label><input type="number" id="quantity">
-        <label>유무상</label>
-        <select id="costType">
-          <option value="유상">유상</option>
-          <option value="무상">무상</option>
-        </select>
-        <label>진행 상태</label>
-        <select id="status">
-          <option value="미완료">미완료</option>
-          <option value="완료">완료</option>
-        </select>
-        <label>완료일</label><input type="date" id="completeDate">
-        <div style="margin-top: 10px;">
-          <button onclick="saveEntry()">저장</button>
-          <button onclick="toggleForm(true)">닫기</button>
-        </div>
-      `;
-      form.style.display = 'block';
-    }
-
-    function saveEntry() {
-      const fields = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-      const entry = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value]));
-      entry.createdAt = new Date().toISOString();
-      entry.user = currentUser;
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      data.push(entry);
-      localStorage.setItem('logs', JSON.stringify(data));
-      toggleForm(true);
+    let currentUser = '';
+    function enterUser(name) {
+      currentUser = name;
+      document.querySelector('.name-grid').style.display = 'none';
+      document.getElementById('toolbar').style.display = 'flex';
       showHistory();
-      alert('저장 완료');
     }
-
-    function showHistory() {
-      const list = document.getElementById('historyList');
-      const keyword = document.getElementById('search').value.toLowerCase();
-      const date = document.getElementById('filterDate').value;
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      list.innerHTML = '';
-      data.filter(d => d.user === currentUser).filter(d => {
-        const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
-        const matchDate = !date || d.createdAt.startsWith(date);
-        return matchKeyword && matchDate;
-      }).forEach((d, idx) => {
-        const div = document.createElement('div');
-        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
-        div.onclick = () => showModal(d, idx);
-        list.appendChild(div);
-      });
-    }
-
-    function showModal(entry, index) {
-      const overlay = document.createElement('div');
-      overlay.className = 'overlay';
-      const modal = document.createElement('div');
-      modal.className = 'modal';
-      modal.innerHTML = `
-        <h3>S/N: ${entry.sn}</h3>
-        <p>고객사: ${entry.customer}</p>
-        <p>모델: ${entry.model}</p>
-        <p>스펙: ${entry.spec}</p>
-        <p>고장유형: ${entry.faultType}</p>
-        <p>접수내용: ${entry.receiveNote}</p>
-        <p>담당자: ${entry.receiver}</p>
-        <p>점검자: ${entry.inspector}</p>
-        <p>점검일자: ${entry.inspectDate}</p>
-        <p>조치내용: ${entry.checkNote}</p>
-        <p>교체부품: ${entry.material}</p>
-        <p>수량: ${entry.quantity}</p>
-        <p>유무상: ${entry.costType}</p>
-        <p>진행상태: ${entry.status}</p>
-        <p>완료일: ${entry.completeDate}</p>
-        <p>등록일: ${entry.createdAt.split('T')[0]}</p>
-        <button onclick="editEntry(${index})">수정하기</button>
-        <button onclick="deleteEntry(${index})">삭제하기</button>
-        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
-      `;
-      overlay.appendChild(modal);
-      document.body.appendChild(overlay);
-    }
-
-    function editEntry(index) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const entry = data[index];
-      toggleForm();
-      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-      ids.forEach(id => document.getElementById(id).value = entry[id]);
-      data.splice(index, 1);
-      localStorage.setItem('logs', JSON.stringify(data));
-      document.querySelector('.overlay')?.remove();
-    }
-
-    function deleteEntry(index) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      if (confirm('정말 삭제하시겠습니까?')) {
-        data.splice(index, 1);
-        localStorage.setItem('logs', JSON.stringify(data));
-        document.querySelector('.overlay')?.remove();
-        showHistory();
-      }
-    }
-
-    function exportExcel() {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
-      if (!data.length) return alert('데이터가 없습니다.');
-      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
-      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('\n');
-      const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = '장비이력.csv';
-      a.click();
-    }
-
-    window.onload = () => {};
   </script>
 </body>
 </html>
+
 
 
