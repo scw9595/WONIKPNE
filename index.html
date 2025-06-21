@@ -25,8 +25,6 @@
       flex-direction: column;
       gap: 10px;
       margin-bottom: 20px;
-      max-width: 600px;
-      margin-inline: auto;
     }
     .toolbar input, .toolbar button, .toolbar select {
       padding: 10px;
@@ -73,8 +71,6 @@
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       cursor: pointer;
-      max-width: 600px;
-      margin-inline: auto;
     }
     .entry.completed {
       border-left-color: #22c55e;
@@ -119,8 +115,6 @@
     <select id="userFilter" onchange="showHistory()">
       <option value="">사용자 선택</option>
     </select>
-    <label>검색</label>
-    <input type="text" id="searchInput" oninput="searchHistory()" placeholder="검색어 입력 (S/N, 고객사, 모델 등)">
     <button class="primary" onclick="toggleForm()">이력 입력</button>
     <button class="primary" onclick="exportExcel()">엑셀 추출</button>
   </div>
@@ -244,39 +238,12 @@
       const filterUser = document.getElementById('userFilter').value;
       const list = document.getElementById('historyList');
       list.innerHTML = '';
-      document.getElementById('searchInput').value = ''; // 검색 초기화
-
       if (!filterUser) return;
 
       db.collection('logs').orderBy('createdAt', 'desc').get().then(snapshot => {
         snapshot.forEach(doc => {
           const d = doc.data();
           if (d.user !== filterUser) return;
-          const div = document.createElement('div');
-          div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-          const dateStr = d.createdAt?.toDate?.().toISOString().split('T')[0] || '';
-          div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${dateStr}</small>`;
-          div.onclick = () => showModal(d, doc.id);
-          list.appendChild(div);
-        });
-      });
-    }
-
-    function searchHistory() {
-      const filterUser = document.getElementById('userFilter').value;
-      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
-      const list = document.getElementById('historyList');
-      list.innerHTML = '';
-      if (!filterUser && !keyword) return;
-
-      db.collection('logs').orderBy('createdAt', 'desc').get().then(snapshot => {
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          if (filterUser && d.user !== filterUser) return;
-
-          const combinedText = Object.values(d).join(' ').toLowerCase();
-          if (keyword && !combinedText.includes(keyword)) return;
-
           const div = document.createElement('div');
           div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
           const dateStr = d.createdAt?.toDate?.().toISOString().split('T')[0] || '';
@@ -331,8 +298,7 @@
         editDocId = doc.id;
         toggleForm();
         const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-        ids.forEach(id => document.getElementById(id).value = entry[id] || '';
-        );
+        ids.forEach(id => document.getElementById(id).value = entry[id] || '');
         document.querySelector('.overlay')?.remove();
       });
     }
@@ -369,7 +335,6 @@
   </script>
 </body>
 </html>
-
 
 
 
