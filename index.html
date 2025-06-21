@@ -30,7 +30,7 @@
       width: 100%;
       font-size: 14px;
       color: #6b7280;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
     }
     input, select, textarea, button {
       padding: 10px;
@@ -114,28 +114,34 @@
   <h1>장비 이력 관리 시스템</h1>
 
   <div class="toolbar">
-    <input type="text" id="search" placeholder="전체 검색">
-    <input type="date" id="filterDate">
+    <input type="text" id="search" placeholder="전체 검색" oninput="showHistory()">
+  </div>
+  <div class="info-text">※ 날짜를 선택하면 해당 날짜의 이력만 조회됩니다.</div>
+  <div class="toolbar">
+    <input type="date" id="filterDate" onchange="showHistory()">
     <button onclick="toggleForm()">이력 입력</button>
     <button onclick="exportExcel()">엑셀 추출</button>
   </div>
 
-  <div class="info-text">※ 날짜를 선택하면 해당 날짜의 이력만 조회됩니다.</div>
   <h2 style="margin-bottom: 10px;">전체 A/S 이력</h2>
   <div id="formSection"></div>
   <div id="historyList"></div>
 
   <script>
-    // 실제 작동 함수 로드
+    // 전체 기능 JavaScript 삽입
+    const search = document.getElementById('search');
+    const filterDate = document.getElementById('filterDate');
+    const historyList = document.getElementById('historyList');
+    const formSection = document.getElementById('formSection');
+
     function toggleForm(closeOnly = false) {
-      const form = document.getElementById('formSection');
-      if (closeOnly || form.style.display === 'block') {
-        form.style.display = 'none';
-        form.innerHTML = '';
+      if (closeOnly || formSection.style.display === 'block') {
+        formSection.style.display = 'none';
+        formSection.innerHTML = '';
         return;
       }
       const today = new Date().toISOString().split('T')[0];
-      form.innerHTML = `
+      formSection.innerHTML = `
         <h2>이력 등록</h2>
         <label>고객사</label><input type="text" id="customer">
         <label>S/N</label><input type="text" id="sn">
@@ -153,28 +159,20 @@
         <label>조치 내용</label><textarea id="checkNote"></textarea>
         <label>교체 부품</label><input type="text" id="material">
         <label>수량</label><input type="number" id="quantity">
-        <label>유무상</label>
-        <select id="costType">
-          <option value="유상">유상</option>
-          <option value="무상">무상</option>
-        </select>
-        <label>진행 상태</label>
-        <select id="status">
-          <option value="미완료">미완료</option>
-          <option value="완료">완료</option>
-        </select>
+        <label>유무상</label><select id="costType"><option>유상</option><option>무상</option></select>
+        <label>진행 상태</label><select id="status"><option>미완료</option><option>완료</option></select>
         <label>완료일</label><input type="date" id="completeDate">
         <div style="margin-top: 10px;">
           <button onclick="saveEntry()">저장</button>
           <button onclick="toggleForm(true)">닫기</button>
         </div>
       `;
-      form.style.display = 'block';
+      formSection.style.display = 'block';
     }
 
     function saveEntry() {
-      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-      const entry = Object.fromEntries(ids.map(id => [id, document.getElementById(id).value]));
+      const fields = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
+      const entry = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value]));
       entry.createdAt = new Date().toISOString();
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       data.push(entry);
@@ -218,7 +216,8 @@
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const entry = data[index];
       toggleForm();
-      ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"].forEach(id => document.getElementById(id).value = entry[id]);
+      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
+      ids.forEach(id => document.getElementById(id).value = entry[id]);
       data.splice(index, 1);
       localStorage.setItem('logs', JSON.stringify(data));
       document.querySelector('.overlay')?.remove();
@@ -235,11 +234,10 @@
     }
 
     function showHistory() {
-      const list = document.getElementById('historyList');
-      const keyword = document.getElementById('search').value.toLowerCase();
-      const date = document.getElementById('filterDate').value;
+      const keyword = search.value.toLowerCase();
+      const date = filterDate.value;
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      list.innerHTML = '';
+      historyList.innerHTML = '';
       data.filter(d => {
         const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
         const matchDate = !date || d.createdAt.startsWith(date);
@@ -249,7 +247,7 @@
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
         div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
         div.onclick = () => showModal(d, idx);
-        list.appendChild(div);
+        historyList.appendChild(div);
       });
     }
 
@@ -265,10 +263,7 @@
       a.click();
     }
 
-    window.onload = () => {
-      showHistory();
-      toggleForm(true);
-    };
+    window.onload = showHistory;
   </script>
 </body>
 </html>
