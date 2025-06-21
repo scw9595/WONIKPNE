@@ -303,13 +303,6 @@ function editEntry(index) {
     const el = document.getElementById(id);
     if (el) el.value = entry[id];
   });
-  document.querySelector(".overlay")?.remove();
-}
-
-function deleteEntry(index) {
-  const data = JSON.parse(localStorage.getItem("logs") || "[]");
-  if (confirm("정말 삭제하시겠습니까?")) {
-    data.splice(index, 1);
     localStorage.setItem("logs", JSON.stringify(data));
     document.querySelector(".overlay")?.remove();
     showHistory();
@@ -324,7 +317,7 @@ function exportExcel() {
 ';
   const csv = data.map(d => [
     d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver,
-    d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity || 0,
+    d.inspector, d.inspectDate, d.checkNote, d.material, parseInt(d.quantity) || 0,
     d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]
   ].join(',')).join('
 ');
@@ -337,6 +330,7 @@ function exportExcel() {
 </script>
 </body>
 </html>
+
 
 
 
