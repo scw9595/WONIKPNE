@@ -165,8 +165,9 @@ const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", 
 let currentUser = null;
 let editIndex = null;
 
-document.addEventListener("DOMContentLoaded", () => {
+window.onload = function() {
   const userGrid = document.getElementById("userGrid");
+  userGrid.innerHTML = '';
   users.forEach(name => {
     const btn = document.createElement("button");
     btn.textContent = name;
@@ -177,6 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     userGrid.appendChild(btn);
   });
+};
 });
 
 function toggleForm(closeOnly = false) {
