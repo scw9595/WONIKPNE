@@ -5,7 +5,120 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>장비 이력 관리 앱</title>
   <style>
-    /* ... (기존 스타일 그대로 생략 가능) ... */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f9fafb;
+      margin: 0;
+      padding: 20px;
+      max-width: 100%;
+    }
+    h1 {
+      text-align: center;
+      color: #1f2937;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .name-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .name-grid button {
+      background-color: #d1d5db;
+      color: #111827;
+      border: none;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .name-grid button:hover {
+      background-color: #9ca3af;
+    }
+    .toolbar {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .toolbar input, .toolbar button, .toolbar select {
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .toolbar label {
+      font-size: 13px;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+    button.primary {
+      background-color: #10b981;
+      color: white;
+      font-weight: bold;
+      border: none;
+    }
+    .entry {
+      background: white;
+      border-left: 5px solid #9ca3af;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      cursor: pointer;
+    }
+    .entry.completed {
+      border-left-color: #34d399;
+      background-color: #f0fdf4;
+    }
+    #formSection {
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      display: none;
+    }
+    label {
+      font-weight: bold;
+      font-size: 14px;
+      margin-top: 10px;
+      display: block;
+    }
+    .modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      padding: 20px;
+      z-index: 10001;
+      box-shadow: 0 0 10px rgba(0,0,0,0.15);
+      width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 10000;
+    }
+    @media screen and (max-width: 600px) {
+      .name-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      }
+      .toolbar {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
@@ -16,6 +129,12 @@
     <input type="text" id="search" placeholder="전체 검색" oninput="showHistory()">
     <label>날짜 선택 (등록일 기준)</label>
     <input type="date" id="filterDate" onchange="showHistory()">
+    <label>상태 필터</label>
+    <select id="statusFilter" onchange="showHistory()">
+      <option value="">전체</option>
+      <option value="완료">완료</option>
+      <option value="미완료">미완료</option>
+    </select>
     <button class="primary" onclick="toggleForm()">이력 입력</button>
     <button class="primary" onclick="exportExcel()">엑셀 추출</button>
   </div>
@@ -36,6 +155,33 @@
       };
       userGrid.appendChild(btn);
     });
+
+    function showHistory() {
+      const list = document.getElementById('historyList');
+      const keyword = document.getElementById('search').value.toLowerCase();
+      const date = document.getElementById('filterDate').value;
+      const statusFilter = document.getElementById('statusFilter').value;
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+
+      list.innerHTML = '';
+      const filtered = data
+        .map((d, i) => ({ ...d, __index: i }))
+        .filter(d => d.user === currentUser)
+        .filter(d => {
+          const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
+          const matchDate = !date || d.createdAt.startsWith(date);
+          const matchStatus = !statusFilter || d.status === statusFilter;
+          return matchKeyword && matchDate && matchStatus;
+        });
+
+      filtered.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
+        div.onclick = () => showModal(d, d.__index);
+        list.appendChild(div);
+      });
+    }
 
     function toggleForm(closeOnly = false) {
       const form = document.getElementById('formSection');
@@ -77,8 +223,7 @@
         <div style="margin-top: 10px;">
           <button onclick="saveEntry()">저장</button>
           <button onclick="toggleForm(true)">닫기</button>
-        </div>
-      `;
+        </div>`;
       form.style.display = 'block';
     }
 
@@ -93,31 +238,6 @@
       toggleForm(true);
       showHistory();
       alert('저장 완료');
-    }
-
-    function showHistory() {
-      const list = document.getElementById('historyList');
-      const keyword = document.getElementById('search').value.toLowerCase();
-      const date = document.getElementById('filterDate').value;
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      list.innerHTML = '';
-
-      const filtered = data
-        .map((d, i) => ({ ...d, __index: i }))
-        .filter(d => d.user === currentUser)
-        .filter(d => {
-          const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
-          const matchDate = !date || d.createdAt.startsWith(date);
-          return matchKeyword && matchDate;
-        });
-
-      filtered.forEach(d => {
-        const div = document.createElement('div');
-        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
-        div.onclick = () => showModal(d, d.__index);
-        list.appendChild(div);
-      });
     }
 
     function showModal(entry, index) {
@@ -144,8 +264,7 @@
         <p>등록일: ${entry.createdAt.split('T')[0]}</p>
         <button onclick="editEntry(${index})">수정하기</button>
         <button onclick="deleteEntry(${index})">삭제하기</button>
-        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
-      `;
+        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>`;
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
     }
@@ -174,16 +293,16 @@
     function exportExcel() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
       if (!data.length) return alert('데이터가 없습니다.');
-      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
-      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('\n');
+      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일
+';
+      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('
+');
       const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = '장비이력.csv';
       a.click();
     }
-
-    window.onload = () => {};
   </script>
 </body>
 </html>
