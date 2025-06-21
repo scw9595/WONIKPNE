@@ -10,18 +10,17 @@
       background-color: #f9fafb;
       margin: 0;
       padding: 20px;
-      max-width: 900px;
-      margin: auto;
+      max-width: 100%;
     }
     h1 {
       text-align: center;
       color: #1f2937;
-      font-size: 28px;
+      font-size: 24px;
       margin-bottom: 20px;
     }
     .name-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
       gap: 10px;
       margin-bottom: 20px;
     }
@@ -30,7 +29,8 @@
       color: #111827;
       border: none;
       border-radius: 6px;
-      padding: 10px 16px;
+      padding: 10px;
+      font-size: 14px;
       cursor: pointer;
       font-weight: bold;
     }
@@ -42,13 +42,17 @@
       flex-direction: column;
       gap: 10px;
       margin-bottom: 15px;
-      align-items: center;
     }
     .toolbar input, .toolbar button {
       padding: 10px;
       border: 1px solid #d1d5db;
       border-radius: 6px;
-      font-size: 15px;
+      font-size: 14px;
+    }
+    .toolbar label {
+      font-size: 13px;
+      color: #374151;
+      margin-bottom: 4px;
     }
     button.primary {
       background-color: #10b981;
@@ -59,10 +63,10 @@
     .entry {
       background: white;
       border-left: 5px solid #9ca3af;
-      padding: 15px;
-      margin-bottom: 12px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
       cursor: pointer;
     }
     .entry.completed {
@@ -71,14 +75,15 @@
     }
     #formSection {
       background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      margin-bottom: 24px;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
       display: none;
     }
     label {
       font-weight: bold;
+      font-size: 14px;
       margin-top: 10px;
       display: block;
     }
@@ -88,13 +93,14 @@
       left: 50%;
       transform: translate(-50%, -50%);
       background: #fff;
-      padding: 24px;
+      padding: 20px;
       z-index: 10001;
-      box-shadow: 0 0 12px rgba(0,0,0,0.15);
-      width: 85vw;
+      box-shadow: 0 0 10px rgba(0,0,0,0.15);
+      width: 90vw;
       max-height: 85vh;
       overflow-y: auto;
       border-radius: 10px;
+      font-size: 14px;
     }
     .overlay {
       position: fixed;
@@ -109,61 +115,49 @@
 </head>
 <body>
   <h1>장비 이력 관리 시스템</h1>
-  <div class="name-grid" id="userButtons"></div>
-  <div id="userPage" style="display:none">
-    <div class="toolbar" id="userToolbar">
-      <input type="text" id="search" placeholder="전체 검색" oninput="showHistory()">
-      <div style="font-weight:bold;">날짜 선택 시 해당 날짜의 이력만 조회됩니다.</div>
-      <input type="date" id="filterDate" onchange="showHistory()">
-      <button class="primary" onclick="toggleForm()">이력 입력</button>
-      <button class="primary" onclick="exportExcel()">엑셀 추출</button>
-    </div>
-    <div id="formSection"></div>
-    <div style="font-size:18px; font-weight:bold; margin-bottom:10px;" id="asTitle"></div>
-    <div id="historyList"></div>
+  <div class="name-grid" id="userGrid"></div>
+  <div class="toolbar" id="userToolbar">
+    <label>검색</label>
+    <input type="text" id="search" placeholder="전체 검색" oninput="showHistory()">
+    <label>날짜 선택 (등록일 기준)</label>
+    <input type="date" id="filterDate" onchange="showHistory()">
+    <button class="primary" onclick="toggleForm()">이력 입력</button>
+    <button class="primary" onclick="exportExcel()">엑셀 추출</button>
   </div>
-
+  <div id="formSection"></div>
+  <div id="historyList"></div>
   <script>
-    const userList = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
-    const userButtons = document.getElementById("userButtons");
-    const formSection = document.getElementById("formSection");
-    const historyList = document.getElementById("historyList");
-    const userToolbar = document.getElementById("userToolbar");
-    const asTitle = document.getElementById("asTitle");
-    const userPage = document.getElementById("userPage");
-
-    let currentUser = '';
-
-    userList.forEach(name => {
+    const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
+    let currentUser = null;
+    const userGrid = document.getElementById('userGrid');
+    users.forEach(name => {
       const btn = document.createElement('button');
       btn.textContent = name;
-      btn.onclick = () => selectUser(name);
-      userButtons.appendChild(btn);
+      btn.onclick = () => {
+        currentUser = name;
+        document.getElementById('userToolbar').style.display = 'flex';
+        showHistory();
+      };
+      userGrid.appendChild(btn);
     });
 
-    function selectUser(name) {
-      currentUser = name;
-      userToolbar.style.display = 'flex';
-      userPage.style.display = 'block';
-      toggleForm(true);
-      showHistory();
-      asTitle.textContent = `${currentUser}님의 A/S 이력`;
-    }
-
     function toggleForm(closeOnly = false) {
-      if (closeOnly || formSection.style.display === 'block') {
-        formSection.style.display = 'none';
-        formSection.innerHTML = '';
+      const form = document.getElementById('formSection');
+      if (closeOnly || form.style.display === 'block') {
+        form.style.display = 'none';
+        form.innerHTML = '';
         return;
       }
       const today = new Date().toISOString().split('T')[0];
-      formSection.innerHTML = `
-        <h2>${currentUser} - 이력 등록</h2>
+      form.innerHTML = `
+        <h2>이력 등록</h2>
         <label>고객사</label><input type="text" id="customer">
         <label>S/N</label><input type="text" id="sn">
         <label>모델</label><input type="text" id="model">
         <label>스펙</label><input type="text" id="spec">
-        <label>고장유형</label><select id="faultType">
+        <label>고장유형</label>
+        <select id="faultType">
+          <option value="">선택</option>
           ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}">${opt}</option>`).join('')}
         </select>
         <label>접수 내용</label><textarea id="receiveNote"></textarea>
@@ -173,13 +167,23 @@
         <label>조치 내용</label><textarea id="checkNote"></textarea>
         <label>교체 부품</label><input type="text" id="material">
         <label>수량</label><input type="number" id="quantity">
-        <label>유무상</label><select id="costType"><option>유상</option><option>무상</option></select>
-        <label>진행 상태</label><select id="status"><option>미완료</option><option>완료</option></select>
+        <label>유무상</label>
+        <select id="costType">
+          <option value="유상">유상</option>
+          <option value="무상">무상</option>
+        </select>
+        <label>진행 상태</label>
+        <select id="status">
+          <option value="미완료">미완료</option>
+          <option value="완료">완료</option>
+        </select>
         <label>완료일</label><input type="date" id="completeDate">
-        <button onclick="saveEntry()">저장</button>
-        <button onclick="toggleForm(true)">닫기</button>
+        <div style="margin-top: 10px;">
+          <button onclick="saveEntry()">저장</button>
+          <button onclick="toggleForm(true)">닫기</button>
+        </div>
       `;
-      formSection.style.display = 'block';
+      form.style.display = 'block';
     }
 
     function saveEntry() {
@@ -196,16 +200,21 @@
     }
 
     function showHistory() {
-      const keyword = document.getElementById("search").value.toLowerCase();
-      const date = document.getElementById("filterDate").value;
+      const list = document.getElementById('historyList');
+      const keyword = document.getElementById('search').value.toLowerCase();
+      const date = document.getElementById('filterDate').value;
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      historyList.innerHTML = '';
-      data.filter(d => d.user === currentUser && JSON.stringify(d).toLowerCase().includes(keyword) && (!date || d.createdAt.startsWith(date))).forEach((d, idx) => {
+      list.innerHTML = '';
+      data.filter(d => d.user === currentUser).filter(d => {
+        const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
+        const matchDate = !date || d.createdAt.startsWith(date);
+        return matchKeyword && matchDate;
+      }).forEach((d, idx) => {
         const div = document.createElement('div');
         div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
         div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
         div.onclick = () => showModal(d, idx);
-        historyList.appendChild(div);
+        list.appendChild(div);
       });
     }
 
@@ -268,14 +277,13 @@
       const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${currentUser}_장비이력.csv`;
+      a.download = '장비이력.csv';
       a.click();
     }
 
-    window.onload = showHistory;
+    window.onload = () => {};
   </script>
 </body>
 </html>
-
 
 
