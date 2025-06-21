@@ -4,126 +4,209 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>장비 이력 관리 시스템</title>
-  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-app-compat.js">function editEntry(docId) {
+  db.collection('logs').doc(docId).get().then(doc => {
+    const entry = doc.data();
+    editDocId = doc.id;
+    toggleForm();
+    const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
+    ids.forEach(id => document.getElementById(id).value = entry[id] || '');
+    document.querySelector('.overlay')?.remove();
+  });
+}
+</script>
   <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth-compat.js"></script>
   <script>
     const firebaseConfig = {
-  apiKey: "AIzaSyAMf08WGi7tUHGBv6dYhj9mvvaijiZyewQ",
-  authDomain: "wonik-pne-cs.firebaseapp.com",
-  projectId: "wonik-pne-cs",
-  storageBucket: "wonik-pne-cs.firebasestorage.app",
-  messagingSenderId: "908808313233",
-  appId: "1:908808313233:web:3d3d868c87e408707c6230",
-  measurementId: "G-MEKNP3R97W"
-};
+      apiKey: "AIzaSyAMf08WGi7tUHGBv6dYhj9mvvaijiZyewQ",
+      authDomain: "wonik-pne-cs.firebaseapp.com",
+      projectId: "wonik-pne-cs",
+      storageBucket: "wonik-pne-cs.firebasestorage.app",
+      messagingSenderId: "908808313233",
+      appId: "1:908808313233:web:3d3d868c87e408707c6230",
+      measurementId: "G-MEKNP3R97W"
+    };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const auth = firebase.auth();
+
+    let currentUser = null;
+
+    function loginWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).then(result => {
+        currentUser = result.user;
+        document.getElementById('userInfo').textContent = `${currentUser.displayName} 님 환영합니다`;
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('userToolbar').style.display = 'flex';
+        switchTab('history');
+      });
+    }
+
+    function logout() {
+      auth.signOut().then(() => location.reload());
+    }
+
+    let editDocId = null;
+
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('userInfo').textContent = `${user.displayName} 님 환영합니다`;
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('userToolbar').style.display = 'flex';
+        switchTab('history');
+      }
+    });
+
+    function toggleForm() {
+      const form = document.getElementById('formSection');
+      form.innerHTML = '';
+      const today = new Date().toISOString().split('T')[0];
+      form.innerHTML = `
+        <h2>이력 등록</h2>
+        <label>고객사</label><input type="text" id="customer">
+        <label>S/N</label><input type="text" id="sn">
+        <label>모델</label><input type="text" id="model">
+        <label>스펙</label><input type="text" id="spec">
+        <label>고장유형</label><input type="text" id="faultType">
+        <label>접수 내용</label><input type="text" id="receiveNote">
+        <label>담당자</label><input type="text" id="receiver">
+        <label>점검자</label><input type="text" id="inspector">
+        <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
+        <label>조치 내용</label><input type="text" id="checkNote">
+        <label>교체 부품</label><input type="text" id="material">
+        <label>수량</label><input type="number" id="quantity">
+        <label>유무상</label><select id="costType"><option value="유상">유상</option><option value="무상">무상</option></select>
+        <label>진행 상태</label><select id="status"><option value="완료">완료</option><option value="미완료">미완료</option></select>
+        <label>완료일</label><input type="date" id="completeDate">
+        <button onclick="saveEntry()">저장</button>
+      `;
+      form.style.display = 'block';
+    }
+
+    function saveEntry() {
+  const entry = {
+    customer: document.getElementById('customer').value,
+    sn: document.getElementById('sn').value,
+    model: document.getElementById('model').value,
+    spec: document.getElementById('spec').value,
+    faultType: document.getElementById('faultType').value,
+    receiveNote: document.getElementById('receiveNote').value,
+    receiver: document.getElementById('receiver').value,
+    inspector: document.getElementById('inspector').value,
+    inspectDate: document.getElementById('inspectDate').value,
+    checkNote: document.getElementById('checkNote').value,
+    material: document.getElementById('material').value,
+    quantity: document.getElementById('quantity').value,
+    costType: document.getElementById('costType').value,
+    status: document.getElementById('status').value,
+    completeDate: document.getElementById('completeDate').value,
+    createdAt: new Date().toISOString(),
+    uid: currentUser.uid,
+    user: currentUser.displayName
+  };
+  const target = editDocId ? db.collection("logs").doc(editDocId).set(entry) : db.collection("logs").add(entry);
+  target.then(() => {
+    alert("저장 완료");
+    editDocId = null;
+    switchTab('history');
+  });
+}
+        alert("저장 완료");
+        switchTab('history');
+      });
+    }
+
+    function showHistory() {
+  db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
+    const list = document.getElementById('historyList');
+    const keyword = document.getElementById('search').value.toLowerCase();
+    const date = document.getElementById('filterDate').value;
+    list.innerHTML = '';
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
+      const matchDate = !date || d.createdAt?.slice(0, 10) === date;
+      if (matchKeyword && matchDate) {
+        const div = document.createElement('div');
+        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
+        div.onclick = () => showModal(d, doc.id);
+        list.appendChild(div);
+      }
+    });
+  });
+}
+        });
+      });
+    }
+
+    function showModal(entry, docId) {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = `
+    <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
+    <h3>S/N: ${entry.sn}</h3>
+    <p>고객사: ${entry.customer}</p>
+    <p>모델: ${entry.model}</p>
+    <p>스펙: ${entry.spec}</p>
+    <p>고장유형: ${entry.faultType}</p>
+    <p>접수내용: ${entry.receiveNote}</p>
+    <p>담당자: ${entry.receiver}</p>
+    <p>점검자: ${entry.inspector}</p>
+    <p>점검일자: ${entry.inspectDate}</p>
+    <p>조치내용: ${entry.checkNote}</p>
+    <p>교체부품: ${entry.material}</p>
+    <p>수량: ${entry.quantity}</p>
+    <p>유무상: ${entry.costType}</p>
+    <p>진행상태: ${entry.status}</p>
+    <p>완료일: ${entry.completeDate}</p>
+    <p>등록일: ${entry.createdAt.split('T')[0]}</p>
+    <button onclick="editEntry('${docId}')">수정하기</button>
+  `;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+    }
+
+    function exportExcel() {
+      db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
+        const data = [];
+        snapshot.forEach(doc => data.push(doc.data()));
+        if (!data.length) return alert('데이터가 없습니다.');
+        const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
+        const csv = data.map(d => [
+          d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector,
+          d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status,
+          d.completeDate, d.createdAt.split('T')[0]
+        ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = '장비이력.csv';
+        a.click();
+      });
+    }
+
+    function switchTab(tab) {
+      document.getElementById('inputTab').classList.remove('active');
+      document.getElementById('historyTab').classList.remove('active');
+      if (tab === 'input') {
+        document.getElementById('inputTab').classList.add('active');
+        toggleForm();
+        document.getElementById('historyList').style.display = 'none';
+      } else {
+        document.getElementById('historyTab').classList.add('active');
+        document.getElementById('formSection').style.display = 'none';
+        document.getElementById('historyList').style.display = 'block';
+        showHistory();
+      }
+    }
   </script>
-  <style>
-    body {
-      font-family: 'Noto Sans KR', sans-serif;
-      background: linear-gradient(to bottom, #f0f4f8, #e2e8f0);
-      margin: 0;
-      padding: 20px;
-    }
-    h1 {
-      text-align: center;
-      color: #1e293b;
-      font-size: 26px;
-      margin-bottom: 20px;
-    }
-    .toolbar {
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    .toolbar input, .toolbar button, .toolbar select {
-      padding: 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 14px;
-    }
-    .toolbar label {
-      font-size: 14px;
-      color: #475569;
-      font-weight: 600;
-      margin-top: 10px;
-    }
-    button.primary {
-      background-color: #10b981;
-      color: white;
-      font-weight: bold;
-      border: none;
-      border-radius: 8px;
-    }
-    #formSection {
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      margin-bottom: 20px;
-      max-width: 600px;
-      margin-inline: auto;
-      display: none;
-    }
-    input, textarea, select {
-      width: 100%;
-      margin-bottom: 10px;
-      padding: 8px;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1px solid #cbd5e1;
-    }
-    .entry {
-      background: #fff;
-      border-left: 6px solid #9ca3af;
-      padding: 16px;
-      margin-bottom: 12px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .entry:hover {
-      background: #f1f5f9;
-    }
-    .entry.completed {
-      border-left-color: #22c55e;
-      background-color: #ecfdf5;
-    }
-    .modal {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: #ffffff;
-      padding: 24px;
-      z-index: 10001;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-      width: 90vw;
-      max-height: 85vh;
-      overflow-y: auto;
-      border-radius: 12px;
-      font-size: 14px;
-      animation: fadeIn 0.3s ease;
-    }
-    .overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.4);
-      z-index: 10000;
-    }
-    @keyframes fadeIn {
-      from {opacity: 0; transform: scale(0.95) translate(-50%, -50%);}
-      to {opacity: 1; transform: scale(1) translate(-50%, -50%);}
-    }
-  </style>
 </head>
 <body>
   <h1>장비 이력 관리 시스템</h1>
@@ -132,6 +215,11 @@
     <button onclick="logout()" style="display:none;" id="logoutBtn">로그아웃</button>
     <p id="userInfo">로그인이 필요합니다.</p>
   </div>
+
+  <nav>
+    <button id="inputTab" class="active" onclick="switchTab('input')">이력 입력</button>
+    <button id="historyTab" onclick="switchTab('history')">이력 확인</button>
+  </nav>
 
   <div class="toolbar" id="userToolbar">
     <label>검색</label>
@@ -143,168 +231,8 @@
   </div>
   <div id="formSection"></div>
   <div id="historyList"></div>
-
-  <script>
-    let currentUser = null;
-    let editDocId = null;
-
-    function loginWithGoogle() {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithPopup(provider).then(result => {
-        currentUser = result.user;
-        document.getElementById('userInfo').textContent = `${currentUser.displayName} 님 환영합니다`;
-        document.getElementById('logoutBtn').style.display = 'inline-block';
-        document.getElementById('userToolbar').style.display = 'flex';
-        showHistory();
-      });
-    }
-
-    function logout() {
-      auth.signOut().then(() => location.reload());
-    }
-
-    auth.onAuthStateChanged(user => {
-      if (user) {
-        currentUser = user;
-        document.getElementById('userInfo').textContent = `${currentUser.displayName} 님 환영합니다`;
-        document.getElementById('logoutBtn').style.display = 'inline-block';
-        document.getElementById('userToolbar').style.display = 'flex';
-        showHistory();
-      } else {
-        document.getElementById('userInfo').textContent = '로그인이 필요합니다';
-      }
-    });
-
-    function toggleForm(closeOnly = false) {
-      const form = document.getElementById('formSection');
-      if (closeOnly || form.style.display === 'block') {
-        form.style.display = 'none';
-        form.innerHTML = '';
-        editDocId = null;
-        return;
-      }
-      const today = new Date().toISOString().split('T')[0];
-      form.innerHTML = `
-        <h2>이력 등록</h2>
-        <label>고객사</label><input type="text" id="customer" required>
-        <label>S/N</label><input type="text" id="sn" required>
-        <label>모델</label><input type="text" id="model">
-        <label>스펙</label><input type="text" id="spec">
-        <label>고장유형</label>
-        <select id="faultType">
-          <option value="">선택</option>
-          ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}">${opt}</option>`).join('')}
-        </select>
-        <label>접수 내용</label><textarea id="receiveNote"></textarea>
-        <label>담당자</label><input type="text" id="receiver">
-        <label>점검자</label><input type="text" id="inspector">
-        <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
-        <label>조치 내용</label><textarea id="checkNote"></textarea>
-        <label>교체 부품</label><input type="text" id="material">
-        <label>수량</label><input type="number" id="quantity">
-        <label>유무상</label><select id="costType"><option value="유상">유상</option><option value="무상">무상</option></select>
-        <label>진행 상태</label><select id="status"><option value="미완료">미완료</option><option value="완료">완료</option></select>
-        <label>완료일</label><input type="date" id="completeDate">
-        <div><button onclick="saveEntry()">저장</button> <button onclick="toggleForm(true)">닫기</button></div>
-      `;
-      form.style.display = 'block';
-    }
-
-    function saveEntry() {
-      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-      const entry = Object.fromEntries(ids.map(id => [id, document.getElementById(id).value.trim()]));
-      if (!entry.sn || !entry.customer || !entry.inspectDate) {
-        alert('S/N, 고객사, 점검일자는 필수입니다.');
-        return;
-      }
-      entry.createdAt = new Date().toISOString();
-      entry.uid = currentUser.uid;
-      entry.user = currentUser.displayName;
-
-      const target = editDocId ? db.collection('logs').doc(editDocId).set(entry) : db.collection('logs').add(entry);
-      target.then(() => {
-        toggleForm(true);
-        showHistory();
-        alert('저장 완료');
-        editDocId = null;
-      });
-    }
-
-    function showHistory() {
-      if (!currentUser) return;
-      db.collection('logs').where('uid', '==', currentUser.uid).orderBy('createdAt', 'desc').get().then(snapshot => {
-        const list = document.getElementById('historyList');
-        list.innerHTML = '';
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          const div = document.createElement('div');
-          div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-          div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
-          div.onclick = () => showModal(d, doc.id);
-          list.appendChild(div);
-        });
-      });
-    }
-
-    function showModal(entry, docId) {
-      const overlay = document.createElement('div');
-      overlay.className = 'overlay';
-      const modal = document.createElement('div');
-      modal.className = 'modal';
-      modal.innerHTML = `
-        <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
-        <h3>S/N: ${entry.sn}</h3>
-        <p>고객사: ${entry.customer}</p>
-        <p>모델: ${entry.model}</p>
-        <p>스펙: ${entry.spec}</p>
-        <p>고장유형: ${entry.faultType}</p>
-        <p>접수내용: ${entry.receiveNote}</p>
-        <p>담당자: ${entry.receiver}</p>
-        <p>점검자: ${entry.inspector}</p>
-        <p>점검일자: ${entry.inspectDate}</p>
-        <p>조치내용: ${entry.checkNote}</p>
-        <p>교체부품: ${entry.material}</p>
-        <p>수량: ${entry.quantity}</p>
-        <p>유무상: ${entry.costType}</p>
-        <p>진행상태: ${entry.status}</p>
-        <p>완료일: ${entry.completeDate}</p>
-        <p>등록일: ${entry.createdAt.split('T')[0]}</p>
-        <button onclick="editEntry('${docId}')">수정하기</button>
-      `;
-      overlay.appendChild(modal);
-      document.body.appendChild(overlay);
-    }
-
-    function editEntry(docId) {
-      db.collection('logs').doc(docId).get().then(doc => {
-        const entry = doc.data();
-        editDocId = doc.id;
-        toggleForm();
-        const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-        ids.forEach(id => document.getElementById(id).value = entry[id] || '');
-        document.querySelector('.overlay')?.remove();
-      });
-    }
-
-    function exportExcel() {
-      db.collection("logs").where("uid", "==", currentUser.uid).get().then(snapshot => {
-        const data = [];
-        snapshot.forEach(doc => data.push(doc.data()));
-        if (!data.length) return alert('데이터가 없습니다.')
-        const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
-        const csv = data.map(d => [
-          d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector,
-          d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]
-        ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
-        const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = '장비이력.csv';
-        a.click();
-      });
-    }
-  </script>
 </body>
 </html>
+
 
 
