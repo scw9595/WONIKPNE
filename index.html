@@ -4,8 +4,124 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>장비 이력 관리 앱</title>
-  <!-- 스타일 정의는 이미 문서에 있으므로 생략 -->
-  <!-- 기존 <style> 코드 그대로 사용 -->
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to bottom, #f0f4f8, #e2e8f0);
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #1e293b;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+    .name-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 25px;
+    }
+    .name-grid button {
+      background-color: #3b82f6;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .name-grid button:hover, .name-grid button.active {
+      background-color: #2563eb;
+    }
+    .toolbar {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .toolbar input, .toolbar button, .toolbar select {
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .toolbar label {
+      font-size: 14px;
+      color: #475569;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    button.primary {
+      background-color: #10b981;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+    }
+    #formSection {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+      display: none;
+    }
+    label {
+      font-weight: bold;
+      font-size: 14px;
+      display: block;
+      margin-top: 10px;
+    }
+    .entry {
+      background: #fff;
+      border-left: 6px solid #9ca3af;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .entry:hover {
+      background: #f1f5f9;
+    }
+    .entry.completed {
+      border-left-color: #22c55e;
+      background-color: #ecfdf5;
+    }
+    .modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #ffffff;
+      padding: 24px;
+      z-index: 10001;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+      border-radius: 12px;
+      font-size: 14px;
+      animation: fadeIn 0.3s ease;
+    }
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 10000;
+    }
+    @keyframes fadeIn {
+      from {opacity: 0; transform: scale(0.95) translate(-50%, -50%);}
+      to {opacity: 1; transform: scale(1) translate(-50%, -50%);}
+    }
+  </style>
 </head>
 <body>
   <h1>장비 이력 관리 시스템</h1>
@@ -87,47 +203,46 @@
     }
 
     function saveEntry() {
-      const fields = ["customer", "sn", "model", "spec", "faultType", "receiveNote", "receiver", "inspector", "inspectDate", "checkNote", "material", "quantity", "costType", "status", "completeDate"];
+      const fields = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
       const entry = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value]));
+      entry.quantity = parseInt(entry.quantity) || 0;
       if (!entry.sn || !entry.customer || !entry.inspectDate) {
-        alert("S/N, 고객사, 점검일자는 필수입니다.");
+        alert('S/N, 고객사, 점검일자는 필수입니다.');
         return;
       }
       entry.createdAt = new Date().toISOString();
       entry.user = currentUser;
-      const data = JSON.parse(localStorage.getItem("logs") || "[]");
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
       data.push(entry);
-      localStorage.setItem("logs", JSON.stringify(data));
+      localStorage.setItem('logs', JSON.stringify(data));
       toggleForm(true);
       showHistory();
-      alert("저장 완료");
     }
 
     function showHistory() {
-      const list = document.getElementById("historyList");
-      const keyword = document.getElementById("search").value.toLowerCase();
-      const date = document.getElementById("filterDate").value;
-      const data = JSON.parse(localStorage.getItem("logs") || "[]");
-      list.innerHTML = "";
-      data.filter(d => d.user === currentUser)
-        .filter(d => {
-          const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
-          const matchDate = !date || d.createdAt.slice(0, 10) === date;
-          return matchKeyword && matchDate;
-        }).forEach((d, idx) => {
-          const div = document.createElement("div");
-          div.className = "entry" + (d.status === "완료" ? " completed" : "");
-          div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split("T")[0]}</small>`;
-          div.onclick = () => showModal(d, idx);
-          list.appendChild(div);
-        });
+      const list = document.getElementById('historyList');
+      const keyword = document.getElementById('search').value.toLowerCase();
+      const date = document.getElementById('filterDate').value;
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      list.innerHTML = '';
+      data.filter(d => d.user === currentUser).filter(d => {
+        const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
+        const matchDate = !date || d.createdAt.slice(0, 10) === date;
+        return matchKeyword && matchDate;
+      }).forEach((d, idx) => {
+        const div = document.createElement('div');
+        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
+        div.onclick = () => showModal(d, idx);
+        list.appendChild(div);
+      });
     }
 
     function showModal(entry, index) {
-      const overlay = document.createElement("div");
-      overlay.className = "overlay";
-      const modal = document.createElement("div");
-      modal.className = "modal";
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
       modal.innerHTML = `
         <h3>S/N: ${entry.sn}</h3>
         <p>고객사: ${entry.customer}</p>
@@ -144,7 +259,7 @@
         <p>유무상: ${entry.costType}</p>
         <p>진행상태: ${entry.status}</p>
         <p>완료일: ${entry.completeDate}</p>
-        <p>등록일: ${entry.createdAt.split("T")[0]}</p>
+        <p>등록일: ${entry.createdAt.split('T')[0]}</p>
         <button onclick="editEntry(${index})">수정하기</button>
         <button onclick="deleteEntry(${index})">삭제하기</button>
         <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
@@ -154,34 +269,37 @@
     }
 
     function editEntry(index) {
-      const data = JSON.parse(localStorage.getItem("logs") || "[]");
-      const entry = data[index];
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const filtered = data.filter(d => d.user === currentUser);
+      const entry = filtered[index];
       toggleForm();
-      const ids = ["customer", "sn", "model", "spec", "faultType", "receiveNote", "receiver", "inspector", "inspectDate", "checkNote", "material", "quantity", "costType", "status", "completeDate"];
+      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
       ids.forEach(id => document.getElementById(id).value = entry[id]);
-      data.splice(index, 1);
-      localStorage.setItem("logs", JSON.stringify(data));
-      document.querySelector(".overlay")?.remove();
+      deleteEntry(index, false); // 삭제 후 수정모드로
     }
 
-    function deleteEntry(index) {
-      const data = JSON.parse(localStorage.getItem("logs") || "[]");
-      if (confirm("정말 삭제하시겠습니까?")) {
-        data.splice(index, 1);
-        localStorage.setItem("logs", JSON.stringify(data));
-        document.querySelector(".overlay")?.remove();
+    function deleteEntry(index, confirmDelete = true) {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const filtered = data.filter(d => d.user === currentUser);
+      const target = filtered[index];
+      const globalIndex = data.findIndex(d => d.createdAt === target.createdAt && d.user === target.user);
+      if (globalIndex === -1) return alert("데이터를 찾을 수 없습니다.");
+      if (!confirmDelete || confirm("정말 삭제하시겠습니까?")) {
+        data.splice(globalIndex, 1);
+        localStorage.setItem('logs', JSON.stringify(data));
+        document.querySelector('.overlay')?.remove();
         showHistory();
       }
     }
 
     function exportExcel() {
-      const data = JSON.parse(localStorage.getItem("logs") || "[]").filter(d => d.user === currentUser);
-      if (!data.length) return alert("데이터가 없습니다.");
-      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
-      const csv = data.map(d =>
-        [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split("T")[0]].join(',')
-      ).join('\n');
-      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
+      const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
+      if (!data.length) return alert('데이터가 없습니다.');
+      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일
+';
+      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('
+');
+      const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = '장비이력.csv';
@@ -190,7 +308,6 @@
   </script>
 </body>
 </html>
-
 
 
 
