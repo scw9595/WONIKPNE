@@ -163,16 +163,19 @@
     const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
     let currentUser = null;
 
-    window.onload = () => {
-      const userGrid = document.getElementById("userGrid");
-      users.forEach(name => {
-        const btn = document.createElement("button");
-        btn.textContent = name;
-        btn.onclick = () => {
-          currentUser = name;
-          document.getElementById("userToolbar").style.display = "flex";
-          showHistory();
-        };
+    document.addEventListener("DOMContentLoaded", () => {
+  const userGrid = document.getElementById("userGrid");
+  users.forEach(name => {
+    const btn = document.createElement("button");
+    btn.textContent = name;
+    btn.onclick = () => {
+      currentUser = name;
+      document.getElementById("userToolbar").style.display = "flex";
+      showHistory();
+    };
+    userGrid.appendChild(btn);
+  });
+});
         userGrid.appendChild(btn);
       });
     };
