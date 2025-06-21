@@ -259,7 +259,8 @@
       overlay.className = 'overlay';
       const modal = document.createElement('div');
       modal.className = 'modal';
-      modal.innerHTML = `
+
+      let modalHtml = `
         <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
         <h3>S/N: ${entry.sn}</h3>
         <p>고객사: ${entry.customer}</p>
@@ -277,9 +278,16 @@
         <p>진행상태: ${entry.status}</p>
         <p>완료일: ${entry.completeDate}</p>
         <p>등록일: ${(entry.createdAt?.toDate?.() || new Date()).toISOString().split('T')[0]}</p>
-        <button onclick="editEntry('${docId}')">수정하기</button>
-        <button onclick="deleteEntry('${docId}')" style="color:red; margin-left:10px;">삭제하기</button>
       `;
+
+      if (currentUser && currentUser.uid === entry.uid) {
+        modalHtml += `
+          <button onclick="editEntry('${docId}')">수정하기</button>
+          <button onclick="deleteEntry('${docId}')" style="color:red; margin-left:10px;">삭제하기</button>
+        `;
+      }
+
+      modal.innerHTML = modalHtml;
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
     }
@@ -310,7 +318,6 @@
         const data = [];
         snapshot.forEach(doc => data.push(doc.data()));
         if (!data.length) return alert('데이터가 없습니다.');
-
         const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
         const csv = data.map(d => [
           d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector,
