@@ -5,68 +5,77 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>장비 이력 관리 앱</title>
   <style>
+    :root {
+      --primary: #10b981;
+      --gray: #d1d5db;
+      --gray-dark: #9ca3af;
+      --text: #111827;
+    }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #f9fafb;
       margin: 0;
-      padding: 20px;
-      max-width: 100%;
+      padding: 16px;
     }
     h1 {
       text-align: center;
       color: #1f2937;
       font-size: 24px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
     .name-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-      gap: 10px;
-      margin-bottom: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
     }
     .name-grid button {
-      background-color: #d1d5db;
-      color: #111827;
+      background-color: var(--gray);
+      color: var(--text);
       border: none;
       border-radius: 6px;
       padding: 10px;
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
       font-weight: bold;
     }
     .name-grid button:hover {
-      background-color: #9ca3af;
+      background-color: var(--gray-dark);
     }
     .toolbar {
       display: none;
       flex-direction: column;
       gap: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 16px;
     }
-    .toolbar input, .toolbar button, .toolbar select {
+    .toolbar input,
+    .toolbar select,
+    .toolbar button {
       padding: 10px;
-      border: 1px solid #d1d5db;
+      border: 1px solid var(--gray);
       border-radius: 6px;
-      font-size: 14px;
+      font-size: 13px;
+      width: 100%;
+      box-sizing: border-box;
     }
     .toolbar label {
       font-size: 13px;
       color: #374151;
-      margin-bottom: 4px;
+      margin-top: 8px;
     }
     button.primary {
-      background-color: #10b981;
+      background-color: var(--primary);
       color: white;
       font-weight: bold;
       border: none;
     }
     .entry {
       background: white;
-      border-left: 5px solid #9ca3af;
+      border-left: 5px solid var(--gray);
       padding: 12px;
       margin-bottom: 10px;
       border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
       cursor: pointer;
     }
     .entry.completed {
@@ -77,15 +86,16 @@
       background: white;
       padding: 16px;
       border-radius: 8px;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
       margin-bottom: 20px;
       display: none;
     }
-    label {
-      font-weight: bold;
-      font-size: 14px;
-      margin-top: 10px;
-      display: block;
+    #formSection input,
+    #formSection textarea,
+    #formSection select {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 4px;
     }
     .modal {
       position: fixed;
@@ -93,14 +103,14 @@
       left: 50%;
       transform: translate(-50%, -50%);
       background: #fff;
-      padding: 20px;
+      padding: 16px;
       z-index: 10001;
-      box-shadow: 0 0 10px rgba(0,0,0,0.15);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
       width: 90vw;
       max-height: 85vh;
       overflow-y: auto;
       border-radius: 10px;
-      font-size: 14px;
+      font-size: 13px;
     }
     .overlay {
       position: fixed;
@@ -111,12 +121,21 @@
       background: rgba(0, 0, 0, 0.4);
       z-index: 10000;
     }
-    @media screen and (max-width: 600px) {
-      .name-grid {
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-      }
+    @media (min-width: 768px) {
       .toolbar {
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .toolbar label,
+      .toolbar input,
+      .toolbar select,
+      .toolbar button {
+        flex: 1 1 180px;
+        margin-right: 10px;
+      }
+      .toolbar button {
+        max-width: 140px;
       }
     }
   </style>
@@ -125,11 +144,11 @@
   <h1>장비 이력 관리 시스템</h1>
   <div class="name-grid" id="userGrid"></div>
   <div class="toolbar" id="userToolbar">
-    <label>검색</label>
+    <label for="search">검색</label>
     <input type="text" id="search" placeholder="전체 검색" oninput="showHistory()">
-    <label>날짜 선택 (등록일 기준)</label>
+    <label for="filterDate">날짜 선택</label>
     <input type="date" id="filterDate" onchange="showHistory()">
-    <label>상태 필터</label>
+    <label for="statusFilter">상태 필터</label>
     <select id="statusFilter" onchange="showHistory()">
       <option value="">전체</option>
       <option value="완료">완료</option>
@@ -140,57 +159,33 @@
   </div>
   <div id="formSection"></div>
   <div id="historyList"></div>
-
   <script>
     const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
     let currentUser = null;
-    const userGrid = document.getElementById('userGrid');
-    users.forEach(name => {
-      const btn = document.createElement('button');
-      btn.textContent = name;
-      btn.onclick = () => {
-        currentUser = name;
-        document.getElementById('userToolbar').style.display = 'flex';
-        showHistory();
-      };
-      userGrid.appendChild(btn);
-    });
 
-    function showHistory() {
-      const list = document.getElementById('historyList');
-      const keyword = document.getElementById('search').value.toLowerCase();
-      const date = document.getElementById('filterDate').value;
-      const statusFilter = document.getElementById('statusFilter').value;
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-
-      list.innerHTML = '';
-      const filtered = data
-        .map((d, i) => ({ ...d, __index: i }))
-        .filter(d => d.user === currentUser)
-        .filter(d => {
-          const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
-          const matchDate = !date || d.createdAt.startsWith(date);
-          const matchStatus = !statusFilter || d.status === statusFilter;
-          return matchKeyword && matchDate && matchStatus;
-        });
-
-      filtered.forEach(d => {
-        const div = document.createElement('div');
-        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
-        div.onclick = () => showModal(d, d.__index);
-        list.appendChild(div);
+    window.onload = () => {
+      const userGrid = document.getElementById("userGrid");
+      users.forEach(name => {
+        const btn = document.createElement("button");
+        btn.textContent = name;
+        btn.onclick = () => {
+          currentUser = name;
+          document.getElementById("userToolbar").style.display = "flex";
+          showHistory();
+        };
+        userGrid.appendChild(btn);
       });
-    }
+    };
 
     function toggleForm(closeOnly = false) {
-      const form = document.getElementById('formSection');
-      if (closeOnly || form.style.display === 'block') {
-        form.style.display = 'none';
-        form.innerHTML = '';
+      const form = document.getElementById("formSection");
+      if (closeOnly || form.style.display === "block") {
+        form.style.display = "none";
+        form.innerHTML = "";
         return;
       }
-      const today = new Date().toISOString().split('T')[0];
+
+      const today = new Date().toISOString().split("T")[0];
       form.innerHTML = `
         <h2>이력 등록</h2>
         <label>고객사</label><input type="text" id="customer">
@@ -200,15 +195,15 @@
         <label>고장유형</label>
         <select id="faultType">
           <option value="">선택</option>
-          ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+          ${["HW BLOCK","H/W PCB BD","성능","점검","초기불량","원인미도출","교정","복합","S/W","납품","기타"].map(opt => `<option value="${opt}">${opt}</option>`).join("")}
         </select>
         <label>접수 내용</label><textarea id="receiveNote"></textarea>
         <label>담당자</label><input type="text" id="receiver">
         <label>점검자</label><input type="text" id="inspector">
-        <label>점검일자</label><input type="date" id="inspectDate" value="${today}" readonly>
+        <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
         <label>조치 내용</label><textarea id="checkNote"></textarea>
         <label>교체 부품</label><input type="text" id="material">
-        <label>수량</label><input type="number" id="quantity">
+        <label>수량</label><input type="number" id="quantity" min="1">
         <label>유무상</label>
         <select id="costType">
           <option value="유상">유상</option>
@@ -223,28 +218,54 @@
         <div style="margin-top: 10px;">
           <button onclick="saveEntry()">저장</button>
           <button onclick="toggleForm(true)">닫기</button>
-        </div>`;
-      form.style.display = 'block';
+        </div>
+      `;
+      form.style.display = "block";
     }
 
     function saveEntry() {
       const fields = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
       const entry = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value]));
+      if (!entry.sn || !entry.customer) return alert("S/N 및 고객사는 필수 항목입니다.");
       entry.createdAt = new Date().toISOString();
       entry.user = currentUser;
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const data = JSON.parse(localStorage.getItem("logs") || "[]");
       data.push(entry);
-      localStorage.setItem('logs', JSON.stringify(data));
+      localStorage.setItem("logs", JSON.stringify(data));
       toggleForm(true);
       showHistory();
-      alert('저장 완료');
+      alert("저장 완료");
+    }
+
+    function showHistory() {
+      const keyword = document.getElementById("search").value.toLowerCase();
+      const date = document.getElementById("filterDate").value;
+      const statusFilter = document.getElementById("statusFilter").value;
+      const list = document.getElementById("historyList");
+      const data = JSON.parse(localStorage.getItem("logs") || "[]");
+      list.innerHTML = "";
+      const filtered = data.map((d, i) => ({...d, __index: i}))
+        .filter(d => d.user === currentUser)
+        .filter(d => {
+          const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
+          const matchDate = !date || d.createdAt.startsWith(date);
+          const matchStatus = !statusFilter || d.status === statusFilter;
+          return matchKeyword && matchDate && matchStatus;
+        });
+      filtered.forEach(d => {
+        const div = document.createElement("div");
+        div.className = "entry" + (d.status === "완료" ? " completed" : "");
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split("T")[0]}</small>`;
+        div.onclick = () => showModal(d, d.__index);
+        list.appendChild(div);
+      });
     }
 
     function showModal(entry, index) {
-      const overlay = document.createElement('div');
-      overlay.className = 'overlay';
-      const modal = document.createElement('div');
-      modal.className = 'modal';
+      const overlay = document.createElement("div");
+      overlay.className = "overlay";
+      const modal = document.createElement("div");
+      modal.className = "modal";
       modal.innerHTML = `
         <h3>S/N: ${entry.sn}</h3>
         <p>고객사: ${entry.customer}</p>
@@ -261,43 +282,44 @@
         <p>유무상: ${entry.costType}</p>
         <p>진행상태: ${entry.status}</p>
         <p>완료일: ${entry.completeDate}</p>
-        <p>등록일: ${entry.createdAt.split('T')[0]}</p>
+        <p>등록일: ${entry.createdAt.split("T")[0]}</p>
         <button onclick="editEntry(${index})">수정하기</button>
         <button onclick="deleteEntry(${index})">삭제하기</button>
-        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>`;
+        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
+      `;
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
     }
 
     function editEntry(index) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const data = JSON.parse(localStorage.getItem("logs") || "[]");
       const entry = data[index];
       toggleForm();
       const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
       ids.forEach(id => document.getElementById(id).value = entry[id]);
       data.splice(index, 1);
-      localStorage.setItem('logs', JSON.stringify(data));
-      document.querySelector('.overlay')?.remove();
+      localStorage.setItem("logs", JSON.stringify(data));
+      document.querySelector(".overlay")?.remove();
     }
 
     function deleteEntry(index) {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      if (confirm('정말 삭제하시겠습니까?')) {
+      const data = JSON.parse(localStorage.getItem("logs") || "[]");
+      if (confirm("정말 삭제하시겠습니까?")) {
         data.splice(index, 1);
-        localStorage.setItem('logs', JSON.stringify(data));
-        document.querySelector('.overlay')?.remove();
+        localStorage.setItem("logs", JSON.stringify(data));
+        document.querySelector(".overlay")?.remove();
         showHistory();
       }
     }
 
     function exportExcel() {
-      const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
-      if (!data.length) return alert('데이터가 없습니다.');
+      const data = JSON.parse(localStorage.getItem("logs") || "[]").filter(d => d.user === currentUser);
+      if (!data.length) return alert("데이터가 없습니다.");
       const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일
 ';
       const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('
 ');
-      const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = '장비이력.csv';
@@ -306,6 +328,7 @@
   </script>
 </body>
 </html>
+
 
 
 
