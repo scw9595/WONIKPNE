@@ -137,7 +137,6 @@
   </div>
   <div id="formSection"></div>
   <div id="historyList"></div>
-
   <script>
     const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
     let currentUser = null;
@@ -179,7 +178,7 @@
         <label>접수 내용</label><textarea id="receiveNote"></textarea>
         <label>담당자</label><input type="text" id="receiver">
         <label>점검자</label><input type="text" id="inspector">
-        <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
+        <label>점검일자</label><input type="date" id="inspectDate" value="${today}" readonly>
         <label>조치 내용</label><textarea id="checkNote"></textarea>
         <label>교체 부품</label><input type="text" id="material">
         <label>수량</label><input type="number" id="quantity">
@@ -205,7 +204,6 @@
     function saveEntry() {
       const fields = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
       const entry = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value]));
-      entry.quantity = parseInt(entry.quantity) || 0;
       if (!entry.sn || !entry.customer || !entry.inspectDate) {
         alert('S/N, 고객사, 점검일자는 필수입니다.');
         return;
@@ -217,6 +215,7 @@
       localStorage.setItem('logs', JSON.stringify(data));
       toggleForm(true);
       showHistory();
+      alert('저장 완료');
     }
 
     function showHistory() {
@@ -270,22 +269,19 @@
 
     function editEntry(index) {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const filtered = data.filter(d => d.user === currentUser);
-      const entry = filtered[index];
+      const entry = data[index];
       toggleForm();
       const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
       ids.forEach(id => document.getElementById(id).value = entry[id]);
-      deleteEntry(index, false); // 삭제 후 수정모드로
+      data.splice(index, 1);
+      localStorage.setItem('logs', JSON.stringify(data));
+      document.querySelector('.overlay')?.remove();
     }
 
-    function deleteEntry(index, confirmDelete = true) {
+    function deleteEntry(index) {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      const filtered = data.filter(d => d.user === currentUser);
-      const target = filtered[index];
-      const globalIndex = data.findIndex(d => d.createdAt === target.createdAt && d.user === target.user);
-      if (globalIndex === -1) return alert("데이터를 찾을 수 없습니다.");
-      if (!confirmDelete || confirm("정말 삭제하시겠습니까?")) {
-        data.splice(globalIndex, 1);
+      if (confirm('정말 삭제하시겠습니까?')) {
+        data.splice(index, 1);
         localStorage.setItem('logs', JSON.stringify(data));
         document.querySelector('.overlay')?.remove();
         showHistory();
@@ -295,10 +291,8 @@
     function exportExcel() {
       const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
       if (!data.length) return alert('데이터가 없습니다.');
-      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일
-';
-      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('
-');
+      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
+      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('\n');
       const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
