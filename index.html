@@ -3,145 +3,122 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>장비 이력 관리 앱</title>
+  <title>장비 이력 관리 시스템</title>
   <style>
-    :root {
-      --bg: #f0f4f8;
-      --card-bg: #ffffff;
-      --text-color: #1e293b;
-      --border: #cbd5e1;
-      --button-bg: #3b82f6;
-      --button-hover: #2563eb;
-      --accent: #10b981;
-    }
-
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: var(--bg);
+      font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(to bottom, #f0f4f8, #e2e8f0);
       margin: 0;
-      padding: 16px;
+      padding: 20px;
     }
-
     h1 {
       text-align: center;
-      color: var(--text-color);
-      font-size: 24px;
-      margin-bottom: 16px;
+      color: #1e293b;
+      font-size: 26px;
+      margin-bottom: 20px;
     }
-
     .name-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-      gap: 8px;
-      margin-bottom: 16px;
+      gap: 10px;
+      margin-bottom: 20px;
     }
-
     .name-grid button {
-      background-color: var(--button-bg);
-      color: #fff;
+      background-color: #3b82f6;
+      color: #ffffff;
       border: none;
       border-radius: 8px;
       padding: 10px;
       font-size: 14px;
       cursor: pointer;
-      transition: background-color 0.2s;
+      transition: background-color 0.2s ease;
     }
-
     .name-grid button:hover,
     .name-grid button.active {
-      background-color: var(--button-hover);
+      background-color: #2563eb;
     }
-
     .toolbar {
       display: none;
       flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
+      gap: 10px;
+      margin-bottom: 20px;
     }
-
-    .toolbar input,
-    .toolbar select,
-    .toolbar button {
+    .toolbar input, .toolbar button, .toolbar select {
       padding: 10px;
-      font-size: 14px;
-      border: 1px solid var(--border);
+      border: 1px solid #cbd5e1;
       border-radius: 8px;
-      box-sizing: border-box;
-      width: 100%;
+      font-size: 14px;
     }
-
     .toolbar label {
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 14px;
       color: #475569;
+      font-weight: 600;
       margin-top: 10px;
     }
-
     button.primary {
-      background-color: var(--accent);
+      background-color: #10b981;
       color: white;
       font-weight: bold;
       border: none;
       border-radius: 8px;
     }
-
     #formSection {
-      background: var(--card-bg);
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       margin-bottom: 20px;
       display: none;
+      max-width: 600px;
+      margin-inline: auto;
     }
-
     label {
-      font-size: 14px;
       font-weight: bold;
-      margin-top: 10px;
+      font-size: 14px;
       display: block;
+      margin-top: 10px;
     }
-
     input, textarea, select {
       width: 100%;
-      padding: 10px;
-      font-size: 14px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      box-sizing: border-box;
-      margin-top: 4px;
-    }
-
-    .entry {
-      background: white;
-      border-left: 5px solid #9ca3af;
-      padding: 12px;
       margin-bottom: 10px;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      font-size: 14px;
+      padding: 8px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
     }
-
+    .entry {
+      background: #fff;
+      border-left: 6px solid #9ca3af;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .entry:hover {
+      background: #f1f5f9;
+    }
     .entry.completed {
       border-left-color: #22c55e;
-      background-color: #f0fdf4;
+      background-color: #ecfdf5;
     }
-
     .modal {
       position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: white;
-      padding: 20px;
-      width: 92vw;
-      max-height: 80vh;
+      background: #ffffff;
+      padding: 24px;
+      z-index: 10001;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      width: 90vw;
+      max-height: 85vh;
       overflow-y: auto;
       border-radius: 12px;
-      z-index: 10001;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
       font-size: 14px;
+      animation: fadeIn 0.3s ease;
     }
-
     .overlay {
       position: fixed;
       top: 0;
@@ -151,40 +128,23 @@
       background: rgba(0, 0, 0, 0.4);
       z-index: 10000;
     }
-
-    @media (max-width: 480px) {
-      h1 {
-        font-size: 20px;
-      }
+    @keyframes fadeIn {
+      from {opacity: 0; transform: scale(0.95) translate(-50%, -50%);}
+      to {opacity: 1; transform: scale(1) translate(-50%, -50%);}
+    }
+    @media screen and (max-width: 600px) {
       .name-grid {
         grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-        gap: 6px;
       }
       .modal {
         padding: 16px;
-        width: 95vw;
         font-size: 13px;
       }
-      #formSection {
-        padding: 12px;
+      h1 {
+        font-size: 20px;
       }
     }
-      .floating-add {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 56px;
-      height: 56px;
-      background-color: var(--accent);
-      color: #fff;
-      font-size: 28px;
-      border: none;
-      border-radius: 50%;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      z-index: 999;
-    }
-
-</style>
+  </style>
 </head>
 <body>
   <h1>장비 이력 관리 시스템</h1>
@@ -200,177 +160,149 @@
   </div>
   <div id="formSection"></div>
   <div id="historyList"></div>
+
   <script>
     const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
-let currentUser = null;
-const userGrid = document.getElementById('userGrid');
+    let currentUser = null;
 
-users.forEach(name => {
-  const btn = document.createElement('button');
-  btn.textContent = name;
-  btn.onclick = () => {
-    currentUser = name;
-    document.getElementById('userToolbar').style.display = 'flex';
-    document.getElementById('currentUserDisplay').textContent = `현재 사용자: ${currentUser}`;
-    document.querySelectorAll('.name-grid button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    showHistory();
-  };
-  userGrid.appendChild(btn);
-});
+    users.forEach(name => {
+      const btn = document.createElement('button');
+      btn.textContent = name;
+      btn.onclick = () => {
+        currentUser = name;
+        document.getElementById('userToolbar').style.display = 'flex';
+        document.getElementById('currentUserDisplay').textContent = `현재 사용자: ${currentUser}`;
+        document.querySelectorAll('.name-grid button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        showHistory();
+      };
+      document.getElementById('userGrid').appendChild(btn);
+    });
 
-function toggleForm(closeOnly = false) {
-  const form = document.getElementById('formSection');
-  if (closeOnly || form.style.display === 'block') {
-    form.style.display = 'none';
-    form.innerHTML = '';
-    return;
-  }
-  const today = new Date().toISOString().split('T')[0];
-  form.innerHTML = `
-    <h2>이력 등록</h2>
-    <label>고객사</label><input type="text" id="customer">
-    <label>S/N</label><input type="text" id="sn">
-    <label>모델</label><input type="text" id="model">
-    <label>스펙</label><input type="text" id="spec">
-    <label>고장유형</label>
-    <select id="faultType">
-      <option value="">선택</option>
-      ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}">${opt}</option>`).join('')}
-    </select>
-    <label>접수 내용</label><textarea id="receiveNote"></textarea>
-    <label>담당자</label><input type="text" id="receiver">
-    <label>점검자</label><input type="text" id="inspector">
-    <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
-    <label>조치 내용</label><textarea id="checkNote"></textarea>
-    <label>교체 부품</label><input type="text" id="material">
-    <label>수량</label><input type="number" id="quantity">
-    <label>유무상</label>
-    <select id="costType">
-      <option value="유상">유상</option>
-      <option value="무상">무상</option>
-    </select>
-    <label>진행 상태</label>
-    <select id="status">
-      <option value="미완료">미완료</option>
-      <option value="완료">완료</option>
-    </select>
-    <label>완료일</label><input type="date" id="completeDate">
-    <div style="margin-top: 10px;">
-      <button onclick="saveEntry()">저장</button>
-      <button onclick="toggleForm(true)">닫기</button>
-    </div>
-  `;
-  form.style.display = 'block';
-}
+    function toggleForm(closeOnly = false) {
+      const form = document.getElementById('formSection');
+      if (closeOnly || form.style.display === 'block') {
+        form.style.display = 'none';
+        form.innerHTML = '';
+        return;
+      }
+      const today = new Date().toISOString().split('T')[0];
+      form.innerHTML = `
+        <h2>이력 등록</h2>
+        <label>고객사</label><input type="text" id="customer">
+        <label>S/N</label><input type="text" id="sn">
+        <label>모델</label><input type="text" id="model">
+        <label>스펙</label><input type="text" id="spec">
+        <label>고장유형</label>
+        <select id="faultType">
+          <option value="">선택</option>
+          ${['HW BLOCK','H/W PCB BD','성능','점검','초기불량','원인미도출','교정','복합','S/W','납품','기타'].map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+        </select>
+        <label>접수 내용</label><textarea id="receiveNote"></textarea>
+        <label>담당자</label><input type="text" id="receiver">
+        <label>점검자</label><input type="text" id="inspector">
+        <label>점검일자</label><input type="date" id="inspectDate" value="${today}" readonly>
+        <label>조치 내용</label><textarea id="checkNote"></textarea>
+        <label>교체 부품</label><input type="text" id="material">
+        <label>수량</label><input type="number" id="quantity">
+        <label>유무상</label>
+        <select id="costType"><option value="유상">유상</option><option value="무상">무상</option></select>
+        <label>진행 상태</label>
+        <select id="status"><option value="미완료">미완료</option><option value="완료">완료</option></select>
+        <label>완료일</label><input type="date" id="completeDate">
+        <div><button onclick="saveEntry()">저장</button> <button onclick="toggleForm(true)">닫기</button></div>
+      `;
+      form.style.display = 'block';
+    }
 
-function saveEntry() {
-  const fields = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-  const entry = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value]));
-  entry.quantity = parseInt(entry.quantity) || 0;
-  if (!entry.sn || !entry.customer || !entry.inspectDate) {
-    alert('S/N, 고객사, 점검일자는 필수입니다.');
-    return;
-  }
-  entry.createdAt = new Date().toISOString() + '_' + Math.random().toString(36).substr(2, 5);
-  entry.user = currentUser;
-  const data = JSON.parse(localStorage.getItem('logs') || '[]');
-  data.push(entry);
-  localStorage.setItem('logs', JSON.stringify(data));
-  toggleForm(true);
-  showHistory();
-}
+    function saveEntry() {
+      const fields = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
+      const entry = Object.fromEntries(fields.map(id => [id, document.getElementById(id).value]));
+      if (!entry.sn || !entry.customer || !entry.inspectDate) {
+        alert('S/N, 고객사, 점검일자는 필수입니다.');
+        return;
+      }
+      entry.createdAt = new Date().toISOString();
+      entry.user = currentUser;
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      data.push(entry);
+      localStorage.setItem('logs', JSON.stringify(data));
+      toggleForm(true);
+      showHistory();
+      alert('저장 완료');
+    }
 
-function showHistory() {
-  const list = document.getElementById('historyList');
-  const keyword = document.getElementById('search').value.toLowerCase();
-  const date = document.getElementById('filterDate').value;
-  const data = JSON.parse(localStorage.getItem('logs') || '[]');
-  list.innerHTML = '';
-  data.filter(d => d.user === currentUser).filter(d => {
-    const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
-    const matchDate = !date || d.createdAt.slice(0, 10) === date;
-    return matchKeyword && matchDate;
-  }).forEach((d, idx) => {
-    const div = document.createElement('div');
-    div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-    div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
-    div.onclick = () => showModal(d, idx);
-    list.appendChild(div);
-  });
-}
+    function showHistory() {
+      const list = document.getElementById('historyList');
+      const keyword = document.getElementById('search').value.toLowerCase();
+      const date = document.getElementById('filterDate').value;
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      list.innerHTML = '';
+      data.filter(d => d.user === currentUser).filter(d => {
+        const matchKeyword = JSON.stringify(d).toLowerCase().includes(keyword);
+        const matchDate = !date || d.createdAt.slice(0, 10) === date;
+        return matchKeyword && matchDate;
+      }).forEach((d, idx) => {
+        const div = document.createElement('div');
+        div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
+        div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${d.createdAt.split('T')[0]}</small>`;
+        div.onclick = () => showModal(d, idx);
+        list.appendChild(div);
+      });
+    }
 
-function showModal(entry, index) {
-  const overlay = document.createElement('div');
-  overlay.className = 'overlay';
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.innerHTML = `
-    <h3>S/N: ${entry.sn}</h3>
-    <p>고객사: ${entry.customer}</p>
-    <p>모델: ${entry.model}</p>
-    <p>스펙: ${entry.spec}</p>
-    <p>고장유형: ${entry.faultType}</p>
-    <p>접수내용: ${entry.receiveNote}</p>
-    <p>담당자: ${entry.receiver}</p>
-    <p>점검자: ${entry.inspector}</p>
-    <p>점검일자: ${entry.inspectDate}</p>
-    <p>조치내용: ${entry.checkNote}</p>
-    <p>교체부품: ${entry.material}</p>
-    <p>수량: ${entry.quantity}</p>
-    <p>유무상: ${entry.costType}</p>
-    <p>진행상태: ${entry.status}</p>
-    <p>완료일: ${entry.completeDate}</p>
-    <p>등록일: ${entry.createdAt.split('T')[0]}</p>
-    <button onclick="editEntry(${index})">수정하기</button>
-    <button onclick="deleteEntry(${index})">삭제하기</button>
-    <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
-  `;
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-}
+    function showModal(entry, index) {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <h3>S/N: ${entry.sn}</h3>
+        <p>고객사: ${entry.customer}</p>
+        <p>모델: ${entry.model}</p>
+        <p>스펙: ${entry.spec}</p>
+        <p>고장유형: ${entry.faultType}</p>
+        <p>접수내용: ${entry.receiveNote}</p>
+        <p>담당자: ${entry.receiver}</p>
+        <p>점검자: ${entry.inspector}</p>
+        <p>점검일자: ${entry.inspectDate}</p>
+        <p>조치내용: ${entry.checkNote}</p>
+        <p>교체부품: ${entry.material}</p>
+        <p>수량: ${entry.quantity}</p>
+        <p>유무상: ${entry.costType}</p>
+        <p>진행상태: ${entry.status}</p>
+        <p>완료일: ${entry.completeDate}</p>
+        <p>등록일: ${entry.createdAt.split('T')[0]}</p>
+        <button onclick="editEntry(${index})">수정하기</button>
+        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
+      `;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+    }
 
-function editEntry(index) {
-  const data = JSON.parse(localStorage.getItem('logs') || '[]');
-  const filtered = data.filter(d => d.user === currentUser);
-  const entry = filtered[index];
-  toggleForm();
-  const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-  ids.forEach(id => document.getElementById(id).value = entry[id]);
-  deleteEntry(index, false);
-}
+    function editEntry(index) {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]');
+      const entry = data[index];
+      toggleForm();
+      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
+      ids.forEach(id => document.getElementById(id).value = entry[id]);
+      data.splice(index, 1);
+      localStorage.setItem('logs', JSON.stringify(data));
+      document.querySelector('.overlay')?.remove();
+    }
 
-function deleteEntry(index, confirmDelete = true) {
-  const data = JSON.parse(localStorage.getItem('logs') || '[]');
-  const filtered = data.filter(d => d.user === currentUser);
-  const target = filtered[index];
-  const globalIndex = data.findIndex(d => d.createdAt === target.createdAt && d.user === target.user);
-  if (globalIndex === -1) return alert("데이터를 찾을 수 없습니다.");
-  if (!confirmDelete || confirm("정말 삭제하시겠습니까?")) {
-    data.splice(globalIndex, 1);
-    localStorage.setItem('logs', JSON.stringify(data));
-    const oldOverlay = document.querySelector('.overlay'); if (oldOverlay) oldOverlay.remove();
-    showHistory();
-  }
-}
-
-function exportExcel() {
-  const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
-  if (!data.length) return alert('데이터가 없습니다.');
-  const header = `고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일
-`;
-';
-  const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('
-');
-  const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = '장비이력.csv';
-  a.click();
-}
-</script>
-
-<button class="floating-add" onclick="toggleForm()">＋</button>
+    function exportExcel() {
+      const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
+      if (!data.length) return alert('데이터가 없습니다.');
+      const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
+      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('\n');
+      const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '장비이력.csv';
+      a.click();
+    }
+  </script>
 </body>
 </html>
 
