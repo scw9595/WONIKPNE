@@ -6,8 +6,8 @@
   <title>장비 이력 관리 앱</title>
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f4f6f9;
+      font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      background-color: #f9fafb;
       margin: 0;
       padding: 20px;
       max-width: 900px;
@@ -15,24 +15,29 @@
     }
     h1 {
       text-align: center;
-      color: #333;
-      margin-bottom: 10px;
+      color: #1f2937;
+      font-size: 28px;
+      margin-bottom: 20px;
     }
     .toolbar {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 20px;
+      align-items: center;
     }
     input, select, textarea, button {
       padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
       font-size: 15px;
       box-sizing: border-box;
     }
+    input[type="text"], select, textarea, input[type="date"] {
+      flex: 1;
+    }
     button {
-      background-color: #0066cc;
+      background-color: #10b981;
       color: white;
       font-weight: bold;
       cursor: pointer;
@@ -40,33 +45,34 @@
       border: none;
     }
     button:hover {
-      background-color: #004999;
+      background-color: #059669;
     }
     .entry {
       background: white;
-      border-left: 5px solid #999;
-      padding: 12px;
-      margin-bottom: 10px;
-      border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      border-left: 5px solid #9ca3af;
+      padding: 15px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
       cursor: pointer;
     }
     .entry.completed {
-      border-left-color: #2ecc71;
+      border-left-color: #34d399;
       background-color: #f0fdf4;
     }
     #formSection {
       background: white;
       padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
       display: none;
     }
     label {
-      font-weight: bold;
-      margin-top: 10px;
+      font-weight: 600;
+      margin-top: 14px;
       display: block;
+      color: #374151;
     }
     .modal {
       position: fixed;
@@ -74,13 +80,14 @@
       left: 50%;
       transform: translate(-50%, -50%);
       background: #fff;
-      border: 1px solid #ccc;
-      padding: 20px;
+      border: 1px solid #e5e7eb;
+      padding: 24px;
       z-index: 10001;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      width: 80vw;
-      max-height: 80vh;
+      box-shadow: 0 0 12px rgba(0,0,0,0.15);
+      width: 85vw;
+      max-height: 85vh;
       overflow-y: auto;
+      border-radius: 10px;
     }
     .overlay {
       position: fixed;
@@ -88,24 +95,25 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.4);
       z-index: 10000;
+    }
+    .modal button {
+      margin-top: 15px;
+      width: 100%;
     }
   </style>
 </head>
 <body>
   <h1>장비 이력 관리 시스템</h1>
-
   <div class="toolbar">
     <input type="text" id="search" placeholder="전체 검색" oninput="showHistory()">
     <input type="date" id="filterDate" onchange="showHistory()">
     <button onclick="toggleForm()">이력 입력</button>
     <button onclick="exportExcel()">엑셀 추출</button>
   </div>
-
   <div id="formSection"></div>
   <div id="historyList"></div>
-
   <script>
     function toggleForm(closeOnly = false) {
       const form = document.getElementById('formSection');
