@@ -33,8 +33,7 @@
       cursor: pointer;
       transition: background-color 0.2s ease;
     }
-    .name-grid button:hover,
-    .name-grid button.active {
+    .name-grid button:hover, .name-grid button.active {
       background-color: #2563eb;
     }
     .toolbar {
@@ -68,9 +67,9 @@
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       margin-bottom: 20px;
-      display: none;
       max-width: 600px;
       margin-inline: auto;
+      display: none;
     }
     label {
       font-weight: bold;
@@ -164,6 +163,7 @@
   <script>
     const users = ["박형우", "정진배", "권용진", "김수빈", "김주완", "박동준", "박준영", "오정현", "유병규", "최영훈", "김창훈", "박강훈", "서정우", "이진수", "진주화", "김민섭", "김정호", "마진영", "송태현", "심우민", "오기석", "오창호", "윤상빈", "이호승"];
     let currentUser = null;
+    let editIndex = null;
 
     users.forEach(name => {
       const btn = document.createElement('button');
@@ -184,6 +184,7 @@
       if (closeOnly || form.style.display === 'block') {
         form.style.display = 'none';
         form.innerHTML = '';
+        editIndex = null;
         return;
       }
       const today = new Date().toISOString().split('T')[0];
@@ -201,7 +202,7 @@
         <label>접수 내용</label><textarea id="receiveNote"></textarea>
         <label>담당자</label><input type="text" id="receiver">
         <label>점검자</label><input type="text" id="inspector">
-        <label>점검일자</label><input type="date" id="inspectDate" value="${today}" readonly>
+        <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
         <label>조치 내용</label><textarea id="checkNote"></textarea>
         <label>교체 부품</label><input type="text" id="material">
         <label>수량</label><input type="number" id="quantity">
@@ -225,7 +226,12 @@
       entry.createdAt = new Date().toISOString();
       entry.user = currentUser;
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
-      data.push(entry);
+      if (editIndex !== null) {
+        data[editIndex] = entry;
+        editIndex = null;
+      } else {
+        data.push(entry);
+      }
       localStorage.setItem('logs', JSON.stringify(data));
       toggleForm(true);
       showHistory();
@@ -257,6 +263,7 @@
       const modal = document.createElement('div');
       modal.className = 'modal';
       modal.innerHTML = `
+        <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
         <h3>S/N: ${entry.sn}</h3>
         <p>고객사: ${entry.customer}</p>
         <p>모델: ${entry.model}</p>
@@ -274,7 +281,6 @@
         <p>완료일: ${entry.completeDate}</p>
         <p>등록일: ${entry.createdAt.split('T')[0]}</p>
         <button onclick="editEntry(${index})">수정하기</button>
-        <button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>
       `;
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
@@ -283,11 +289,10 @@
     function editEntry(index) {
       const data = JSON.parse(localStorage.getItem('logs') || '[]');
       const entry = data[index];
+      editIndex = index;
       toggleForm();
       const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
       ids.forEach(id => document.getElementById(id).value = entry[id]);
-      data.splice(index, 1);
-      localStorage.setItem('logs', JSON.stringify(data));
       document.querySelector('.overlay')?.remove();
     }
 
@@ -295,7 +300,13 @@
       const data = JSON.parse(localStorage.getItem('logs') || '[]').filter(d => d.user === currentUser);
       if (!data.length) return alert('데이터가 없습니다.');
       const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
-      const csv = data.map(d => [d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector, d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate, d.createdAt.split('T')[0]].join(',')).join('\n');
+      const csv = data.map(d =>
+        [
+          d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector,
+          d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status,
+          d.completeDate, d.createdAt.split('T')[0]
+        ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',')
+      ).join('\n');
       const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -305,6 +316,7 @@
   </script>
 </body>
 </html>
+
 
 
 
