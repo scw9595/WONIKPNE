@@ -22,6 +22,19 @@
       color: #1e293b;
       margin-bottom: 20px;
     }
+    #homeButton {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      background-color: #10b981;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
     .toolbar {
       display: none;
       flex-direction: column;
@@ -157,6 +170,8 @@
   </style>
 </head>
 <body>
+  <div id="homeButton" onclick="goHome()">🏠 홈</div>
+
   <h1>장비 이력 관리 시스템</h1>
 
   <div id="authSection">
@@ -220,6 +235,13 @@
         showHistory();
       }
     });
+
+    function goHome() {
+      document.getElementById('userFilter').value = '';
+      document.getElementById('searchKeyword').value = '';
+      document.getElementById('selectedUserLabel').textContent = '';
+      document.getElementById('historyList').innerHTML = '<p style="text-align:center; color:#6b7280;">이력을 보기 위해 사용자를 선택하세요.</p>';
+    }
 
     function populateUserFilter() {
       const select = document.getElementById('userFilter');
@@ -419,6 +441,8 @@
   </script>
 </body>
 </html>
+
+
 
 
 
