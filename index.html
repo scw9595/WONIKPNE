@@ -26,17 +26,11 @@
       gap: 10px;
       margin-bottom: 20px;
     }
-    .toolbar input, .toolbar button {
+    .toolbar input, .toolbar button, .toolbar select {
       padding: 10px;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       font-size: 14px;
-    }
-    .toolbar label {
-      font-size: 14px;
-      color: #475569;
-      font-weight: 600;
-      margin-top: 10px;
     }
     button.primary {
       background-color: #10b981;
@@ -111,7 +105,11 @@
   </div>
 
   <div class="toolbar" id="userToolbar">
-    <input type="text" id="searchKeyword" placeholder="전체 검색 (S/N, 고객사, 모델 등)" oninput="showHistory()">
+    <label>사용자 필터</label>
+    <select id="userFilter" onchange="showHistory()">
+      <option value="">전체 사용자</option>
+    </select>
+    <input type="text" id="searchKeyword" placeholder="검색어 입력 (S/N, 고객사 등)" oninput="showHistory()">
     <button class="primary" onclick="toggleForm()">이력 입력</button>
     <button class="primary" onclick="exportExcel()">엑셀 추출</button>
   </div>
@@ -126,8 +124,7 @@
       projectId: "wonik-pne-cs",
       storageBucket: "wonik-pne-cs.firebasestorage.app",
       messagingSenderId: "908808313233",
-      appId: "1:908808313233:web:3d3d868c87e408707c6230",
-      measurementId: "G-MEKNP3R97W"
+      appId: "1:908808313233:web:3d3d868c87e408707c6230"
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -143,6 +140,7 @@
         document.getElementById('userInfo').textContent = `${currentUser.displayName} 님 환영합니다`;
         document.getElementById('logoutBtn').style.display = 'inline-block';
         document.getElementById('userToolbar').style.display = 'flex';
+        populateUserFilter();
         showHistory();
       });
     }
@@ -157,9 +155,28 @@
         document.getElementById('userInfo').textContent = `${currentUser.displayName} 님 환영합니다`;
         document.getElementById('logoutBtn').style.display = 'inline-block';
         document.getElementById('userToolbar').style.display = 'flex';
+        populateUserFilter();
         showHistory();
       }
     });
+
+    function populateUserFilter() {
+      const select = document.getElementById('userFilter');
+      select.innerHTML = '<option value="">전체 사용자</option>';
+      const names = new Set();
+      db.collection('logs').get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const user = doc.data().user;
+          if (user) names.add(user);
+        });
+        [...names].sort().forEach(name => {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          select.appendChild(option);
+        });
+      });
+    }
 
     function toggleForm(closeOnly = false) {
       const form = document.getElementById('formSection');
@@ -214,12 +231,14 @@
 
     function showHistory() {
       const keyword = document.getElementById('searchKeyword').value.trim().toLowerCase();
+      const filterUser = document.getElementById('userFilter').value;
       const list = document.getElementById('historyList');
       list.innerHTML = '';
 
       db.collection('logs').orderBy('createdAt', 'desc').get().then(snapshot => {
         snapshot.forEach(doc => {
           const d = doc.data();
+          if (filterUser && d.user !== filterUser) return;
           const fields = Object.values(d).map(v => (v || '').toString().toLowerCase());
           const match = !keyword || fields.some(f => f.includes(keyword));
           if (!match) return;
@@ -241,7 +260,6 @@
       overlay.className = 'overlay';
       const modal = document.createElement('div');
       modal.className = 'modal';
-
       let modalHtml = `
         <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
         <h3>S/N: ${entry.sn}</h3>
@@ -261,14 +279,12 @@
         <p>완료일: ${entry.completeDate}</p>
         <p>등록일: ${(entry.createdAt?.toDate?.() || new Date()).toISOString().split('T')[0]}</p>
       `;
-
       if (currentUser && currentUser.uid === entry.uid) {
         modalHtml += `
           <button onclick="editEntry('${docId}')">수정하기</button>
           <button onclick="deleteEntry('${docId}')" style="color:red; margin-left:10px;">삭제하기</button>
         `;
       }
-
       modal.innerHTML = modalHtml;
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
