@@ -1,138 +1,137 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>장비 이력 관리 시스템</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth-compat.js"></script>
   <style>
-    * { box-sizing: border-box; }
     body {
       font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(to bottom, #f0f4f8, #e2e8f0);
       margin: 0;
-      padding: 0;
-      background: #f1f5f9;
-      color: #1e293b;
+      padding: 20px;
     }
-    header {
-      background-color: #0f172a;
-      color: #fff;
-      padding: 16px;
+    h1 {
       text-align: center;
-      font-size: 20px;
-      font-weight: bold;
-    }
-    .container {
-      padding: 16px;
-      max-width: 720px;
-      margin: 0 auto;
+      color: #1e293b;
+      font-size: 26px;
+      margin-bottom: 20px;
     }
     .toolbar {
-      display: flex;
-      flex-wrap: wrap;
+      display: none;
+      flex-direction: column;
       gap: 10px;
       margin-bottom: 20px;
     }
-    .toolbar select,
-    .toolbar input,
-    .toolbar button {
+    .toolbar input, .toolbar button, .toolbar select {
       padding: 10px;
-      font-size: 14px;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
-      flex: 1;
+      font-size: 14px;
     }
-    .toolbar button {
-      background-color: #0ea5e9;
+    button.primary {
+      background-color: #10b981;
       color: white;
       font-weight: bold;
-      cursor: pointer;
+      border: none;
+      border-radius: 8px;
     }
-    #selectedUserLabel {
-      text-align: center;
+    #formSection {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+      max-width: 600px;
+      margin-inline: auto;
+      display: none;
+    }
+    input, textarea, select {
+      width: 100%;
       margin-bottom: 10px;
-      font-weight: bold;
-      font-size: 16px;
+      padding: 8px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
     }
     .entry {
-      background-color: white;
+      background: #fff;
+      border-left: 6px solid #9ca3af;
       padding: 16px;
-      margin-bottom: 10px;
-      border-left: 6px solid #94a3b8;
-      border-radius: 10px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       cursor: pointer;
     }
     .entry.completed {
       border-left-color: #22c55e;
     }
-    .modal, .overlay {
+    .modal {
       position: fixed;
-      left: 0;
-      top: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 9999;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #ffffff;
+      padding: 24px;
+      z-index: 10001;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+      border-radius: 12px;
+      font-size: 14px;
     }
     .overlay {
-      background: rgba(0,0,0,0.4);
-    }
-    .modal {
-      background: white;
-      max-width: 480px;
-      margin: 10vh auto;
-      padding: 20px;
-      border-radius: 12px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
       z-index: 10000;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-      overflow-y: auto;
-    }
-    @media (max-width: 600px) {
-      .toolbar select,
-      .toolbar input,
-      .toolbar button {
-        flex: 100%;
-      }
     }
   </style>
 </head>
 <body>
-  <header>장비 이력 관리 시스템</header>
-  <div class="container">
-    <div id="authSection" style="text-align:center; margin-bottom:20px;">
-      <button onclick="loginWithGoogle()">Google 로그인</button>
-      <button onclick="logout()" style="display:none;" id="logoutBtn">로그아웃</button>
-      <p id="userInfo">로그인이 필요합니다.</p>
-    </div>
-    <div class="toolbar" id="userToolbar" style="display:none;">
-      <select id="userFilter" onchange="showHistory()">
-        <option value="">사용자 선택</option>
-      </select>
-      <input type="text" id="searchKeyword" placeholder="검색어 입력" oninput="showHistory()">
-      <button onclick="toggleForm()">이력 입력</button>
-      <button onclick="exportExcel()">엑셀 추출</button>
-    </div>
-    <p id="selectedUserLabel"></p>
-    <div id="formSection"></div>
-    <div id="historyList"></div>
+  <h1>장비 이력 관리 시스템</h1>
+  <div id="authSection" style="text-align:center; margin-bottom:20px;">
+    <button onclick="loginWithGoogle()">Google 로그인</button>
+    <button onclick="logout()" style="display:none;" id="logoutBtn">로그아웃</button>
+    <p id="userInfo">로그인이 필요합니다.</p>
   </div>
+
+  <div class="toolbar" id="userToolbar">
+    <label>사용자 필터</label>
+    <select id="userFilter" onchange="showHistory()">
+      <option value="">전체 사용자 선택</option>
+    </select>
+    <input type="text" id="searchKeyword" placeholder="검색어 입력 (S/N, 고객사 등)" oninput="showHistory()">
+    <button class="primary" onclick="toggleForm()">이력 입력</button>
+    <button class="primary" onclick="exportExcel()">엑셀 추출</button>
+  </div>
+
+  <p id="selectedUserLabel" style="text-align:center; font-weight:bold; color:#334155;"></p>
+  <div id="formSection"></div>
+  <div id="historyList"></div>
+
   <script>
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyAMf08WGi7tUHGBv6dYhj9mvvaijiZyewQ",
+      authDomain: "wonik-pne-cs.firebaseapp.com",
+      projectId: "wonik-pne-cs",
+      storageBucket: "wonik-pne-cs.firebasestorage.app",
+      messagingSenderId: "908808313233",
+      appId: "1:908808313233:web:3d3d868c87e408707c6230"
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const auth = firebase.auth();
     let currentUser = null;
+    let editDocId = null;
 
     function loginWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -163,7 +162,7 @@
 
     function populateUserFilter() {
       const select = document.getElementById('userFilter');
-      select.innerHTML = '<option value="">사용자 선택</option>';
+      select.innerHTML = '<option value="">전체 사용자 선택</option>';
       const names = new Set();
       db.collection('logs').get().then(snapshot => {
         snapshot.forEach(doc => {
@@ -176,6 +175,57 @@
           option.textContent = name;
           select.appendChild(option);
         });
+      });
+    }
+
+    function toggleForm(closeOnly = false) {
+      const form = document.getElementById('formSection');
+      if (closeOnly || form.style.display === 'block') {
+        form.style.display = 'none';
+        form.innerHTML = '';
+        editDocId = null;
+        return;
+      }
+      const today = new Date().toISOString().split('T')[0];
+      form.innerHTML = `
+        <h2>이력 등록</h2>
+        <label>고객사</label><input type="text" id="customer">
+        <label>S/N</label><input type="text" id="sn">
+        <label>모델</label><input type="text" id="model">
+        <label>스펙</label><input type="text" id="spec">
+        <label>고장유형</label><input type="text" id="faultType">
+        <label>접수내용</label><textarea id="receiveNote"></textarea>
+        <label>담당자</label><input type="text" id="receiver">
+        <label>점검자</label><input type="text" id="inspector">
+        <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
+        <label>조치내용</label><textarea id="checkNote"></textarea>
+        <label>교체부품</label><input type="text" id="material">
+        <label>수량</label><input type="number" id="quantity">
+        <label>유무상</label><select id="costType"><option>유상</option><option>무상</option></select>
+        <label>진행상태</label><select id="status"><option>미완료</option><option>완료</option></select>
+        <label>완료일</label><input type="date" id="completeDate">
+        <button onclick="saveEntry()">저장</button>
+        <button onclick="toggleForm(true)">닫기</button>
+      `;
+      form.style.display = 'block';
+    }
+
+    function saveEntry() {
+      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
+      const entry = Object.fromEntries(ids.map(id => [id, document.getElementById(id).value.trim()]));
+      if (!entry.sn || !entry.customer || !entry.inspectDate) {
+        alert('S/N, 고객사, 점검일자는 필수입니다.');
+        return;
+      }
+      entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      entry.uid = currentUser.uid;
+      entry.user = currentUser.displayName;
+
+      const ref = editDocId ? db.collection('logs').doc(editDocId).set(entry) : db.collection('logs').add(entry);
+      ref.then(() => {
+        toggleForm(true);
+        showHistory();
+        alert('저장 완료');
       });
     }
 
@@ -207,6 +257,7 @@
         snapshot.forEach(doc => {
           const d = doc.data();
           if (d.user !== filterUser) return;
+
           const fields = Object.values(d).map(v => (v || '').toString().toLowerCase());
           const match = !keyword || fields.some(f => f.includes(keyword));
           if (!match) return;
@@ -216,69 +267,92 @@
           div.style.backgroundColor = getUserColor(d.user);
           const dateStr = d.createdAt?.toDate?.().toISOString().split('T')[0] || '';
           div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${dateStr} | ${d.user}</small>`;
+          div.onclick = () => showModal(d, doc.id);
           list.appendChild(div);
         });
+
         if (!list.innerHTML) {
           list.innerHTML = `<p style="text-align:center; color:#6b7280;">해당 사용자의 이력이 없습니다.</p>`;
         }
       });
     }
 
-    function toggleForm() {
-      const formSection = document.getElementById('formSection');
-      formSection.innerHTML = `
-        <div style="background:#fff; padding:16px; border-radius:10px; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin-bottom:20px;">
-          <h3 style="margin-top:0">이력 입력</h3>
-          <input type="text" id="sn" placeholder="S/N">
-          <input type="text" id="model" placeholder="모델">
-          <input type="text" id="customer" placeholder="고객사">
-          <input type="text" id="receiver" placeholder="담당자">
-          <input type="text" id="status" placeholder="상태 (예: 완료)">
-          <button onclick="saveEntry()">저장</button>
-        </div>
+    function showModal(entry, docId) {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+
+      let modalHtml = `
+        <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
+        <h3>S/N: ${entry.sn}</h3>
+        <p>고객사: ${entry.customer}</p>
+        <p>모델: ${entry.model}</p>
+        <p>스펙: ${entry.spec}</p>
+        <p>고장유형: ${entry.faultType}</p>
+        <p>접수내용: ${entry.receiveNote}</p>
+        <p>담당자: ${entry.receiver}</p>
+        <p>점검자: ${entry.inspector}</p>
+        <p>점검일자: ${entry.inspectDate}</p>
+        <p>조치내용: ${entry.checkNote}</p>
+        <p>교체부품: ${entry.material}</p>
+        <p>수량: ${entry.quantity}</p>
+        <p>유무상: ${entry.costType}</p>
+        <p>진행상태: ${entry.status}</p>
+        <p>완료일: ${entry.completeDate}</p>
+        <p>등록일: ${(entry.createdAt?.toDate?.() || new Date()).toISOString().split('T')[0]}</p>
       `;
-    }
 
-    function saveEntry() {
-      const sn = document.getElementById('sn').value.trim();
-      const model = document.getElementById('model').value.trim();
-      const customer = document.getElementById('customer').value.trim();
-      const receiver = document.getElementById('receiver').value.trim();
-      const status = document.getElementById('status').value.trim();
-
-      if (!sn || !model || !customer) {
-        alert('필수 정보를 입력하세요 (S/N, 모델, 고객사)');
-        return;
+      if (currentUser && currentUser.uid === entry.uid) {
+        modalHtml += `
+          <button onclick="editEntry('${docId}')">수정하기</button>
+          <button onclick="deleteEntry('${docId}')" style="color:red; margin-left:10px;">삭제하기</button>
+        `;
       }
 
-      db.collection('logs').add({
-        sn, model, customer, receiver, status,
-        user: currentUser.displayName,
-        uid: currentUser.uid,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      }).then(() => {
-        alert('이력이 저장되었습니다.');
-        document.getElementById('formSection').innerHTML = '';
-        showHistory();
+      modal.innerHTML = modalHtml;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+    }
+
+    function editEntry(docId) {
+      db.collection('logs').doc(docId).get().then(doc => {
+        const entry = doc.data();
+        editDocId = doc.id;
+        toggleForm();
+        const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
+        ids.forEach(id => document.getElementById(id).value = entry[id] || '');
+        document.querySelector('.overlay')?.remove();
       });
     }
 
-    function exportExcel() {
-      const filterUser = document.getElementById('userFilter').value;
-      db.collection('logs').orderBy('createdAt', 'desc').get().then(snapshot => {
-        const rows = [['S/N', '모델', '고객사', '담당자', '상태', '사용자', '등록일']];
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          if (filterUser && d.user !== filterUser) return;
-          const dateStr = d.createdAt?.toDate?.().toISOString().split('T')[0] || '';
-          rows.push([d.sn, d.model, d.customer, d.receiver, d.status, d.user, dateStr]);
+    function deleteEntry(docId) {
+      if (confirm('정말로 이 이력을 삭제하시겠습니까?')) {
+        db.collection('logs').doc(docId).delete().then(() => {
+          document.querySelector('.overlay')?.remove();
+          showHistory();
+          alert('삭제되었습니다.');
         });
-        const csv = rows.map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
-        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = '이력_데이터.csv';
-        link.click();
+      }
+    }
+
+    function exportExcel() {
+      db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
+        const data = [];
+        snapshot.forEach(doc => data.push(doc.data()));
+        if (!data.length) return alert('데이터가 없습니다.');
+        const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
+        const csv = data.map(d => [
+          d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector,
+          d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate,
+          d.createdAt?.toDate?.().toISOString().split('T')[0] || ''
+        ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+
+        const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = '장비이력.csv';
+        a.click();
       });
     }
   </script>
