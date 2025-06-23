@@ -285,8 +285,9 @@ box.style.left = `${rect.left}px`;
   }
     
 function goHome() {
-    location.reload(); // 현재 페이지 새로고침하여 홈화면으로 이동
-  }
+    window.goHome = function () {
+  location.reload();
+};
     
   window.onload = function () {
     const savedName = localStorage.getItem('username');
