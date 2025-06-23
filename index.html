@@ -211,22 +211,23 @@
   let editDocId = null;
 
   function manualLogin() {
-  const name = document.getElementById('userNameInput').value.trim();
-  if (!name) {
-    alert('이름을 입력해주세요');
-    return;
+    const name = document.getElementById('userNameInput').value.trim();
+    if (!name) {
+      alert('이름을 입력해주세요');
+      return;
+    }
+
+    localStorage.setItem('username', name);
+    currentUser = { displayName: name };
+    document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
+    document.getElementById('logoutBtn').style.display = 'inline-block';
+    document.getElementById('userToolbar').style.display = 'flex';
+
+    populateUserFilter().then(() => {
+      document.getElementById('userFilter').value = name;
+      showHistory();
+    });
   }
-
-  localStorage.setItem('username', name);
-  currentUser = { displayName: name };
-  document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
-  document.getElementById('logoutBtn').style.display = 'inline-block';
-  document.getElementById('userToolbar').style.display = 'flex';
-
-  document.getElementById('userFilter').value = name; // ✅ 사용자 필터 자동 선택
-  populateUserFilter();
-  showHistory();
-}
 
   function logout() {
     localStorage.removeItem('username');
@@ -234,44 +235,37 @@
   }
 
   window.onload = function () {
-  const savedName = localStorage.getItem('username');
-  if (savedName) {
-    currentUser = { displayName: savedName };
-    document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
-    document.getElementById('logoutBtn').style.display = 'inline-block';
-    document.getElementById('userToolbar').style.display = 'flex';
+    const savedName = localStorage.getItem('username');
+    if (savedName) {
+      currentUser = { displayName: savedName };
+      document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
+      document.getElementById('logoutBtn').style.display = 'inline-block';
+      document.getElementById('userToolbar').style.display = 'flex';
 
-    document.getElementById('userFilter').value = savedName; // ✅ 사용자 필터 자동 선택
-    populateUserFilter();
-    showHistory();
-  }
-};
-
-    function goHome() {
-      document.getElementById('userFilter').value = '';
-      document.getElementById('searchKeyword').value = '';
-      document.getElementById('selectedUserLabel').textContent = '';
-      document.getElementById('historyList').innerHTML = '<p style="text-align:center; color:#6b7280;">이력을 보기 위해 사용자를 선택하세요.</p>';
-    }
-
-    function populateUserFilter() {
-      const select = document.getElementById('userFilter');
-      select.innerHTML = '<option value="">전체 사용자 선택</option>';
-      const names = new Set();
-      db.collection('logs').get().then(snapshot => {
-        snapshot.forEach(doc => {
-          const user = doc.data().user;
-          if (user) names.add(user);
-        });
-        [...names].sort().forEach(name => {
-          const option = document.createElement('option');
-          option.value = name;
-          option.textContent = name;
-          select.appendChild(option);
-        });
+      populateUserFilter().then(() => {
+        document.getElementById('userFilter').value = savedName;
+        showHistory();
       });
     }
+  };
 
+  function populateUserFilter() {
+    const select = document.getElementById('userFilter');
+    select.innerHTML = '<option value="">전체 사용자 선택</option>';
+    const names = new Set();
+    return db.collection('logs').get().then(snapshot => {
+      snapshot.forEach(doc => {
+        const user = doc.data().user;
+        if (user) names.add(user);
+      });
+      [...names].sort().forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+    });
+  }
     function calculatePriority() {
   const spread = parseInt(document.getElementById('spread')?.value || 0);
   const delivery = parseInt(document.getElementById('delivery')?.value || 0);
