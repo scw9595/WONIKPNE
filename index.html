@@ -357,6 +357,28 @@
         <label>조치내용</label><textarea id="checkNote"></textarea>
         <label>교체부품</label><input type="text" id="material">
         <label>수량</label><input type="number" id="quantity">
+        <label>확산범위</label>
+        <select id="spread" onchange="calculatePriority()">
+          <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+        </select>
+        <label>납품일</label>
+        <select id="delivery" onchange="calculatePriority()">
+          <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+        </select>
+        <label>주요고객</label>
+        <select id="client" onchange="calculatePriority()">
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+        <label>빈도</label>
+        <select id="frequency" onchange="calculatePriority()">
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+        <label>처리인원</label>
+        <select id="personnel" onchange="calculatePriority()">
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+        <label>중요도</label>
+        <input type="number" id="priority" readonly>
         <label>유무상</label><select id="costType"><option>유상</option><option>무상</option></select>
         <label>진행상태</label><select id="status"><option>미완료</option><option>완료</option></select>
         <label>완료일</label><input type="date" id="completeDate">
@@ -368,16 +390,16 @@
 
     function saveEntry() {
     const ids = [
-      "customer", "sn", "model", "spec", 
-      "faultType", "errorCode",               <!-- ✅ 새로 포함된 항목 -->
+      "customer", "sn", "model", "spec", "faultType", "errorCode",
       "receiveNote", "receiver", "inspector", "inspectDate",
-      "checkNote", "material", "quantity", 
+      "checkNote", "material", "quantity",
+      "spread", "delivery", "client", "frequency", "personnel", "priority",
       "costType", "status", "completeDate"
     ];
 
-    const entry = Object.fromEntries(ids.map(id => [
-      id, document.getElementById(id).value.trim()
-    ]));
+    const entry = Object.fromEntries(
+      ids.map(id => [id, document.getElementById(id).value.trim()])
+    );
 
     if (!entry.sn || !entry.customer || !entry.inspectDate) {
       alert('S/N, 고객사, 점검일자는 필수입니다.');
@@ -467,6 +489,12 @@
     <p>조치내용: ${entry.checkNote}</p>
     <p>교체부품: ${entry.material}</p>
     <p>수량: ${entry.quantity}</p>
+    <p>확산범위: ${entry.spread}</p>
+    <p>납품일: ${entry.delivery}</p>
+    <p>주요고객: ${entry.client}</p>
+    <p>빈도: ${entry.frequency}</p>
+    <p>처리인원: ${entry.personnel}</p>
+    <p>중요도: ${entry.priority}</p>
     <p>유무상: ${entry.costType}</p>
     <p>진행상태: ${entry.status}</p>
     <p>완료일: ${entry.completeDate}</p>
