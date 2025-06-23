@@ -269,9 +269,10 @@ box.style.left = `${rect.left}px`;
     // 로그인 창 숨기기
     document.getElementById('authSection').style.display = 'none';
 
-    document.getElementById('userFilter').value = name;
     populateUserFilter().then(() => {
-      showHistory();
+  document.getElementById('userFilter').value = name;
+  showHistory();
+});
       document.getElementById('authSection').style.display = 'none';
   document.getElementById('loggedInUser').style.display = 'block';
   document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${name}`;
@@ -279,10 +280,9 @@ box.style.left = `${rect.left}px`;
   }
 
   function logout() {
-    localStorage.removeItem('username');
-    document.getElementById('authSection').style.display = 'block'; // 다시 보이기
-    location.reload();
-  }
+     window.logout = function () {
+      localStorage.removeItem('username');
+      location.reload();
     
 function goHome() {
     window.goHome = function () {
@@ -290,13 +290,11 @@ function goHome() {
 };
     
   window.onload = function () {
-    const savedName = localStorage.getItem('username');
-    if (savedName) {
-      currentUser = { displayName: savedName };
-      document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
+    function updateLoginUI() {
+      const name = localStorage.getItem('username');
+      document.getElementById('loginStatus').textContent = `${name} 님 환영합니다.`;
       document.getElementById('logoutBtn').style.display = 'inline-block';
-      document.getElementById('userToolbar').style.display = 'flex';
-      document.getElementById('authSection').style.display = 'none';
+      document.getElementById('userNameInput').style.display = 'none';
 
       document.getElementById('userFilter').value = savedName;
       populateUserFilter().then(() => {
