@@ -261,6 +261,25 @@
       });
     }
 
+    function calculatePriority() {
+  const spread = parseInt(document.getElementById('spread')?.value || 0);
+  const delivery = parseInt(document.getElementById('delivery')?.value || 0);
+  const client = parseInt(document.getElementById('client')?.value || 0);
+  const frequency = parseInt(document.getElementById('frequency')?.value || 0);
+  const personnel = parseInt(document.getElementById('personnel')?.value || 0);
+
+  const priority = spread * delivery * client * frequency * personnel;
+  document.getElementById('priority').value = priority;
+
+  let grade = 'E';
+  if (priority >= 5 && priority <= 128) grade = 'D';
+  else if (priority >= 129 && priority <= 972) grade = 'C';
+  else if (priority >= 973 && priority <= 4096) grade = 'B';
+  else if (priority >= 4097 && priority <= 12500) grade = 'A';
+
+  document.getElementById('grade').value = grade;
+}
+    
     function toggleForm(closeOnly = false) {
       const form = document.getElementById('formSection');
       if (closeOnly || form.style.display === 'block') {
@@ -379,6 +398,7 @@
         </select>
         <label>중요도</label>
         <input type="number" id="priority" readonly>
+        <label>등급</label><input type="text" id="grade" readonly>
         <label>유무상</label><select id="costType"><option>유상</option><option>무상</option></select>
         <label>진행상태</label><select id="status"><option>미완료</option><option>완료</option></select>
         <label>완료일</label><input type="date" id="completeDate">
@@ -389,13 +409,13 @@
     }
 
     function saveEntry() {
-  calculatePriority();
+  calculatePriority(); // 중요도 및 등급 계산
 
   const ids = [
     "customer", "sn", "model", "spec", "faultType", "errorCode",
     "receiveNote", "receiver", "inspector", "inspectDate",
     "checkNote", "material", "quantity",
-    "spread", "delivery", "client", "frequency", "personnel", "priority",
+    "spread", "delivery", "client", "frequency", "personnel", "priority", "grade",
     "costType", "status", "completeDate"
   ];
 
@@ -497,6 +517,7 @@
     <p>빈도: ${entry.frequency}</p>
     <p>처리인원: ${entry.personnel}</p>
     <p>중요도: ${entry.priority}</p>
+    <p>등급: ${entry.grade || 'N/A'}</p>
     <p>유무상: ${entry.costType}</p>
     <p>진행상태: ${entry.status}</p>
     <p>완료일: ${entry.completeDate}</p>
@@ -515,15 +536,28 @@
     }
 
     function editEntry(docId) {
-      db.collection('logs').doc(docId).get().then(doc => {
-        const entry = doc.data();
-        editDocId = doc.id;
-        toggleForm();
-        const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-        ids.forEach(id => document.getElementById(id).value = entry[id] || '');
-        document.querySelector('.overlay')?.remove();
-      });
-    }
+  db.collection('logs').doc(docId).get().then(doc => {
+    const entry = doc.data();
+    editDocId = doc.id;
+    toggleForm();
+
+    const ids = [
+      "customer", "sn", "model", "spec", "faultType", "errorCode",
+      "receiveNote", "receiver", "inspector", "inspectDate",
+      "checkNote", "material", "quantity",
+      "spread", "delivery", "client", "frequency", "personnel", "priority", "grade",
+      "costType", "status", "completeDate"
+    ];
+
+    ids.forEach(id => {
+      if (document.getElementById(id)) {
+        document.getElementById(id).value = entry[id] || '';
+      }
+    });
+
+    document.querySelector('.overlay')?.remove();
+  });
+}
 
     function deleteEntry(docId) {
       if (confirm('정말로 이 이력을 삭제하시겠습니까?')) {
