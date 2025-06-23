@@ -570,24 +570,28 @@
     }
 
     function exportExcel() {
-      db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
-        const data = [];
-        snapshot.forEach(doc => data.push(doc.data()));
-        if (!data.length) return alert('데이터가 없습니다.');
-        const header = '고객사,S/N,모델,스펙,고장유형,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,유무상,상태,완료일,등록일\n';
-        const csv = data.map(d => [
-          d.customer, d.sn, d.model, d.spec, d.faultType, d.receiveNote, d.receiver, d.inspector,
-          d.inspectDate, d.checkNote, d.material, d.quantity, d.costType, d.status, d.completeDate,
-          d.createdAt?.toDate?.().toISOString().split('T')[0] || ''
-        ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
+    const data = [];
+    snapshot.forEach(doc => data.push(doc.data()));
+    if (!data.length) return alert('데이터가 없습니다.');
 
-        const blob = new Blob([new Uint8Array([0xEF,0xBB,0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = '장비이력.csv';
-        a.click();
-      });
-    }
+    const header = '고객사,S/N,모델,스펙,고장유형,에러코드,접수내용,담당자,점검자,점검일자,조치내용,교체부품,수량,확산범위,납품일,주요고객,빈도,처리인원,중요도,등급,유무상,상태,완료일,등록일\n';
+
+    const csv = data.map(d => [
+      d.customer, d.sn, d.model, d.spec, d.faultType, d.errorCode, d.receiveNote, d.receiver, d.inspector,
+      d.inspectDate, d.checkNote, d.material, d.quantity,
+      d.spread, d.delivery, d.client, d.frequency, d.personnel,
+      d.priority, d.grade, d.costType, d.status, d.completeDate,
+      d.createdAt?.toDate?.().toISOString().split('T')[0] || ''
+    ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '장비이력.csv';
+    a.click();
+  });
+}
   </script>
 </body>
 </html>
