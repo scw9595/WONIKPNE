@@ -260,7 +260,25 @@
         });
       });
     }
+function calculatePriority() {
+      const spreadEl = document.getElementById("spread");
+      const deliveryEl = document.getElementById("delivery");
+      const clientEl = document.getElementById("client");
+      const frequencyEl = document.getElementById("frequency");
+      const personnelEl = document.getElementById("personnel");
+      const priorityEl = document.getElementById("priority");
 
+      if (spreadEl && deliveryEl && clientEl && frequencyEl && personnelEl && priorityEl) {
+        const spread = parseInt(spreadEl.value || "1", 10);
+        const delivery = parseInt(deliveryEl.value || "1", 10);
+        const client = parseInt(clientEl.value || "1", 10);
+        const frequency = parseInt(frequencyEl.value || "1", 10);
+        const personnel = parseInt(personnelEl.value || "1", 10);
+
+        const result = spread * delivery * client * frequency * personnel;
+        priorityEl.value = result;
+      }
+    }
     function toggleForm(closeOnly = false) {
       const form = document.getElementById('formSection');
       if (closeOnly || form.style.display === 'block') {
