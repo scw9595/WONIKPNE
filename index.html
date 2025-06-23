@@ -283,7 +283,11 @@ box.style.left = `${rect.left}px`;
     document.getElementById('authSection').style.display = 'block'; // 다시 보이기
     location.reload();
   }
-
+    
+function goHome() {
+    location.reload(); // 현재 페이지 새로고침하여 홈화면으로 이동
+  }
+    
   window.onload = function () {
     const savedName = localStorage.getItem('username');
     if (savedName) {
