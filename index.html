@@ -429,11 +429,7 @@
         <label>조치내용</label><textarea id="checkNote"></textarea>
         <label>교체부품</label><input type="text" id="material">
         <label>수량</label><input type="number" id="quantity">
-        <label>확산범위</label>
-        <select id="spread" onchange="calculatePriority()">
-          <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
-        </select>
-        <label>
+       <label>
   확산범위
   <span class="info-icon" onclick="showTooltip(event, '2=채널,단품, 4=메인블럭, 6=유닛, 8=프레임, 10=모델')">?</span>
 </label>
