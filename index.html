@@ -180,6 +180,7 @@
   <button onclick="logout()" id="logoutBtn" style="display:none;">로그아웃</button>
   <p id="userInfo">로그인이 필요합니다.</p>
 </div>
+  <p id="loggedInUser" style="display:none; text-align:center; font-weight:bold; color:#1e293b; margin-bottom:10px;"></p>
 
   <div class="toolbar" id="userToolbar">
     <label>사용자 필터</label>
@@ -229,6 +230,9 @@
     document.getElementById('userFilter').value = name;
     populateUserFilter().then(() => {
       showHistory();
+      document.getElementById('authSection').style.display = 'none';
+  document.getElementById('loggedInUser').style.display = 'block';
+  document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${name}`;
     });
   }
 
@@ -250,6 +254,9 @@
       document.getElementById('userFilter').value = savedName;
       populateUserFilter().then(() => {
         showHistory();
+        document.getElementById('authSection').style.display = 'none';
+    document.getElementById('loggedInUser').style.display = 'block';
+    document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${savedName}`;
       });
     }
   };
