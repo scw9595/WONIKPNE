@@ -731,6 +731,10 @@ entry.user = currentUser.displayName;
   overlay.appendChild(tooltip);
   document.body.appendChild(overlay);
 }
+      function goHome() {
+    toggleForm(true);
+    document.getElementById('historyList').scrollIntoView({ behavior: 'smooth' });
+  }
   </script>
 </body>
 </html>
