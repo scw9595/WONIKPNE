@@ -223,11 +223,36 @@
     document.getElementById('logoutBtn').style.display = 'inline-block';
     document.getElementById('userToolbar').style.display = 'flex';
 
+    // 로그인 창 숨기기
+    document.getElementById('authSection').style.display = 'none';
+
+    document.getElementById('userFilter').value = name;
     populateUserFilter().then(() => {
-      document.getElementById('userFilter').value = name;
       showHistory();
     });
   }
+
+  function logout() {
+    localStorage.removeItem('username');
+    document.getElementById('authSection').style.display = 'block'; // 다시 보이기
+    location.reload();
+  }
+
+  window.onload = function () {
+    const savedName = localStorage.getItem('username');
+    if (savedName) {
+      currentUser = { displayName: savedName };
+      document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
+      document.getElementById('logoutBtn').style.display = 'inline-block';
+      document.getElementById('userToolbar').style.display = 'flex';
+      document.getElementById('authSection').style.display = 'none';
+
+      document.getElementById('userFilter').value = savedName;
+      populateUserFilter().then(() => {
+        showHistory();
+      });
+    }
+  };
 
   function logout() {
     localStorage.removeItem('username');
