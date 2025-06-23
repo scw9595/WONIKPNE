@@ -280,17 +280,6 @@
   document.getElementById('grade').value = grade;
 }
     
-function updateReceiveNoteDefault() {
-  const equipNo = document.getElementById('equipNo').value.trim();
-  const receiveNote = document.getElementById('receiveNote');
-  const userText = receiveNote.value.replace(/^\[장비번호:.+?\]\s*/, '');  // 기존 prefix 제거
-  if (equipNo) {
-    receiveNote.value = `[장비번호:${equipNo}] ` + userText;
-  } else {
-    receiveNote.value = userText;
-  }
-}
-    
     function toggleForm(closeOnly = false) {
       const form = document.getElementById('formSection');
       if (closeOnly || form.style.display === 'block') {
@@ -303,7 +292,7 @@ function updateReceiveNoteDefault() {
       form.innerHTML = `
         <h2>이력 등록</h2>
         <label>고객사</label><input type="text" id="customer">
-        <label>고객사사장비번호</label><input type="text" id="equipNo" oninput="updateReceiveNoteDefault()">
+        <label>고객사사장비번호</label><input type="text" id="equipNo">
         <label>S/N</label><input type="text" id="sn">
         <label>모델</label><input type="text" id="model">
         <label>스펙</label><input type="text" id="spec">
@@ -421,7 +410,7 @@ function updateReceiveNoteDefault() {
       form.style.display = 'block';
     }
 
-    function saveEntry() {
+   function saveEntry() {
   calculatePriority(); // 중요도 및 등급 계산
 
   const ids = [
@@ -435,11 +424,6 @@ function updateReceiveNoteDefault() {
   const entry = Object.fromEntries(
     ids.map(id => [id, document.getElementById(id).value.trim()])
   );
-
-  // 접수내용 맨 앞에 장비번호 자동 추가 (중복 방지)
-  if (entry.equipNo) {
-    entry.receiveNote = `[장비번호:${entry.equipNo}] ` + entry.receiveNote.replace(/^\[장비번호:.+?\]\s*/, '');
-  }
 
   if (!entry.sn || !entry.customer || !entry.inspectDate) {
     alert('S/N, 고객사, 점검일자는 필수입니다.');
