@@ -16,6 +16,35 @@
       padding: 20px;
       color: #1f2937;
     }
+    .info-icon {
+  font-size: 14px;
+  cursor: pointer;
+  margin-left: 4px;
+  color: #2563eb;
+}
+.tooltip-box {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border: 1px solid #ccc;
+  padding: 16px;
+  max-width: 80%;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+}
+.tooltip-box button {
+  float: right;
+  background: #f87171;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 10px;
+}
     h1 {
       text-align: center;
       font-size: 24px;
@@ -406,25 +435,45 @@
         <label>조치내용</label><textarea id="checkNote"></textarea>
         <label>교체부품</label><input type="text" id="material">
         <label>수량</label><input type="number" id="quantity">
-        <label>확산범위</label>
-        <select id="spread" onchange="calculatePriority()">
-          <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
-        </select>
-        <label>납품일</label>
-        <select id="delivery" onchange="calculatePriority()">
-          <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
-        </select>
-        <label>주요고객</label>
-        <select id="client" onchange="calculatePriority()">
-          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-        </select>
-        <label>빈도</label>
-        <select id="frequency" onchange="calculatePriority()">
-          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-        </select>
-        <label>처리인원</label>
-        <select id="personnel" onchange="calculatePriority()">
-          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        <label>
+  확산범위
+  <span class="info-icon" onclick="showTooltip('spread')">❓</span>
+</label>
+<select id="spread" onchange="calculatePriority()">
+  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+</select>
+
+<label>
+  납품일
+  <span class="info-icon" onclick="showTooltip('delivery')">❓</span>
+</label>
+<select id="delivery" onchange="calculatePriority()">
+  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+</select>
+
+<label>
+  주요고객
+  <span class="info-icon" onclick="showTooltip('client')">❓</span>
+</label>
+<select id="client" onchange="calculatePriority()">
+  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+</select>
+
+<label>
+  빈도
+  <span class="info-icon" onclick="showTooltip('frequency')">❓</span>
+</label>
+<select id="frequency" onchange="calculatePriority()">
+  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+</select>
+
+<label>
+  처리인원
+  <span class="info-icon" onclick="showTooltip('personnel')">❓</span>
+</label>
+<select id="personnel" onchange="calculatePriority()">
+  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+</select>
         </select>
         <label>중요도</label>
         <input type="number" id="priority" readonly>
@@ -662,6 +711,25 @@ entry.user = currentUser.displayName;
     a.download = '장비이력_확장버전.csv';
     a.click();
   });
+      function showTooltip(type) {
+  const messages = {
+    spread: `확산범위\n2 = 채널, 단품\n4 = 메인블럭\n6 = 유닛\n8 = 프레임\n10 = 모델`,
+    delivery: `납품일\n2 = 2년 이상\n4 = 2년 이하\n6 = 1년 이하\n8 = 6달 이상\n10 = 6달 이하`,
+    client: `주요고객\n1 = 기타\n2 = 산학협력\n3 = 중소기업\n4 = 기관\n5 = 3사+현대`,
+    frequency: `빈도\n1 = 1회\n2 = 2회 이상\n3 = 3회 이상\n4 = 4회 이상\n5 = 5회 이상`,
+    personnel: `처리인원\n1 = 그룹원\n2 = 그룹\n3 = 공정기술\n4 = 사업부\n5 = 전사대응`
+  };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.onclick = () => document.body.removeChild(overlay);
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'tooltip-box';
+  tooltip.innerHTML = `<pre>${messages[type]}</pre><button onclick="document.body.removeChild(this.closest('.overlay'))">닫기</button>`;
+
+  overlay.appendChild(tooltip);
+  document.body.appendChild(overlay);
 }
   </script>
 </body>
