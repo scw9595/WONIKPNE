@@ -210,7 +210,7 @@
   let currentUser = null;
   let editDocId = null;
 
-  function manualLogin() {
+ function manualLogin() {
     const name = document.getElementById('userNameInput').value.trim();
     if (!name) {
       alert('이름을 입력해주세요');
@@ -249,26 +249,6 @@
 
       document.getElementById('userFilter').value = savedName;
       populateUserFilter().then(() => {
-        showHistory();
-      });
-    }
-  };
-
-  function logout() {
-    localStorage.removeItem('username');
-    location.reload();
-  }
-
-  window.onload = function () {
-    const savedName = localStorage.getItem('username');
-    if (savedName) {
-      currentUser = { displayName: savedName };
-      document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
-      document.getElementById('logoutBtn').style.display = 'inline-block';
-      document.getElementById('userToolbar').style.display = 'flex';
-
-      populateUserFilter().then(() => {
-        document.getElementById('userFilter').value = savedName;
         showHistory();
       });
     }
