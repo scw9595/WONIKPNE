@@ -222,9 +222,22 @@
   populateUserFilter();
   showHistory();
 
-    function logout() {
-      auth.signOut().then(() => location.reload());
-    }
+    function manualLogin() {
+  const name = document.getElementById('userNameInput').value.trim();
+  if (!name) return alert('이름을 입력해주세요');
+
+  localStorage.setItem('username', name);
+  currentUser = { displayName: name };  // 가짜 사용자 객체
+  document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
+  document.getElementById('logoutBtn').style.display = 'inline-block';
+  document.getElementById('userToolbar').style.display = 'flex';
+  populateUserFilter();
+  showHistory();
+} // ✅ 이 괄호 이후!
+
+function logout() {
+  auth.signOut().then(() => location.reload());
+}
 
     window.onload = function () {
   const savedName = localStorage.getItem('username');
