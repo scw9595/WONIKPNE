@@ -643,6 +643,9 @@ entry.user = currentUser.displayName;
         });
       }
     }
+    function goHome() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
     function exportExcel() {
   db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
@@ -723,9 +726,6 @@ entry.user = currentUser.displayName;
 
   event.target.addEventListener('mouseleave', hide);
   event.target.addEventListener('click', hide);
-}
-    function goHome() {
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
   </script>
 </body>
