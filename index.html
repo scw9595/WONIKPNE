@@ -276,7 +276,80 @@
         <label>S/N</label><input type="text" id="sn">
         <label>모델</label><input type="text" id="model">
         <label>스펙</label><input type="text" id="spec">
-        <label>고장유형</label><input type="text" id="faultType">
+        <label>고장유형</label>
+        <select id="faultType">
+          <option>HW Block</option>
+          <option>HW PCB B/D</option>
+          <option>성능</option>
+          <option>점검</option>
+          <option>초기불량</option>
+          <option>원인미도출</option>
+          <option>교정</option>
+          <option>복합</option>
+          <option>SW</option>
+          <option>납품</option>
+          <option>기타</option>
+        </select>
+        <label>에러코드</label>
+        <select id="errorCode">
+          <option>기타</option>
+          <option>Main 전원 이상</option>
+          <option>MCCB 이상 (전면부 전원 래버)</option>
+          <option>Main EMG Button이 눌려짐</option>
+          <option>PC고장</option>
+          <option>UPS이상</option>
+          <option>순간정전</option>
+          <option>완전정전</option>
+          <option>IDLE 상태</option>
+          <option>전류이상</option>
+          <option>전류상한</option>
+          <option>전류하한</option>
+          <option>전압이상</option>
+          <option>전압하한</option>
+          <option>온도이상</option>
+          <option>챔버연동이상</option>
+          <option>파워서플라이이상</option>
+          <option>회로과열</option>
+          <option>GUI이상</option>
+          <option>고객사 실수</option>
+          <option>DOOR ALARM</option>
+          <option>CCC</option>
+          <option>OVP</option>
+          <option>OTP</option>
+          <option>장비기본점검</option>
+          <option>교정</option>
+          <option>부팅이상</option>
+          <option>작업시작실패</option>
+          <option>스페어</option>
+          <option>CIU 에러</option>
+          <option>CGU 에러</option>
+          <option>DAU 에러</option>
+          <option>[PCU] 단자 전압 ERROR</option>
+          <option>[PCU] 방전 전압원 ERROR</option>
+          <option>[PCU] 입력전압 ERROR</option>
+          <option>[PCU] 출력접점 ERROR</option>
+          <option>[PCU] 온도상한 ERROR</option>
+          <option>[PCU] 통신 ERROR</option>
+          <option>[PCU] PV 전압 ERROR</option>
+          <option>[PCU] 출력전류 BALANCE ERROR</option>
+          <option>[PCU] DCDC ERROR</option>
+          <option>[PCU] 시퀀스ERROR</option>
+          <option>[PCU]PV 전압</option>
+          <option>[PCU] INV_Error</option>
+          <option>[PCU] INV DC ERROR</option>
+          <option>[PCU] CAN ERROR</option>
+          <option>[INV] GROUP ERROR</option>
+          <option>[INV] DHC ERROR</option>
+          <option>[INV] CAN ERROR</option>
+          <option>[INV]FAULT_ETC ERROR</option>
+          <option>[INV] OVER Current ERROR</option>
+          <option>[INV] OVER VOLTAGE ERROR</option>
+          <option>[INV] INV ERROR</option>
+          <option>[INV] FAULT_ETC, MAIN CAN COMM ERROR</option>
+          <option>CAN HARD ERROR</option>
+          <option>NETWORK</option>
+          <option>용량이상</option>
+        </select>
         <label>접수내용</label><textarea id="receiveNote"></textarea>
         <label>담당자</label><input type="text" id="receiver">
         <label>점검자</label><input type="text" id="inspector">
@@ -294,24 +367,37 @@
     }
 
     function saveEntry() {
-      const ids = ["customer","sn","model","spec","faultType","receiveNote","receiver","inspector","inspectDate","checkNote","material","quantity","costType","status","completeDate"];
-      const entry = Object.fromEntries(ids.map(id => [id, document.getElementById(id).value.trim()]));
-      if (!entry.sn || !entry.customer || !entry.inspectDate) {
-        alert('S/N, 고객사, 점검일자는 필수입니다.');
-        return;
-      }
-      entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      entry.uid = currentUser.uid;
-      entry.user = currentUser.displayName;
+    const ids = [
+      "customer", "sn", "model", "spec", 
+      "faultType", "errorCode",               <!-- ✅ 새로 포함된 항목 -->
+      "receiveNote", "receiver", "inspector", "inspectDate",
+      "checkNote", "material", "quantity", 
+      "costType", "status", "completeDate"
+    ];
 
-      const ref = editDocId ? db.collection('logs').doc(editDocId).set(entry) : db.collection('logs').add(entry);
-      ref.then(() => {
-        toggleForm(true);
-        showHistory();
-        alert('저장 완료');
-      });
+    const entry = Object.fromEntries(ids.map(id => [
+      id, document.getElementById(id).value.trim()
+    ]));
+
+    if (!entry.sn || !entry.customer || !entry.inspectDate) {
+      alert('S/N, 고객사, 점검일자는 필수입니다.');
+      return;
     }
 
+    entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    entry.uid = currentUser.uid;
+    entry.user = currentUser.displayName;
+
+    const ref = editDocId
+      ? db.collection('logs').doc(editDocId).set(entry)
+      : db.collection('logs').add(entry);
+
+    ref.then(() => {
+      toggleForm(true);
+      showHistory();
+      alert('저장 완료');
+    });
+  }
     function showHistory() {
       const keyword = document.getElementById('searchKeyword').value.trim().toLowerCase();
       const filterUser = document.getElementById('userFilter').value;
@@ -367,25 +453,25 @@
       modal.className = 'modal';
 
       let modalHtml = `
-        <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
-        <h3>S/N: ${entry.sn}</h3>
-        <p>고객사: ${entry.customer}</p>
-        <p>모델: ${entry.model}</p>
-        <p>스펙: ${entry.spec}</p>
-        <p>고장유형: ${entry.faultType}</p>
-        <p>접수내용: ${entry.receiveNote}</p>
-        <p>담당자: ${entry.receiver}</p>
-        <p>점검자: ${entry.inspector}</p>
-        <p>점검일자: ${entry.inspectDate}</p>
-        <p>조치내용: ${entry.checkNote}</p>
-        <p>교체부품: ${entry.material}</p>
-        <p>수량: ${entry.quantity}</p>
-        <p>유무상: ${entry.costType}</p>
-        <p>진행상태: ${entry.status}</p>
-        <p>완료일: ${entry.completeDate}</p>
-        <p>등록일: ${(entry.createdAt?.toDate?.() || new Date()).toISOString().split('T')[0]}</p>
-      `;
-
+    <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
+    <h3>S/N: ${entry.sn}</h3>
+    <p>고객사: ${entry.customer}</p>
+    <p>모델: ${entry.model}</p>
+    <p>스펙: ${entry.spec}</p>
+    <p>고장유형: ${entry.faultType}</p>
+    <p>에러코드: ${entry.errorCode}</p>
+    <p>접수내용: ${entry.receiveNote}</p>
+    <p>담당자: ${entry.receiver}</p>
+    <p>점검자: ${entry.inspector}</p>
+    <p>점검일자: ${entry.inspectDate}</p>
+    <p>조치내용: ${entry.checkNote}</p>
+    <p>교체부품: ${entry.material}</p>
+    <p>수량: ${entry.quantity}</p>
+    <p>유무상: ${entry.costType}</p>
+    <p>진행상태: ${entry.status}</p>
+    <p>완료일: ${entry.completeDate}</p>
+    <p>등록일: ${(entry.createdAt?.toDate?.() || new Date()).toISOString().split('T')[0]}</p>
+  `;
       if (currentUser && currentUser.uid === entry.uid) {
         modalHtml += `
           <button onclick="editEntry('${docId}')">수정하기</button>
