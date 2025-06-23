@@ -197,59 +197,51 @@
 
   <script>
     const firebaseConfig = {
-      apiKey: "AIzaSyAMf08WGi7tUHGBv6dYhj9mvvaijiZyewQ",
-      authDomain: "wonik-pne-cs.firebaseapp.com",
-      projectId: "wonik-pne-cs",
-      storageBucket: "wonik-pne-cs.appspot.com",
-      messagingSenderId: "908808313233",
-      appId: "1:908808313233:web:3d3d868c87e408707c6230"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const auth = firebase.auth();
-    let currentUser = null;
-    let editDocId = null;
+    apiKey: "AIzaSyAMf08WGi7tUHGBv6dYhj9mvvaijiZyewQ",
+    authDomain: "wonik-pne-cs.firebaseapp.com",
+    projectId: "wonik-pne-cs",
+    storageBucket: "wonik-pne-cs.appspot.com",
+    messagingSenderId: "908808313233",
+    appId: "1:908808313233:web:3d3d868c87e408707c6230"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+  let currentUser = null;
+  let editDocId = null;
 
-    function manualLogin() {
-  const name = document.getElementById('userNameInput').value.trim();
-  if (!name) return alert('이름을 입력해주세요');
+  function manualLogin() {
+    const name = document.getElementById('userNameInput').value.trim();
+    if (!name) {
+      alert('이름을 입력해주세요');
+      return;
+    }
 
-  localStorage.setItem('username', name);
-  currentUser = { displayName: name };  // 가짜 사용자 객체
-  document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
-  document.getElementById('logoutBtn').style.display = 'inline-block';
-  document.getElementById('userToolbar').style.display = 'flex';
-  populateUserFilter();
-  showHistory();
-
-    function manualLogin() {
-  const name = document.getElementById('userNameInput').value.trim();
-  if (!name) return alert('이름을 입력해주세요');
-
-  localStorage.setItem('username', name);
-  currentUser = { displayName: name };  // 가짜 사용자 객체
-  document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
-  document.getElementById('logoutBtn').style.display = 'inline-block';
-  document.getElementById('userToolbar').style.display = 'flex';
-  populateUserFilter();
-  showHistory();
-} // ✅ 이 괄호 이후!
-
-function logout() {
-  auth.signOut().then(() => location.reload());
-}
-
-    window.onload = function () {
-  const savedName = localStorage.getItem('username');
-  if (savedName) {
-    currentUser = { displayName: savedName };
-    document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
+    localStorage.setItem('username', name);
+    currentUser = { displayName: name };  // 가짜 사용자 객체
+    document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
     document.getElementById('logoutBtn').style.display = 'inline-block';
     document.getElementById('userToolbar').style.display = 'flex';
     populateUserFilter();
     showHistory();
   }
-};
+
+  function logout() {
+    localStorage.removeItem('username');
+    location.reload();
+  }
+
+  window.onload = function () {
+    const savedName = localStorage.getItem('username');
+    if (savedName) {
+      currentUser = { displayName: savedName };
+      document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
+      document.getElementById('logoutBtn').style.display = 'inline-block';
+      document.getElementById('userToolbar').style.display = 'flex';
+      populateUserFilter();
+      showHistory();
+    }
+  };
 
     function goHome() {
       document.getElementById('userFilter').value = '';
