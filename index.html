@@ -389,37 +389,39 @@
     }
 
     function saveEntry() {
-    const ids = [
-      "customer", "sn", "model", "spec", "faultType", "errorCode",
-      "receiveNote", "receiver", "inspector", "inspectDate",
-      "checkNote", "material", "quantity",
-      "spread", "delivery", "client", "frequency", "personnel", "priority",
-      "costType", "status", "completeDate"
-    ];
+  calculatePriority();
 
-    const entry = Object.fromEntries(
-      ids.map(id => [id, document.getElementById(id).value.trim()])
-    );
+  const ids = [
+    "customer", "sn", "model", "spec", "faultType", "errorCode",
+    "receiveNote", "receiver", "inspector", "inspectDate",
+    "checkNote", "material", "quantity",
+    "spread", "delivery", "client", "frequency", "personnel", "priority",
+    "costType", "status", "completeDate"
+  ];
 
-    if (!entry.sn || !entry.customer || !entry.inspectDate) {
-      alert('S/N, 고객사, 점검일자는 필수입니다.');
-      return;
-    }
+  const entry = Object.fromEntries(
+    ids.map(id => [id, document.getElementById(id).value.trim()])
+  );
 
-    entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-    entry.uid = currentUser.uid;
-    entry.user = currentUser.displayName;
-
-    const ref = editDocId
-      ? db.collection('logs').doc(editDocId).set(entry)
-      : db.collection('logs').add(entry);
-
-    ref.then(() => {
-      toggleForm(true);
-      showHistory();
-      alert('저장 완료');
-    });
+  if (!entry.sn || !entry.customer || !entry.inspectDate) {
+    alert('S/N, 고객사, 점검일자는 필수입니다.');
+    return;
   }
+
+  entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  entry.uid = currentUser.uid;
+  entry.user = currentUser.displayName;
+
+  const ref = editDocId
+    ? db.collection('logs').doc(editDocId).set(entry)
+    : db.collection('logs').add(entry);
+
+  ref.then(() => {
+    toggleForm(true);
+    showHistory();
+    alert('저장 완료');
+  });
+}
     function showHistory() {
       const keyword = document.getElementById('searchKeyword').value.trim().toLowerCase();
       const filterUser = document.getElementById('userFilter').value;
