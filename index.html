@@ -165,31 +165,31 @@
       gap: 6px;
     }
     .tooltip-icon {
-      cursor: pointer;
-      color: #6b7280;
-      font-weight: bold;
-      font-size: 14px;
-    }
-    .tooltip-box {
-      position: absolute;
-      background: #f9fafb;
-      border: 1px solid #d1d5db;
-      padding: 8px 12px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      font-size: 12px;
-      color: #111827;
-      z-index: 10002;
-      max-width: 240px;
-    }
-    .tooltip-box .close-btn {
-      display: block;
-      text-align: right;
-      font-size: 12px;
-      color: #ef4444;
-      cursor: pointer;
-      margin-top: 6px;
-    }
+    cursor: pointer;
+    color: #6b7280;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  .tooltip-box {
+    position: absolute;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    font-size: 12px;
+    color: #111827;
+    z-index: 10002;
+    max-width: 240px;
+  }
+  .tooltip-box .close-btn {
+    display: block;
+    text-align: right;
+    font-size: 12px;
+    color: #ef4444;
+    cursor: pointer;
+    margin-top: 6px;
+  }
     @media (max-width: 500px) {
       .toolbar, #formSection {
         padding: 16px;
@@ -228,7 +228,7 @@
   <div id="historyList"></div>
 
   <script>
-    const firebaseConfig = {
+  const firebaseConfig = {
     apiKey: "AIzaSyAMf08WGi7tUHGBv6dYhj9mvvaijiZyewQ",
     authDomain: "wonik-pne-cs.firebaseapp.com",
     projectId: "wonik-pne-cs",
@@ -242,7 +242,18 @@
   let currentUser = null;
   let editDocId = null;
 
- function manualLogin() {
+  window.showTooltip = function(el, text) {
+    document.querySelectorAll('.tooltip-box').forEach(t => t.remove());
+    const box = document.createElement('div');
+    box.className = 'tooltip-box';
+    box.innerHTML = `${text}<div class="close-btn" onclick="this.parentElement.remove()">닫기 ✖</div>`;
+    document.body.appendChild(box);
+    const rect = el.getBoundingClientRect();
+    box.style.top = `${rect.top + window.scrollY + 24}px`;
+    box.style.left = `${rect.left + window.scrollX}px`;
+  };
+
+  function manualLogin() {
     const name = document.getElementById('userNameInput').value.trim();
     if (!name) {
       alert('이름을 입력해주세요');
@@ -254,22 +265,17 @@
     document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
     document.getElementById('logoutBtn').style.display = 'inline-block';
     document.getElementById('userToolbar').style.display = 'flex';
-
-    // 로그인 창 숨기기
     document.getElementById('authSection').style.display = 'none';
+    document.getElementById('loggedInUser').style.display = 'block';
+    document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${name}`;
 
     document.getElementById('userFilter').value = name;
-    populateUserFilter().then(() => {
-      showHistory();
-      document.getElementById('authSection').style.display = 'none';
-  document.getElementById('loggedInUser').style.display = 'block';
-  document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${name}`;
-    });
+    populateUserFilter().then(showHistory);
   }
 
   function logout() {
     localStorage.removeItem('username');
-    document.getElementById('authSection').style.display = 'block'; // 다시 보이기
+    document.getElementById('authSection').style.display = 'block';
     location.reload();
   }
 
@@ -281,16 +287,14 @@
       document.getElementById('logoutBtn').style.display = 'inline-block';
       document.getElementById('userToolbar').style.display = 'flex';
       document.getElementById('authSection').style.display = 'none';
+      document.getElementById('loggedInUser').style.display = 'block';
+      document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${savedName}`;
 
       document.getElementById('userFilter').value = savedName;
-      populateUserFilter().then(() => {
-        showHistory();
-        document.getElementById('authSection').style.display = 'none';
-    document.getElementById('loggedInUser').style.display = 'block';
-    document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${savedName}`;
-      });
+      populateUserFilter().then(showHistory);
     }
   };
+</script>
 
   function populateUserFilter() {
     const select = document.getElementById('userFilter');
@@ -441,39 +445,60 @@
   확산범위
   <span class="tooltip-icon" onclick="showTooltip(this, '2=채널/단품, 4=메인블럭, 6=유닛, 8=프레임, 10=모델')">❓</span>
 </label>
-<select id="spread" onchange="calculatePriority()">
-  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+<select id="spread">
+  <option>2</option>
+  <option>4</option>
+  <option>6</option>
+  <option>8</option>
+  <option>10</option>
 </select>
+
 <label>
   납품일
   <span class="tooltip-icon" onclick="showTooltip(this, '2=2년↑, 4=2년↓, 6=1년↓, 8=6개월↑, 10=6개월↓')">❓</span>
 </label>
-<select id="delivery" onchange="calculatePriority()">
-  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+<select id="delivery">
+  <option>2</option>
+  <option>4</option>
+  <option>6</option>
+  <option>8</option>
+  <option>10</option>
 </select>
 
 <label>
   주요고객
   <span class="tooltip-icon" onclick="showTooltip(this, '1=기타, 2=산학협력, 3=중소기업, 4=기관, 5=3사+현대')">❓</span>
 </label>
-<select id="client" onchange="calculatePriority()">
-  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+<select id="client">
+  <option>1</option>
+  <option>2</option>
+  <option>3</option>
+  <option>4</option>
+  <option>5</option>
 </select>
 
 <label>
   빈도
   <span class="tooltip-icon" onclick="showTooltip(this, '1=1회, 2=2회↑, 3=3회↑, 4=4회↑, 5=5회↑')">❓</span>
 </label>
-<select id="frequency" onchange="calculatePriority()">
-  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+<select id="frequency">
+  <option>1</option>
+  <option>2</option>
+  <option>3</option>
+  <option>4</option>
+  <option>5</option>
 </select>
 
 <label>
   처리인원
   <span class="tooltip-icon" onclick="showTooltip(this, '1=그룹원, 2=그룹, 3=공정기술, 4=사업부, 5=전사대응')">❓</span>
 </label>
-<select id="personnel" onchange="calculatePriority()">
-  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+<select id="personnel">
+  <option>1</option>
+  <option>2</option>
+  <option>3</option>
+  <option>4</option>
+  <option>5</option>
 </select>
         <label>중요도</label>
         <input type="number" id="priority" readonly>
