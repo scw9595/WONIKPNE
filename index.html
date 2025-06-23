@@ -223,29 +223,28 @@
   document.getElementById('logoutBtn').style.display = 'inline-block';
   document.getElementById('userToolbar').style.display = 'flex';
 
-  document.getElementById('userFilter').value = name; // ✅ 사용자 필터 자동 선택
-  populateUserFilter();
-  showHistory();
-}
+  // 사용자 필터 목록 로드 → 완료된 다음 필터 값 지정 + 이력 조회
+  db.collection('logs').get().then(snapshot => {
+    const names = new Set();
+    snapshot.forEach(doc => {
+      const user = doc.data().user;
+      if (user) names.add(user);
+    });
 
-  function logout() {
-    localStorage.removeItem('username');
-    location.reload();
-  }
+    const select = document.getElementById('userFilter');
+    select.innerHTML = '<option value="">전체 사용자 선택</option>';
+    [...names].sort().forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    });
 
-  window.onload = function () {
-  const savedName = localStorage.getItem('username');
-  if (savedName) {
-    currentUser = { displayName: savedName };
-    document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
-    document.getElementById('logoutBtn').style.display = 'inline-block';
-    document.getElementById('userToolbar').style.display = 'flex';
-
-    document.getElementById('userFilter').value = savedName; // ✅ 사용자 필터 자동 선택
-    populateUserFilter();
+    // ✅ 필터 선택 및 이력 표시는 이후에 실행
+    select.value = name;
     showHistory();
-  }
-};
+  });
+}
 
     function goHome() {
       document.getElementById('userFilter').value = '';
@@ -656,8 +655,36 @@ entry.user = currentUser.displayName;
     a.href = URL.createObjectURL(blob);
     a.download = '장비이력_확장버전.csv';
     a.click();
-  });
-}
+
+    window.onload = function () {
+  const savedName = localStorage.getItem('username');
+  if (savedName) {
+    currentUser = { displayName: savedName };
+    document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
+    document.getElementById('logoutBtn').style.display = 'inline-block';
+    document.getElementById('userToolbar').style.display = 'flex';
+
+    db.collection('logs').get().then(snapshot => {
+      const names = new Set();
+      snapshot.forEach(doc => {
+        const user = doc.data().user;
+        if (user) names.add(user);
+      });
+
+      const select = document.getElementById('userFilter');
+      select.innerHTML = '<option value="">전체 사용자 선택</option>';
+      [...names].sort().forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+
+      select.value = savedName;
+      showHistory();
+    });
+  }
+
   </script>
 </body>
 </html>
