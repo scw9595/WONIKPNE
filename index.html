@@ -9,6 +9,29 @@
   <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth-compat.js"></script>
   <style>
+    .info-icon {
+  margin-left: 4px;
+  cursor: pointer;
+  color: #6b7280;
+  font-weight: bold;
+  border: 1px solid #ccc;
+  padding: 0 6px;
+  border-radius: 50%;
+  font-size: 12px;
+}
+.tooltip {
+  display: none;
+  position: absolute;
+  background-color: #fefce8;
+  color: #1e293b;
+  border: 1px solid #e5e7eb;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  font-size: 12px;
+  z-index: 1000;
+  max-width: 300px;
+}
     body {
       font-family: 'Noto Sans KR', sans-serif;
       background: #f9fafb;
@@ -410,22 +433,45 @@
         <select id="spread" onchange="calculatePriority()">
           <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
         </select>
-        <label>납품일</label>
-        <select id="delivery" onchange="calculatePriority()">
-          <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
-        </select>
-        <label>주요고객</label>
-        <select id="client" onchange="calculatePriority()">
-          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-        </select>
-        <label>빈도</label>
-        <select id="frequency" onchange="calculatePriority()">
-          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-        </select>
-        <label>처리인원</label>
-        <select id="personnel" onchange="calculatePriority()">
-          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-        </select>
+        <label>
+  확산범위
+  <span class="info-icon" onclick="showTooltip(event, '2=채널,단품, 4=메인블럭, 6=유닛, 8=프레임, 10=모델')">?</span>
+</label>
+<select id="spread" onchange="calculatePriority()">
+  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+</select>
+
+<label>
+  납품일
+  <span class="info-icon" onclick="showTooltip(event, '2=2년이상, 4=2년이하, 6=1년이하, 8=6달이상, 10=6달이하')">?</span>
+</label>
+<select id="delivery" onchange="calculatePriority()">
+  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
+</select>
+
+<label>
+  주요고객
+  <span class="info-icon" onclick="showTooltip(event, '1=기타, 2=산학협력, 3=중소기업, 4=기관, 5=3사+현대')">?</span>
+</label>
+<select id="client" onchange="calculatePriority()">
+  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+</select>
+
+<label>
+  빈도
+  <span class="info-icon" onclick="showTooltip(event, '1=1회, 2=2회이상, 3=3회이상, 4=4회이상, 5=5회이상')">?</span>
+</label>
+<select id="frequency" onchange="calculatePriority()">
+  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+</select>
+
+<label>
+  처리인원
+  <span class="info-icon" onclick="showTooltip(event, '1=그룹원, 2=그룹, 3=공정기술, 4=사업부, 5=전사대응')">?</span>
+</label>
+<select id="personnel" onchange="calculatePriority()">
+  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+</select>
         <label>중요도</label>
         <input type="number" id="priority" readonly>
         <label>등급</label><input type="text" id="grade" readonly>
@@ -662,6 +708,25 @@ entry.user = currentUser.displayName;
     a.download = '장비이력_확장버전.csv';
     a.click();
   });
+}
+    function showTooltip(event, message) {
+  const tooltip = document.createElement('div');
+  tooltip.className = 'tooltip';
+  tooltip.textContent = message;
+  document.body.appendChild(tooltip);
+  const rect = event.target.getBoundingClientRect();
+  tooltip.style.top = (window.scrollY + rect.top - tooltip.offsetHeight - 10) + 'px';
+  tooltip.style.left = (window.scrollX + rect.left) + 'px';
+  tooltip.style.display = 'block';
+
+  function hide() {
+    tooltip.remove();
+    event.target.removeEventListener('mouseleave', hide);
+    event.target.removeEventListener('click', hide);
+  }
+
+  event.target.addEventListener('mouseleave', hide);
+  event.target.addEventListener('click', hide);
 }
   </script>
 </body>
