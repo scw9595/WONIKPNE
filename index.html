@@ -646,6 +646,9 @@ entry.user = currentUser.displayName;
     function goHome() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+    function goHome() {
+    document.getElementById('formSection').scrollIntoView({ behavior: 'smooth' });
+  }
 
     function exportExcel() {
   db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
