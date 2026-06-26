@@ -1,755 +1,623 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>장비 이력 관리 시스템</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth-compat.js"></script>
-  <style>
-    .info-icon {
-  margin-left: 4px;
-  cursor: pointer;
-  color: #6b7280;
-  font-weight: bold;
-  border: 1px solid #ccc;
-  padding: 0 6px;
-  border-radius: 50%;
-  font-size: 12px;
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대전 LGES · TOS 진행관리 웹앱</title>
+<style>
+:root{
+ --acc:#4f46e5;--acc-soft:#eef2ff;--acc-bd:#c7d2fe;
+ --bg:#f6f7fb;--surface:#ffffff;--bd:#e5e7eb;--bd2:#eef0f4;
+ --fg:#111827;--mut:#6b7280;--mut2:#9ca3af;
+ --s1:#9ca3af;--s2:#8b5cf6;--s3:#0ea5e9;--s4:#f59e0b;--s5:#ef4444;--s6:#10b981;
+ --r:12px;--r2:9px;--shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
 }
-.tooltip {
-  display: none;
-  position: absolute;
-  background-color: #fefce8;
-  color: #1e293b;
-  border: 1px solid #e5e7eb;
-  padding: 8px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  font-size: 12px;
-  z-index: 1000;
-  max-width: 300px;
+*{box-sizing:border-box}
+body{margin:0;font-family:Pretendard,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg);font-size:14px;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+/* ===== 레이아웃: 좌측 사이드바 ===== */
+.shell{display:flex;min-height:100vh}
+.sidebar{width:236px;flex:0 0 236px;background:var(--surface);border-right:1px solid var(--bd);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{padding:18px 18px 14px}
+.brand .logo{display:flex;align-items:center;gap:9px}
+.brand .mark{width:30px;height:30px;border-radius:8px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;letter-spacing:-.5px}
+.brand h1{font-size:14.5px;margin:0;font-weight:750;letter-spacing:-.2px}
+.brand .sub{font-size:11px;color:var(--mut2);margin-top:7px;line-height:1.4}
+.nav-sec{padding:6px 12px;font-size:11px;font-weight:700;color:var(--mut2);letter-spacing:.4px;text-transform:uppercase;margin-top:8px}
+nav#nav{display:flex;flex-direction:column;gap:2px;padding:4px 10px 14px}
+nav#nav button{display:flex;align-items:center;gap:9px;border:none;background:none;padding:9px 11px;font-size:13.5px;cursor:pointer;color:#374151;border-radius:9px;text-align:left;width:100%;font-weight:550;transition:.12s}
+nav#nav button:hover{background:#f3f4f6}
+nav#nav button.on{background:var(--acc-soft);color:var(--acc);font-weight:700}
+nav#nav button.adm{color:#9a6a14}
+nav#nav button.adm.on{background:#fff7ed;color:#b45309}
+/* ===== 콘텐츠 ===== */
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd);padding:11px 22px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.topbar .pageT{font-size:15px;font-weight:700;letter-spacing:-.2px}
+.topbar .spacer{flex:1}
+.role{font-size:12px;color:var(--mut);background:#f3f4f6;padding:5px 11px;border-radius:999px;font-weight:600}
+.role.adm{background:var(--acc-soft);color:var(--acc)}
+main#view{padding:22px;max-width:1240px;width:100%;margin:0 auto}
+/* ===== 버튼 ===== */
+.btn{cursor:pointer;border:1px solid var(--bd);background:#fff;color:var(--fg);padding:8px 14px;border-radius:9px;font-size:13px;font-weight:600;transition:.12s}
+.btn:hover{background:#f9fafb;border-color:#d1d5db}
+.btn.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+.btn.pri:hover{background:#4338ca;border-color:#4338ca}
+.btn.dng{background:#fff;color:#dc2626;border-color:#fbcaca}
+.btn.dng:hover{background:#fef2f2}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:7px}
+/* ===== 카드 ===== */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:11px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--bd);border-radius:var(--r);padding:14px 15px;cursor:pointer;transition:.14s;box-shadow:var(--shadow)}
+.card:hover{border-color:var(--acc-bd);transform:translateY(-1px)}
+.card.on{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+.card .lab{font-size:12px;color:var(--mut);font-weight:600}
+.card .num{font-size:27px;font-weight:800;margin-top:5px;letter-spacing:-1px}
+/* ===== 태그 ===== */
+.tag{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11.5px;color:#fff;white-space:nowrap;font-weight:600}
+.t1{background:var(--s1)}.t2{background:var(--s2)}.t3{background:var(--s3)}.t4{background:var(--s4)}.t5{background:var(--s5)}.t6{background:var(--s6)}
+/* ===== 패널/표 ===== */
+.panel{background:var(--surface);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.panel h2{font-size:15.5px;margin:0 0 12px;font-weight:750;letter-spacing:-.2px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+th,td{border-bottom:1px solid var(--bd2);padding:9px 10px;text-align:left;vertical-align:top}
+th{background:#fafbfc;font-weight:650;color:#4b5563;font-size:12px;letter-spacing:.1px;position:sticky;top:0}
+tbody tr:last-child td{border-bottom:none}
+tr.clk{cursor:pointer}
+tr.clk:hover td{background:#fafaff}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+input,select,textarea{font-family:inherit;font-size:13px;border:1px solid var(--bd);border-radius:9px;padding:8px 10px;color:var(--fg);background:#fff;transition:.12s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+textarea{width:100%;resize:vertical;min-height:46px}
+input[type=text],input[type=number],input[type=date],input[type=month],input[type=search]{min-width:120px}
+.num-r,.right{text-align:right}
+.mut{color:var(--mut)}
+/* ===== 모달 ===== */
+.modal-bg{position:fixed;inset:0;background:rgba(17,24,39,.45);backdrop-filter:blur(2px);display:none;align-items:flex-start;justify-content:center;padding:30px;z-index:50;overflow:auto}
+.modal-bg.on{display:flex}
+.modal{background:#fff;border-radius:16px;max-width:780px;width:100%;padding:24px;box-shadow:0 20px 50px rgba(16,24,40,.18)}
+.modal h3{margin:0 0 14px;font-size:17px;font-weight:750}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.fld{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}
+.fld label{font-size:12px;color:var(--mut);font-weight:600}
+.note{background:var(--acc-soft);border:1px solid var(--acc-bd);color:#3730a3;padding:9px 12px;border-radius:9px;font-size:12.5px;margin-bottom:12px;line-height:1.5}
+.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;padding:9px 12px;border-radius:9px;font-size:12.5px;margin-bottom:10px}
+.drop{border:2px dashed var(--bd);border-radius:12px;padding:30px;text-align:center;color:var(--mut);cursor:pointer}
+.drop.over{border-color:var(--acc);background:var(--acc-soft);color:var(--acc)}
+.hide{display:none!important}
+/* ===== 진행현황 3단 ===== */
+.dashwrap{display:grid;grid-template-columns:250px minmax(0,1fr) 312px;gap:14px;align-items:start}
+.side{background:var(--surface);border:1px solid var(--bd);border-radius:var(--r);padding:15px;box-shadow:var(--shadow)}
+.side h2{font-size:13.5px;margin:0 0 12px;display:flex;align-items:center;gap:7px;font-weight:750}
+.side h2 .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dot-n{background:#f59e0b}.dot-q{background:#0ea5e9}
+.notice{border:1px solid var(--bd);background:#fafbfc;border-radius:10px;padding:11px 12px;margin-bottom:9px;font-size:12.5px;line-height:1.55;color:#374151;position:relative}
+.notice.pin{border-color:var(--acc-bd);background:var(--acc-soft);color:#3730a3;font-weight:600}
+.notice .nt-d{font-size:10.5px;color:var(--mut2);margin-top:6px}
+.notice .nt-x{position:absolute;top:8px;right:9px;cursor:pointer;color:var(--mut2);font-weight:700;font-size:14px;line-height:1}
+.notice .nt-x:hover{color:#dc2626}
+.inq{border:1px solid var(--bd);border-radius:10px;padding:11px 12px;margin-bottom:9px;font-size:12.5px;line-height:1.55;background:#fff}
+.inq .iq-h{display:flex;justify-content:space-between;gap:6px;align-items:center;margin-bottom:4px}
+.inq .iq-who{font-weight:700}
+.inq .iq-eq{color:var(--mut);font-size:11px}
+.inq .iq-msg{white-space:pre-wrap;word-break:break-word;color:#374151}
+.inq .iq-ans{margin-top:7px;border-top:1px dashed var(--bd);padding-top:7px;color:#065f46;background:#ecfdf5;border-radius:8px;padding:8px 9px}
+.inq .iq-ans b{color:#047857}
+.badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:999px;color:#fff;font-weight:600;vertical-align:middle}
+.bd-w{background:#f59e0b}.bd-d{background:#10b981}
+.side .fld{margin-bottom:7px}
+.side input,.side textarea{width:100%;min-width:0}
+.side textarea{min-height:56px}
+/* ===== 결과보고서 전표 ===== */
+.rpt{border:1px solid var(--bd);border-radius:12px;margin:0 0 22px;overflow:hidden;box-shadow:var(--shadow)}
+.rpt-h{background:#1e1b4b;color:#fff;text-align:center;padding:16px}
+.rpt-h .t{font-size:20px;font-weight:800;letter-spacing:5px}
+.rpt-h .s{font-size:12px;color:#c7d2fe;margin-top:4px}
+.rpt-meta{display:flex;justify-content:space-between;background:#f5f3ff;padding:8px 14px;font-size:12px;color:#5b21b6;border-bottom:1px solid var(--bd)}
+.rpt table{font-size:13px}
+.rpt th{background:#faf9ff;width:120px;white-space:nowrap}
+.rpt td{min-height:20px}
+@media print{
+ .sidebar,.topbar,.tools,.no-print,.modal-bg{display:none!important}
+ main#view{max-width:none;padding:0}
+ .content{display:block}
+ .rpt{page-break-inside:avoid;margin-bottom:14px;box-shadow:none}
 }
-    body {
-      font-family: 'Noto Sans KR', sans-serif;
-      background: #f9fafb;
-      margin: 0;
-      padding: 20px;
-      color: #1f2937;
-    }
-    h1 {
-      text-align: center;
-      font-size: 24px;
-      color: #1e293b;
-      margin-bottom: 20px;
-    }
-    #homeButton {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      background-color: #10b981;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      z-index: 1000;
-    }
-    .toolbar {
-      display: none;
-      flex-direction: column;
-      gap: 12px;
-      max-width: 600px;
-      margin: 0 auto 20px auto;
-    }
-    .toolbar input, .toolbar select {
-      padding: 12px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 14px;
-    }
-    button.primary {
-      padding: 12px;
-      background-color: #10b981;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    button.primary:hover {
-      background-color: #059669;
-    }
-    #authSection {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    #authSection button {
-      padding: 10px 16px;
-      font-size: 14px;
-      border-radius: 8px;
-      margin: 5px;
-      border: none;
-      cursor: pointer;
-    }
-    #authSection button:first-child {
-      background-color: #4285f4;
-      color: white;
-    }
-    #authSection button:last-child {
-      background-color: #e2e8f0;
-    }
-    #formSection {
-      display: none;
-      max-width: 600px;
-      margin: 0 auto 20px auto;
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    }
-    #formSection input, #formSection textarea, #formSection select {
-      width: 100%;
-      margin-bottom: 10px;
-      padding: 10px;
-      font-size: 14px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      box-sizing: border-box;
-    }
-    #formSection button {
-      width: 49%;
-      margin-top: 10px;
-      padding: 12px;
-      font-weight: bold;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    #formSection button:first-of-type {
-      background-color: #10b981;
-      color: white;
-      border: none;
-    }
-    #formSection button:last-of-type {
-      background-color: #e5e7eb;
-      border: none;
-    }
-    .entry {
-      background: white;
-      padding: 16px;
-      margin-bottom: 12px;
-      border-radius: 10px;
-      border-left: 6px solid #9ca3af;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-      cursor: pointer;
-      transition: transform 0.1s ease;
-    }
-    .entry:hover {
-      transform: scale(1.01);
-    }
-    .entry.completed {
-      border-left-color: #10b981;
-    }
-    .modal {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      padding: 24px;
-      width: 90vw;
-      max-height: 85vh;
-      overflow-y: auto;
-      border-radius: 12px;
-      z-index: 10001;
-      font-size: 14px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    }
-    .overlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.4);
-      z-index: 10000;
-    }
-    #selectedUserLabel {
-      text-align: center;
-      font-weight: bold;
-      font-size: 16px;
-      color: #334155;
-      margin: 10px 0 20px;
-    }
-    @media (max-width: 500px) {
-      .toolbar, #formSection {
-        padding: 16px;
-      }
-      .entry {
-        font-size: 14px;
-      }
-    }
-  </style>
+@media(max-width:1080px){
+ .dashwrap{grid-template-columns:1fr}
+ .sidebar{width:200px;flex-basis:200px}
+}
+@media(max-width:760px){
+ .shell{flex-direction:column}
+ .sidebar{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
+ nav#nav{flex-direction:row;flex-wrap:wrap}
+ nav#nav button{width:auto}
+ .brand{padding:12px 16px}
+}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-  <div id="homeButton" onclick="goHome()">🏠 홈</div>
-
-  <h1>장비 이력 관리 시스템</h1>
-
-  <div id="authSection">
-  <input type="text" id="userNameInput" placeholder="사용자 이름 입력" />
-  <button onclick="manualLogin()">로그인</button>
-  <button onclick="logout()" id="logoutBtn" style="display:none;">로그아웃</button>
-  <p id="userInfo">로그인이 필요합니다.</p>
-</div>
-  <p id="loggedInUser" style="display:none; text-align:center; font-weight:bold; color:#1e293b; margin-bottom:10px;"></p>
-
-  <div class="toolbar" id="userToolbar">
-    <label>사용자 필터</label>
-    <select id="userFilter" onchange="showHistory()">
-      <option value="">전체 사용자 선택</option>
-    </select>
-    <input type="text" id="searchKeyword" placeholder="검색어 입력 (S/N, 고객사 등)" oninput="showHistory()">
-    <button class="primary" onclick="toggleForm()">이력 입력</button>
-    <button class="primary" onclick="exportExcel()">엑셀 추출</button>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <div class="mark">T</div>
+        <h1>TOS 진행관리</h1>
+      </div>
+      <div class="sub">대전 LGES · 원익피앤이<br>충방전기 고장 접수·점검·정산</div>
+    </div>
+    <div class="nav-sec">메뉴</div>
+    <nav id="nav"></nav>
+  </aside>
+  <div class="content">
+    <div class="topbar">
+      <div class="pageT" id="pageT">진행현황</div>
+      <div class="spacer"></div>
+      <span class="role" id="roleLab">조회 전용 사용자</span>
+      <button class="btn sm" id="loginBtn">관리자 로그인</button>
+    </div>
+    <main id="view"></main>
   </div>
+</div>
 
-  <p id="selectedUserLabel"></p>
-  <div id="formSection"></div>
-  <div id="historyList"></div>
+<!-- 상세 모달 -->
+<div class="modal-bg" id="mbg"><div class="modal" id="mbox"></div></div>
 
-  <script>
-    const firebaseConfig = {
-    apiKey: "AIzaSyAMf08WGi7tUHGBv6dYhj9mvvaijiZyewQ",
-    authDomain: "wonik-pne-cs.firebaseapp.com",
-    projectId: "wonik-pne-cs",
-    storageBucket: "wonik-pne-cs.appspot.com",
-    messagingSenderId: "908808313233",
-    appId: "1:908808313233:web:3d3d868c87e408707c6230"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-  const auth = firebase.auth();
-  let currentUser = null;
-  let editDocId = null;
+<script>
+//============ 데이터 ============
+const STAGES=['①접수','②엔지니어배정','③점검중','④자재입고대기중','⑤수리중','⑥완료'];
+function stageCls(s){const i=STAGES.indexOf(s);return 't'+(i>=0?i+1:1);}
+const SEED=[{"no": 1, "seq": 11858, "date": "2026-06-24", "reporter": "김영환", "equip": "PNE-400-5-SOX-002", "loc": "대전 / 충방전동 / 1층 / ", "trouble": "6/23에 \"[INV]HDC ERROR\"라고 TOS 통해서 알림톡 받았고요, 일시정지되어 있어서 혹시나 하고 \"작업계속\"누르니 \"[PCU]단자전압이상\"으로 Code가 변경되었습니다._x000D_\n그러고 나서 충방전이 안되는 상태라서 수리 요청 드립니다.", "stage": "⑥완료", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "채널보드 교체 후 정상화 완료", "material": "BRC2.0 스위칭 채널보드 2EA", "amount": 0, "reporterId": "yhwankim", "inspectDate": "", "repairDate": "2026-06-24", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11858"}, {"no": 2, "seq": 11857, "date": "2026-06-24", "reporter": "이승준", "equip": "PNE-40-4B-003-C", "loc": "대전 / 4연구동 / 지하 / 4B(충방전실)", "trouble": "채널 전체 연결 끊김 이후 복귀 안됨.", "stage": "⑥완료", "inspect": "충방전기 원인불명 꺼짐증상", "repair": "충방전기 리셋 후 연결완료", "material": "", "amount": 0, "reporterId": "cookie880", "inspectDate": "", "repairDate": "2026-06-24", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11857"}, {"no": 3, "seq": 11854, "date": "2026-06-24", "reporter": "김대욱", "equip": "PNE-300-151", "loc": "대전 / 전지동 / 1층 / ", "trouble": "해당 채널 2ea 고장입니당", "stage": "④자재입고대기중", "inspect": "FUSE 1EA 교체 필요합니다.", "repair": "", "material": "250GH-160UL", "amount": 20000, "reporterId": "eodnr172813", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11854"}, {"no": 4, "seq": 11850, "date": "2026-06-24", "reporter": "김태호", "equip": "PNE-10-43208-005-E(CH91~105)", "loc": "대전 / 4연구동 / 3층 / 43208", "trouble": "작일 발생한 동일한 현상 (연결끊어짐) 발생하였습니다. 자가 조치 가능한 수준이라면 연락 부탁드립니다. (김태호 사원 010-5598-4207)", "stage": "⑥완료", "inspect": "CCC안전조건으로 인한 장비꺼짐", "repair": "충방전기 안전조건 변경 후 정상", "material": "", "amount": 0, "reporterId": "taiho99", "inspectDate": "", "repairDate": "2026-06-24", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11850"}, {"no": 5, "seq": 11845, "date": "2026-06-23", "reporter": "김동현", "equip": "PNE-Recycle-Mono-002", "loc": "대전 / 5P동 / 2층 / ", "trouble": "잦은 전류 이상 발생", "stage": "④자재입고대기중", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "", "material": "BRC2.0 스위칭 채널보드", "amount": 0, "reporterId": "kim.dh", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11845"}, {"no": 6, "seq": 11784, "date": "2026-06-22", "reporter": "김휘중", "equip": "PNE-200-497", "loc": "대전 / 충방전동 / 4층 / ", "trouble": "유선상으로 말씀드린것과 같이 전압 배선 부터 교체해보려고합니다. 해당 충방전기 전압 배선 교체 확인 부탁드립니다. ", "stage": "④자재입고대기중", "inspect": "전채널 전압배선 교체필요", "repair": "", "material": "", "amount": 0, "reporterId": "kimhj2508", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11784"}, {"no": 7, "seq": 11634, "date": "2026-06-10", "reporter": "권현진", "equip": "PNE-200-606", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "0.1초 패턴 사이클 진행시 전류가 제대로 인가되지 않습니다. 점검 부탁드립니다. ", "stage": "③점검중", "inspect": "", "repair": "", "material": "", "amount": 0, "reporterId": "hyunjin.kwon", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11634"}, {"no": 8, "seq": 11403, "date": "2026-05-21", "reporter": "이지선", "equip": "PNE-300-CDR2-5", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "전류 이상으로 Channel 사용 불가", "stage": "④자재입고대기중", "inspect": "MAIN SMPS 불량으로 교체예정", "repair": "", "material": "JWE-P34 3.3V 3EA", "amount": 0, "reporterId": "batteryjisun", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11403"}, {"no": 9, "seq": 11100, "date": "2026-04-28", "reporter": "오인규", "equip": "PNE-500-JJ3-001-A", "loc": "대전 / 가공동 / 1층 / ", "trouble": "셀 체결이 안되어 있는데 준비상태로 뜨고 전압도 1V정도 측정되는 상태_x000D_\n-> 현재 사용 불가. 채널 보드 재고 확인 (혹은 신규 수급) 후 채널 보드 교체 예정으로 (신규 수급 시 약 1달까지도 소요), 개발팀에서 수리 가능 일자 알려주면 수리해주기로 함 (수리에 하루 정도 소요 예정)_x000D_\n원익피앤이 김수빈 과장님과 4/28 오전 논의 완료", "stage": "⑥완료", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "채널보드 교체 후 정상화 완료", "material": "BRC2.0 스위칭 채널보드", "amount": 0, "reporterId": "inkyuoh3", "inspectDate": "", "repairDate": "2026-04-28", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11100"}, {"no": 10, "seq": 11035, "date": "2026-04-24", "reporter": "이영진", "equip": "PNE-200-4P121-020-U", "loc": "대전 / 4P동 / 1층 / 4p120", "trouble": "10번 채널 충전 안 됩니다. (셀, 지그 체결 문제 X)", "stage": "③점검중", "inspect": "전압, 전류배선 CROS 체크 필요", "repair": "", "material": "", "amount": 0, "reporterId": "yeong_zzin", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11035"}, {"no": 11, "seq": 11021, "date": "2026-04-23", "reporter": "김효성", "equip": "PNE-200-161", "loc": "대전 / 충방전동 / 1층 / ", "trouble": "17,18번 : 출력 전류 밸런스 에러_x000D_\n21,22번: 전류이상_x000D_\n25,26번: 전압센싱 안됨_x000D_\n27,28번: 전압센싱 안됨_x000D_\n29,30번: 전류 이상", "stage": "④자재입고대기중", "inspect": "", "repair": "", "material": "", "amount": 0, "reporterId": "hyosung0625", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11021"}, {"no": 12, "seq": 10707, "date": "2026-03-30", "reporter": "심수진", "equip": "PNE-400-5-DP-004", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "PCU 출력전류 balance error ", "stage": "⑥완료", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "채널보드 교체 후 정상화 완료", "material": "BRC2.0 스위칭 채널보드 2EA", "amount": 0, "reporterId": "sjsim25", "inspectDate": "", "repairDate": "2026-03-30", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R10707"}, {"no": 13, "seq": 9889, "date": "2026-01-15", "reporter": "김동현", "equip": "PNE-Recycle-Mono-002", "loc": "대전 / 5P동 / 2층 / ", "trouble": "전류 이상 발생 건으로 수리 진행하여 리노핀 교체하였으나, 전류 이상이 계속 발생함.", "stage": "④자재입고대기중", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "", "material": "", "amount": 0, "reporterId": "kim.dh", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R9889"}, {"no": 14, "seq": 9816, "date": "2026-01-08", "reporter": "김종관", "equip": "PNE-400-5-DP-003", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "실제 셀전압은 3.228V 이나, 채널에서 전압이 0V로 뜨는 오류가 있습니다. 개선 조치 부탁드립니다. ", "stage": "④자재입고대기중", "inspect": "메인보드는 교체완료하였느나, BD 로직 설정필요", "repair": "", "material": "", "amount": 0, "reporterId": "batterykim", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R9816"}, {"no": 15, "seq": 6881, "date": "2025-04-22", "reporter": "김휘중", "equip": "PNE-100-122", "loc": "대전 / 충방전동 / 4층 / ", "trouble": "PCU 전압 이상이 뜹니다. _x000D_\n_x000D_\n어제 PNE 고장신고 된 채널 고치면서 같이 망가진거 아닌가 생각됩니다.  최대한 빠르게 처리해주시면 감사드리겠습니다. ", "stage": "④자재입고대기중", "inspect": "채널보드, 메인보드, 인버터 교체필요", "repair": "", "material": "", "amount": 0, "reporterId": "kimhj2508", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R6881"}];
+const ENG_SEED=[{"name": "서정우", "email": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "phone": ""}];
+const LABOR=13500000; // 인건비 상주 2인
 
- function manualLogin() {
-    const name = document.getElementById('userNameInput').value.trim();
-    if (!name) {
-      alert('이름을 입력해주세요');
-      return;
-    }
+function load(k,def){try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;}}
+function save(k,v){localStorage.setItem(k,JSON.stringify(v));}
 
-    localStorage.setItem('username', name);
-    currentUser = { displayName: name };
-    document.getElementById('userInfo').textContent = `${name} 님 환영합니다`;
-    document.getElementById('logoutBtn').style.display = 'inline-block';
-    document.getElementById('userToolbar').style.display = 'flex';
+const DEFAULT_NOTICE='모든 접수는 TOS SYSTEM 접수 순번대로 점검 및 조치가 진행되오니 양해부탁드립니다.';
+let DB   = load('tos_db_v4', null) || SEED.map(x=>Object.assign({},x));
+let ENG  = load('tos_eng_v4', null) || ENG_SEED.map(x=>Object.assign({},x));
+let NOTICES = load('tos_notice_v4', null) || [{id:'N0',text:DEFAULT_NOTICE,date:'',pin:true}];
+let INQ  = load('tos_inq_v4', null) || [];
+let isAdmin=false, curTab='dash', dashFilter=null;
+function persist(){save('tos_db_v4',DB);save('tos_eng_v4',ENG);save('tos_notice_v4',NOTICES);save('tos_inq_v4',INQ);}
+function nowStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 
-    // 로그인 창 숨기기
-    document.getElementById('authSection').style.display = 'none';
-
-    document.getElementById('userFilter').value = name;
-    populateUserFilter().then(() => {
-      showHistory();
-      document.getElementById('authSection').style.display = 'none';
-  document.getElementById('loggedInUser').style.display = 'block';
-  document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${name}`;
-    });
-  }
-
-  function logout() {
-    localStorage.removeItem('username');
-    document.getElementById('authSection').style.display = 'block'; // 다시 보이기
-    location.reload();
-  }
-
-  window.onload = function () {
-    const savedName = localStorage.getItem('username');
-    if (savedName) {
-      currentUser = { displayName: savedName };
-      document.getElementById('userInfo').textContent = `${savedName} 님 환영합니다`;
-      document.getElementById('logoutBtn').style.display = 'inline-block';
-      document.getElementById('userToolbar').style.display = 'flex';
-      document.getElementById('authSection').style.display = 'none';
-
-      document.getElementById('userFilter').value = savedName;
-      populateUserFilter().then(() => {
-        showHistory();
-        document.getElementById('authSection').style.display = 'none';
-    document.getElementById('loggedInUser').style.display = 'block';
-    document.getElementById('loggedInUser').textContent = `🔒 현재 로그인된 사용자: ${savedName}`;
-      });
-    }
-  };
-
-  function populateUserFilter() {
-    const select = document.getElementById('userFilter');
-    select.innerHTML = '<option value="">전체 사용자 선택</option>';
-    const names = new Set();
-    return db.collection('logs').get().then(snapshot => {
-      snapshot.forEach(doc => {
-        const user = doc.data().user;
-        if (user) names.add(user);
-      });
-      [...names].sort().forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        select.appendChild(option);
-      });
-    });
-  }
-    function calculatePriority() {
-  const spread = parseInt(document.getElementById('spread')?.value || 0);
-  const delivery = parseInt(document.getElementById('delivery')?.value || 0);
-  const client = parseInt(document.getElementById('client')?.value || 0);
-  const frequency = parseInt(document.getElementById('frequency')?.value || 0);
-  const personnel = parseInt(document.getElementById('personnel')?.value || 0);
-
-  const priority = spread * delivery * client * frequency * personnel;
-  document.getElementById('priority').value = priority;
-
-  let grade = 'E';
-  if (priority >= 5 && priority <= 128) grade = 'D';
-  else if (priority >= 129 && priority <= 972) grade = 'C';
-  else if (priority >= 973 && priority <= 4096) grade = 'B';
-  else if (priority >= 4097 && priority <= 12500) grade = 'A';
-
-  document.getElementById('grade').value = grade;
+//============ 네비 ============
+const TABS=[
+ {id:'dash',  name:'진행현황',      adm:false},
+ {id:'report',name:'결과보고서(이름조회)',adm:false},
+ {id:'settle',name:'월정산',        adm:false},
+ {id:'req',   name:'점검요청',      adm:true},
+ {id:'done',  name:'완료함',        adm:true},
+ {id:'eng',   name:'엔지니어 설정',  adm:true},
+ {id:'tos',   name:'TOS 원본 붙여넣기',adm:true},
+];
+function renderNav(){
+ const n=document.getElementById('nav');n.innerHTML='';
+ TABS.forEach(t=>{
+   if(t.adm && !isAdmin) return;
+   const b=document.createElement('button');
+   b.textContent=(t.adm?'✎ ':'')+t.name;
+   b.className=(t.adm?'adm ':'')+(curTab===t.id?'on':'');
+   b.onclick=()=>{curTab=t.id;dashFilter=null;render();};
+   n.appendChild(b);
+ });
+}
+function render(){renderNav();const v=document.getElementById('view');
+ if(curTab==='dash')v.innerHTML=viewDash();
+ else if(curTab==='report')renderReport(v);
+ else if(curTab==='settle')renderSettle(v);
+ else if(curTab==='req')renderReq(v);
+ else if(curTab==='done')renderDone(v);
+ else if(curTab==='eng')renderEng(v);
+ else if(curTab==='tos')renderTos(v);
+ const rl=document.getElementById('roleLab');
+ rl.textContent=isAdmin?'관리자 · 수정 권한':'조회 전용 사용자';
+ rl.className='role'+(isAdmin?' adm':'');
+ const tb=TABS.find(t=>t.id===curTab);
+ const pt=document.getElementById('pageT');if(pt&&tb)pt.textContent=tb.name;
 }
 
-    function updateReceiveNoteDefault() {
-  const equipNo = document.getElementById('equipNo').value.trim();
-  const receiveNote = document.getElementById('receiveNote');
-  const userText = receiveNote.value.replace(/^\[장비번호:.+?\]\s*/, '');  // 기존 prefix 제거
-  if (equipNo) {
-    receiveNote.value = `[장비번호:${equipNo}] ` + userText;
-  } else {
-    receiveNote.value = userText;
-  }
+//============ 공통 escape ============
+function esc(s){if(s==null)return '';return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function won(n){n=Number(n)||0;return n.toLocaleString('ko-KR');}
+
+//============ 진행현황 대시보드 ============
+function viewDash(){
+ const cnt={}; STAGES.forEach(s=>cnt[s]=0);
+ DB.forEach(q=>{if(cnt[q.stage]!=null)cnt[q.stage]++;});
+ let cards='<div class="cards">';
+ cards+='<div class="card '+(dashFilter==null?'on':'')+'" onclick="setDash(null)"><div class="lab">총 접수</div><div class="num">'+DB.length+'</div></div>';
+ STAGES.forEach((s,i)=>{cards+='<div class="card '+(dashFilter===s?'on':'')+'" onclick="setDash(\''+s+'\')"><div class="lab"><span class="tag t'+(i+1)+'">'+esc(s)+'</span></div><div class="num">'+cnt[s]+'</div></div>';});
+ cards+='</div>';
+ const center=cards+
+  '<div class="panel"><div class="tools"><input type="search" id="dashKw" placeholder="신고자·장비·내용 검색" oninput="dashSearch()">'+
+  '<span id="dashFi">'+(dashFilter?'<span class="mut">필터: <b>'+esc(dashFilter)+'</b></span> <button class="btn sm" onclick="setDash(null)">전체보기</button>':'')+'</span>'+
+  '</div><table><thead><tr><th>No</th><th>접수일</th><th>신고자</th><th>장비·위치</th><th>진행단계</th><th>담당</th><th>진행내용</th></tr></thead><tbody id="dashTbody">'+dashRows()+'</tbody></table></div>';
+ return '<div class="dashwrap"><div>'+noticePanel()+'</div><div>'+center+'</div><div>'+inqPanel()+'</div></div>';
 }
-    
-    function toggleForm(closeOnly = false) {
-      const form = document.getElementById('formSection');
-      if (closeOnly || form.style.display === 'block') {
-        form.style.display = 'none';
-        form.innerHTML = '';
-        editDocId = null;
-        return;
-      }
-      const today = new Date().toISOString().split('T')[0];
-      form.innerHTML = `
-        <h2>이력 등록</h2>
-        <label>고객사</label><input type="text" id="customer">
-        <label>고객사 장비번호</label><input type="text" id="equipNo" oninput="updateReceiveNoteDefault()">
-        <label>S/N</label><input type="text" id="sn">
-        <label>모델</label><input type="text" id="model">
-        <label>스펙</label><input type="text" id="spec">
-        <label>고장유형</label>
-        <select id="faultType">
-          <option>HW Block</option>
-          <option>HW PCB B/D</option>
-          <option>성능</option>
-          <option>점검</option>
-          <option>초기불량</option>
-          <option>원인미도출</option>
-          <option>교정</option>
-          <option>복합</option>
-          <option>SW</option>
-          <option>납품</option>
-          <option>기타</option>
-        </select>
-        <label>에러코드</label>
-        <select id="errorCode">
-          <option>기타</option>
-          <option>Main 전원 이상</option>
-          <option>MCCB 이상 (전면부 전원 래버)</option>
-          <option>Main EMG Button이 눌려짐</option>
-          <option>PC고장</option>
-          <option>UPS이상</option>
-          <option>순간정전</option>
-          <option>완전정전</option>
-          <option>IDLE 상태</option>
-          <option>전류이상</option>
-          <option>전류상한</option>
-          <option>전류하한</option>
-          <option>전압이상</option>
-          <option>전압하한</option>
-          <option>온도이상</option>
-          <option>챔버연동이상</option>
-          <option>파워서플라이이상</option>
-          <option>회로과열</option>
-          <option>GUI이상</option>
-          <option>고객사 실수</option>
-          <option>DOOR ALARM</option>
-          <option>CCC</option>
-          <option>OVP</option>
-          <option>OTP</option>
-          <option>장비기본점검</option>
-          <option>교정</option>
-          <option>부팅이상</option>
-          <option>작업시작실패</option>
-          <option>스페어</option>
-          <option>CIU 에러</option>
-          <option>CGU 에러</option>
-          <option>DAU 에러</option>
-          <option>[PCU] 단자 전압 ERROR</option>
-          <option>[PCU] 방전 전압원 ERROR</option>
-          <option>[PCU] 입력전압 ERROR</option>
-          <option>[PCU] 출력접점 ERROR</option>
-          <option>[PCU] 온도상한 ERROR</option>
-          <option>[PCU] 통신 ERROR</option>
-          <option>[PCU] PV 전압 ERROR</option>
-          <option>[PCU] 출력전류 BALANCE ERROR</option>
-          <option>[PCU] DCDC ERROR</option>
-          <option>[PCU] 시퀀스ERROR</option>
-          <option>[PCU]PV 전압</option>
-          <option>[PCU] INV_Error</option>
-          <option>[PCU] INV DC ERROR</option>
-          <option>[PCU] CAN ERROR</option>
-          <option>[INV] GROUP ERROR</option>
-          <option>[INV] DHC ERROR</option>
-          <option>[INV] CAN ERROR</option>
-          <option>[INV]FAULT_ETC ERROR</option>
-          <option>[INV] OVER Current ERROR</option>
-          <option>[INV] OVER VOLTAGE ERROR</option>
-          <option>[INV] INV ERROR</option>
-          <option>[INV] FAULT_ETC, MAIN CAN COMM ERROR</option>
-          <option>CAN HARD ERROR</option>
-          <option>NETWORK</option>
-          <option>용량이상</option>
-        </select>
-        <label>접수내용</label>
-<textarea id="receiveNote" placeholder="내용을 입력하세요"></textarea>
-        <label>담당자</label><input type="text" id="receiver">
-        <label>점검자</label><input type="text" id="inspector">
-        <label>점검일자</label><input type="date" id="inspectDate" value="${today}">
-        <label>조치내용</label><textarea id="checkNote"></textarea>
-        <label>교체부품</label><input type="text" id="material">
-        <label>수량</label><input type="number" id="quantity">
-       <label>
-  확산범위
-  <span class="info-icon" onclick="showTooltip(event, '2=채널,단품, 4=메인블럭, 6=유닛, 8=프레임, 10=모델')">?</span>
-</label>
-<select id="spread" onchange="calculatePriority()">
-  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
-</select>
-
-<label>
-  납품일
-  <span class="info-icon" onclick="showTooltip(event, '2=2년이상, 4=2년이하, 6=1년이하, 8=6달이상, 10=6달이하')">?</span>
-</label>
-<select id="delivery" onchange="calculatePriority()">
-  <option>2</option><option>4</option><option>6</option><option>8</option><option>10</option>
-</select>
-
-<label>
-  주요고객
-  <span class="info-icon" onclick="showTooltip(event, '1=기타, 2=산학협력, 3=중소기업, 4=기관, 5=3사+현대')">?</span>
-</label>
-<select id="client" onchange="calculatePriority()">
-  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-</select>
-
-<label>
-  빈도
-  <span class="info-icon" onclick="showTooltip(event, '1=1회, 2=2회이상, 3=3회이상, 4=4회이상, 5=5회이상')">?</span>
-</label>
-<select id="frequency" onchange="calculatePriority()">
-  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-</select>
-
-<label>
-  처리인원
-  <span class="info-icon" onclick="showTooltip(event, '1=그룹원, 2=그룹, 3=공정기술, 4=사업부, 5=전사대응')">?</span>
-</label>
-<select id="personnel" onchange="calculatePriority()">
-  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-</select>
-        <label>중요도</label>
-        <input type="number" id="priority" readonly>
-        <label>등급</label><input type="text" id="grade" readonly>
-        <label>유무상</label><select id="costType"><option>유상</option><option>무상</option></select>
-        <label>진행상태</label><select id="status"><option>미완료</option><option>완료</option></select>
-        <label>완료일</label><input type="date" id="completeDate">
-        <button onclick="saveEntry()">저장</button>
-        <button onclick="toggleForm(true)">닫기</button>
-      `;
-      form.style.display = 'block';
-    }
-
-    function saveEntry() {
-  calculatePriority(); // 중요도 및 등급 계산
-
-  const ids = [
-    "customer", "equipNo", "sn", "model", "spec", "faultType", "errorCode",
-    "receiveNote", "receiver", "inspector", "inspectDate",
-    "checkNote", "material", "quantity",
-    "spread", "delivery", "client", "frequency", "personnel", "priority", "grade",
-    "costType", "status", "completeDate"
-  ];
-
-  const entry = Object.fromEntries(
-    ids.map(id => [id, document.getElementById(id).value.trim()])
-  );
-
-  // 접수내용 맨 앞에 장비번호 자동 추가 (중복 방지)
-  if (entry.equipNo) {
-    entry.receiveNote = `[장비번호:${entry.equipNo}] ` + entry.receiveNote.replace(/^\[장비번호:.+?\]\s*/, '');
-  }
-
-  if (!entry.sn || !entry.customer || !entry.inspectDate) {
-    alert('S/N, 고객사, 점검일자는 필수입니다.');
-    return;
-  }
-
-  entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-  entry.uid = 'manual';
-entry.user = currentUser.displayName;
-
-  const ref = editDocId
-    ? db.collection('logs').doc(editDocId).set(entry)
-    : db.collection('logs').add(entry);
-
-  ref.then(() => {
-    toggleForm(true);
-    showHistory();
-    alert('저장 완료');
-  });
+//============ 좌측 알림창 ============
+function noticePanel(){
+ let h='<div class="side"><h2><span class="dot dot-n"></span>알림</h2>';
+ const list=NOTICES.slice().sort((a,b)=>(b.pin?1:0)-(a.pin?1:0));
+ list.forEach(n=>{
+   h+='<div class="notice'+(n.pin?' pin':'')+'">'+
+      (isAdmin&&!n.pin?'<span class="nt-x" title="삭제" onclick="delNotice(\''+n.id+'\')">×</span>':'')+
+      esc(n.text)+
+      (n.date?'<div class="nt-d">'+esc(n.date)+'</div>':'')+'</div>';
+ });
+ if(isAdmin){
+   h+='<div class="fld" style="margin-top:10px"><label>새 알림 등록 (관리자)</label>'+
+      '<textarea id="ntInput" placeholder="공지할 내용을 입력하세요"></textarea></div>'+
+      '<button class="btn pri sm" style="width:100%" onclick="addNotice()">알림 등록</button>';
+ }
+ h+='</div>';
+ return h;
 }
-    function showHistory() {
-      const keyword = document.getElementById('searchKeyword').value.trim().toLowerCase();
-      const filterUser = document.getElementById('userFilter').value;
-      const label = document.getElementById('selectedUserLabel');
-      const list = document.getElementById('historyList');
-      list.innerHTML = '';
-      label.textContent = '';
-
-      if (!filterUser) {
-        list.innerHTML = `<p style="text-align:center; color:#6b7280;">이력을 보기 위해 사용자를 선택하세요.</p>`;
-        return;
-      }
-
-      label.textContent = `${filterUser}님의 이력 목록입니다`;
-
-      function getUserColor(name) {
-        let hash = 0;
-        for (let i = 0; i < name.length; i++) {
-          hash = name.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const hue = hash % 360;
-        return `hsl(${hue}, 70%, 90%)`;
-      }
-
-      db.collection('logs').orderBy('createdAt', 'desc').get().then(snapshot => {
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          if (d.user !== filterUser) return;
-
-          const fields = Object.values(d).map(v => (v || '').toString().toLowerCase());
-          const match = !keyword || fields.some(f => f.includes(keyword));
-          if (!match) return;
-
-          const div = document.createElement('div');
-          div.className = 'entry' + (d.status === '완료' ? ' completed' : '');
-          div.style.backgroundColor = getUserColor(d.user);
-          const dateStr = d.createdAt?.toDate?.().toISOString().split('T')[0] || '';
-          div.innerHTML = `<strong>${d.sn}</strong> - ${d.status}<br><small>${dateStr} | ${d.user}</small>`;
-          div.onclick = () => showModal(d, doc.id);
-          list.appendChild(div);
-        });
-
-        if (!list.innerHTML) {
-          list.innerHTML = `<p style="text-align:center; color:#6b7280;">해당 사용자의 이력이 없습니다.</p>`;
-        }
-      });
-    }
-
-    function showModal(entry, docId) {
-      const overlay = document.createElement('div');
-      overlay.className = 'overlay';
-      const modal = document.createElement('div');
-      modal.className = 'modal';
-
-      let modalHtml = `
-    <div style="text-align:right"><button onclick="document.body.removeChild(this.closest('.overlay'))">X 닫기</button></div>
-    <h3>S/N: ${entry.sn}</h3>
-    <p>고객사: ${entry.customer}</p>
-    <p>모델: ${entry.model}</p>
-    <p>스펙: ${entry.spec}</p>
-    <p>고장유형: ${entry.faultType}</p>
-    <p>에러코드: ${entry.errorCode}</p>
-    <p>접수내용: ${entry.receiveNote}</p>
-    <p>담당자: ${entry.receiver}</p>
-    <p>점검자: ${entry.inspector}</p>
-    <p>점검일자: ${entry.inspectDate}</p>
-    <p>조치내용: ${entry.checkNote}</p>
-    <p>교체부품: ${entry.material}</p>
-    <p>수량: ${entry.quantity}</p>
-    <p>확산범위: ${entry.spread}</p>
-    <p>납품일: ${entry.delivery}</p>
-    <p>주요고객: ${entry.client}</p>
-    <p>빈도: ${entry.frequency}</p>
-    <p>처리인원: ${entry.personnel}</p>
-    <p>중요도: ${entry.priority}</p>
-    <p>등급: ${entry.grade || 'N/A'}</p>
-    <p>유무상: ${entry.costType}</p>
-    <p>진행상태: ${entry.status}</p>
-    <p>완료일: ${entry.completeDate}</p>
-    <p>등록일: ${(entry.createdAt?.toDate?.() || new Date()).toISOString().split('T')[0]}</p>
-  `;
-      if (currentUser) {
-  modalHtml += `
-    <button onclick="editEntry('${docId}')">수정하기</button>
-    <button onclick="deleteEntry('${docId}')" style="color:red; margin-left:10px;">삭제하기</button>
-  `;
+function addNotice(){
+ const el=document.getElementById('ntInput');const t=(el.value||'').trim();
+ if(!t){alert('알림 내용을 입력하세요.');return;}
+ NOTICES.push({id:'N'+Date.now(),text:t,date:nowStr(),pin:false});
+ persist();render();
 }
-      modal.innerHTML = modalHtml;
-      overlay.appendChild(modal);
-      document.body.appendChild(overlay);
-    }
-
-    function editEntry(docId) {
-  db.collection('logs').doc(docId).get().then(doc => {
-    const entry = doc.data();
-    editDocId = doc.id;
-    toggleForm();
-
-    const ids = [
-      "customer", "equipNo", "sn", "model", "spec", "faultType", "errorCode",
-      "receiveNote", "receiver", "inspector", "inspectDate",
-      "checkNote", "material", "quantity",
-      "spread", "delivery", "client", "frequency", "personnel", "priority", "grade",
-      "costType", "status", "completeDate"
-    ];
-
-    ids.forEach(id => {
-      if (document.getElementById(id)) {
-        document.getElementById(id).value = entry[id] || '';
-      }
-    });
-
-    document.querySelector('.overlay')?.remove();
-  });
+function delNotice(id){
+ if(!confirm('이 알림을 삭제할까요?'))return;
+ NOTICES=NOTICES.filter(n=>n.id!==id);persist();render();
 }
-    function deleteEntry(docId) {
-      if (confirm('정말로 이 이력을 삭제하시겠습니까?')) {
-        db.collection('logs').doc(docId).delete().then(() => {
-          document.querySelector('.overlay')?.remove();
-          showHistory();
-          alert('삭제되었습니다.');
-        });
-      }
-    }
-
-    function exportExcel() {
-  db.collection("logs").orderBy("createdAt", "desc").get().then(snapshot => {
-    const data = [];
-    snapshot.forEach(doc => data.push(doc.data()));
-    if (!data.length) return alert('데이터가 없습니다.');
-
-    const header = '고객사,S/N,장비번호,모델,스펙,고장유형,에러코드,접수내용,담당자,점검자,점검일자,완료일,조치내용,교체부품,수량,확산범위,납품일,주요고객,빈도,처리인원,중요도,등급,유무상,상태,등록일,접수주차,완료주차,대응중,리드타임,처리기간\n';
-
-    const getKoreanWeekFormat = (date) => {
-      if (!date) return '';
-      const tmp = new Date(date.getTime());
-      tmp.setHours(0, 0, 0, 0);
-      tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7));
-      const month = date.getMonth() + 1;
-      const day = date.getDate();
-      const firstDate = new Date(date.getFullYear(), date.getMonth(), 1);
-      const weekOfMonth = Math.ceil((day + firstDate.getDay()) / 7);
-      return `${date.getFullYear()}년 ${String(month).padStart(2, '0')}월 ${weekOfMonth}주차`;
-    };
-
-    const csv = data.map(d => {
-      const parseDate = str => str ? new Date(str) : null;
-      const inspectDate = parseDate(d.inspectDate);
-      const completeDate = parseDate(d.completeDate);
-
-      const getLeadTime = () => {
-        if (inspectDate && completeDate) {
-          const diff = Math.round((completeDate - inspectDate) / (1000 * 60 * 60 * 24));
-          return `${diff}일`;
-        }
-        return '';
-      };
-
-      const getProcessingPeriod = () => {
-        if (!completeDate) return '대응중';
-        const diffDays = Math.round((completeDate - inspectDate) / (1000 * 60 * 60 * 24));
-        const weeks = Math.ceil(diffDays / 7);
-        return weeks <= 1 ? '1주 이내' : `${weeks}주`;
-      };
-
-      return [
-        d.customer, d.sn, d.equipNo || '', d.model, d.spec, d.faultType, d.errorCode, d.receiveNote,
-        d.receiver, d.inspector, d.inspectDate, d.completeDate, d.checkNote, d.material, d.quantity,
-        d.spread, d.delivery, d.client, d.frequency, d.personnel,
-        d.priority, d.grade, d.costType, d.status,
-        d.createdAt?.toDate?.().toISOString().split('T')[0] || '',
-        getKoreanWeekFormat(inspectDate),
-        getKoreanWeekFormat(completeDate),
-        d.status === '완료' ? '완료' : '진행중',
-        getLeadTime(),
-        getProcessingPeriod()
-      ].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',');
-    }).join('\n');
-
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), header + csv], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = '장비이력_확장버전.csv';
-    a.click();
-  });
+//============ 우측 문의사항 ============
+function inqPanel(){
+ let h='<div class="side"><h2><span class="dot dot-q"></span>엔지니어 문의</h2>';
+ h+='<div class="fld"><label>이름</label><input type="text" id="iqName" placeholder="신고자 이름"></div>'+
+    '<div class="fld"><label>장비번호</label><input type="text" id="iqEquip" placeholder="예: PNE-400-5-SOX-002"></div>'+
+    '<div class="fld"><label>문의내용</label><textarea id="iqMsg" placeholder="엔지니어에게 문의할 내용을 적어주세요"></textarea></div>'+
+    '<button class="btn pri sm" style="width:100%" onclick="submitInq()">문의 등록</button>';
+ h+='<div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px"><div class="mut" style="font-size:12px;margin-bottom:6px">최근 문의 ('+INQ.length+')</div>';
+ if(!INQ.length){h+='<div class="mut" style="font-size:12px">등록된 문의가 없습니다.</div>';}
+ INQ.slice().reverse().forEach(q=>{
+   h+='<div class="inq"><div class="iq-h"><span class="iq-who">'+esc(q.name)+
+      ' <span class="badge '+(q.answer?'bd-d':'bd-w')+'">'+(q.answer?'답변완료':'답변대기')+'</span></span>'+
+      (isAdmin?'<span class="nt-x" style="position:static" title="삭제" onclick="delInq(\''+q.id+'\')">×</span>':'')+'</div>'+
+      '<div class="iq-eq">장비 '+esc(q.equip)+' · '+esc(q.date)+'</div>'+
+      '<div class="iq-msg">'+esc(q.msg)+'</div>';
+   if(q.answer){
+     h+='<div class="iq-ans"><b>답변</b> ('+esc(q.adate)+')<br>'+esc(q.answer)+'</div>';
+   }
+   if(isAdmin){
+     h+='<div class="fld" style="margin-top:6px"><textarea id="ans_'+q.id+'" placeholder="답변 입력">'+esc(q.answer||'')+'</textarea></div>'+
+        '<button class="btn sm" style="width:100%" onclick="answerInq(\''+q.id+'\')">답변 저장</button>';
+   }
+   h+='</div>';
+ });
+ h+='</div></div>';
+ return h;
 }
-    function showTooltip(event, message) {
-  const tooltip = document.createElement('div');
-  tooltip.className = 'tooltip';
-  tooltip.textContent = message;
-  document.body.appendChild(tooltip);
-  const rect = event.target.getBoundingClientRect();
-  tooltip.style.top = (window.scrollY + rect.top - tooltip.offsetHeight - 10) + 'px';
-  tooltip.style.left = (window.scrollX + rect.left) + 'px';
-  tooltip.style.display = 'block';
-
-  function hide() {
-    tooltip.remove();
-    event.target.removeEventListener('mouseleave', hide);
-    event.target.removeEventListener('click', hide);
-  }
-
-  event.target.addEventListener('mouseleave', hide);
-  event.target.addEventListener('click', hide);
+function submitInq(){
+ const name=(document.getElementById('iqName').value||'').trim();
+ const equip=(document.getElementById('iqEquip').value||'').trim();
+ const msg=(document.getElementById('iqMsg').value||'').trim();
+ if(!name||!equip||!msg){alert('이름·장비번호·문의내용을 모두 입력하세요.');return;}
+ INQ.push({id:'Q'+Date.now(),name:name,equip:equip,msg:msg,date:nowStr(),answer:'',adate:''});
+ persist();alert('문의가 등록되었습니다. 담당 엔지니어가 확인 후 답변드립니다.');render();
 }
-    function goHome() {
-  // 이력 입력 폼 닫기
-  const form = document.getElementById('formSection');
-  form.style.display = 'none';
-  form.innerHTML = '';
-  editDocId = null;
-
-  // 검색어 초기화
-  document.getElementById('searchKeyword').value = '';
-
-  // 사용자 필터를 현재 로그인한 사용자로 설정
-  if (currentUser && currentUser.displayName) {
-    document.getElementById('userFilter').value = currentUser.displayName;
-    showHistory(); // 이력 다시 불러오기
-    document.getElementById('selectedUserLabel').textContent = `${currentUser.displayName}님의 이력 목록입니다`;
-  }
-
-  // 스크롤 최상단으로 이동
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+function answerInq(id){
+ const el=document.getElementById('ans_'+id);const a=(el.value||'').trim();
+ const q=INQ.find(x=>x.id===id);if(!q)return;
+ q.answer=a;q.adate=a?nowStr():'';
+ persist();render();
 }
-  </script>
+function delInq(id){
+ if(!confirm('이 문의를 삭제할까요?'))return;
+ INQ=INQ.filter(x=>x.id!==id);persist();render();
+}
+function dashRows(){
+ let rows=DB.slice();
+ if(dashFilter)rows=rows.filter(q=>q.stage===dashFilter);
+ const el=document.getElementById('dashKw');const kw=el?el.value.trim().toLowerCase():'';
+ if(kw)rows=rows.filter(q=>[q.reporter,q.equip,q.loc,q.trouble,q.inspect,q.repair,q.engineer].some(x=>String(x||'').toLowerCase().includes(kw)));
+ if(!rows.length)return '<tr><td colspan="7" class="mut" style="text-align:center;padding:20px">표시할 건이 없습니다.</td></tr>';
+ return rows.map(q=>'<tr class="clk" onclick="detail(\''+q.id+'\')"><td>'+esc(q.no)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'<div class="mut" style="font-size:11px">'+esc(q.loc)+'</div></td><td><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td><td>'+esc(q.engineer)+'</td><td style="max-width:280px">'+esc((q.repair||q.inspect||'').slice(0,60))+'</td></tr>').join('');
+}
+function dashSearch(){const tb=document.getElementById('dashTbody');if(tb)tb.innerHTML=dashRows();}
+function setDash(s){dashFilter=s;render();}
+
+//============ 상세 모달 ============
+function detail(id){
+ const q=DB.find(x=>x.id===id);if(!q)return;
+ const mb=document.getElementById('mbox');
+ mb.innerHTML='<h3>접수 상세 · No.'+esc(q.no)+' (SEQ '+esc(q.seq)+')</h3>'+
+ '<table><tr><th>신고자</th><td>'+esc(q.reporter)+' ('+esc(q.reporterId)+')</td><th>접수일</th><td>'+esc(q.date)+'</td></tr>'+
+ '<tr><th>장비명</th><td>'+esc(q.equip)+'</td><th>위치</th><td>'+esc(q.loc)+'</td></tr>'+
+ '<tr><th>진행단계</th><td><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td><th>담당</th><td>'+esc(q.engineer)+' / '+esc(q.company)+'</td></tr>'+
+ '<tr><th>고장내용</th><td colspan="3">'+esc(q.trouble)+'</td></tr>'+
+ '<tr><th>점검결과</th><td colspan="3">'+esc(q.inspect)+'</td></tr>'+
+ '<tr><th>수리결과</th><td colspan="3">'+esc(q.repair)+'</td></tr>'+
+ '<tr><th>자재내역</th><td>'+esc(q.material)+'</td><th>금액</th><td class="right">'+won(q.amount)+' 원</td></tr></table>'+
+ '<div style="text-align:right;margin-top:14px"><button class="btn" onclick="closeM()">닫기</button></div>';
+ document.getElementById('mbg').classList.add('on');
+}
+function closeM(){document.getElementById('mbg').classList.remove('on');}
+document.getElementById('mbg').onclick=e=>{if(e.target.id==='mbg')closeM();};
+
+//============ 결과보고서 (이름 조회 → 전표형) ============
+function renderReport(v){
+ v.innerHTML='<div class="panel no-print"><h2>결과보고서 · 이름으로 조회</h2>'+
+  '<div class="tools"><input type="search" id="rpKw" placeholder="신고자 이름 입력 (예: 김종관)" onkeydown="if(event.key===\'Enter\')doReport()"><button class="btn pri" onclick="doReport()">조회</button><button class="btn" onclick="window.print()">인쇄 / PDF</button></div>'+
+  '<div class="mut" style="font-size:12px">이름을 입력하면 해당 신고자의 접수 건이 점검결과보고서 전표 형식으로 표시됩니다.</div></div>'+
+  '<div id="rpOut"></div>';
+}
+function doReport(){
+ const kw=document.getElementById('rpKw').value.trim();
+ const out=document.getElementById('rpOut');
+ if(!kw){out.innerHTML='<div class="note">신고자 이름을 입력하세요.</div>';return;}
+ const list=DB.filter(q=>q.reporter && q.reporter.includes(kw));
+ if(!list.length){out.innerHTML='<div class="note">\''+esc(kw)+'\' 신고자의 접수 건이 없습니다.</div>';return;}
+ out.innerHTML='<div class="ok no-print" style="margin-bottom:12px">\''+esc(kw)+'\' 신고자 · 총 '+list.length+'건</div>'+list.map(rptHtml).join('');
+}
+function rptHtml(q){
+ return '<div class="rpt"><div class="rpt-h"><div class="t">점 검 결 과 보 고 서</div><div class="s">대전 LGES · 원익피앤이(WONIK PNE) 충방전기</div></div>'+
+ '<div class="rpt-meta"><span>'+esc(q.reporter)+' · '+esc(q.equip)+' · No.'+esc(q.no)+'</span><span>RPT-'+esc(q.seq)+' · 작성일 '+new Date().toISOString().slice(0,10)+'</span></div>'+
+ '<table>'+
+ '<tr><th>신고자</th><td>'+esc(q.reporter)+'</td><th>신고자ID</th><td>'+esc(q.reporterId)+'</td></tr>'+
+ '<tr><th>장비명</th><td>'+esc(q.equip)+'</td><th>장비위치</th><td>'+esc(q.loc)+'</td></tr>'+
+ '<tr><th>고장내용</th><td colspan="3">'+esc(q.trouble)+'</td></tr>'+
+ '<tr><th>점검일</th><td>'+esc(q.inspectDate||'-')+'</td><th>수리완료일</th><td>'+esc(q.repairDate||'-')+'</td></tr>'+
+ '<tr><th>점검내용</th><td colspan="3">'+esc(q.inspect)+'</td></tr>'+
+ '<tr><th>수리내용</th><td colspan="3">'+esc(q.repair)+'</td></tr>'+
+ '<tr><th>고장원인</th><td colspan="3">'+esc(q.cause)+'</td></tr>'+
+ '<tr><th>자재내역</th><td>'+esc(q.material)+'</td><th>금액</th><td class="right">'+won(q.amount)+' 원</td></tr>'+
+ '<tr><th>담당엔지니어</th><td>'+esc(q.engineer)+'</td><th>업체</th><td>'+esc(q.company)+'</td></tr>'+
+ '<tr><th>엔지니어 이메일</th><td colspan="3">'+esc(q.engEmail)+'</td></tr>'+
+ '<tr><th>진행단계</th><td colspan="3"><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td></tr>'+
+ '</table></div>';
+}
+
+//============ 월정산 (일자 조회, 21~20일, 완료건만) ============
+function defRange(){
+ const t=new Date();let y=t.getFullYear(),m=t.getMonth();// 0-based
+ // 정산월 기본 = 다음달, 기간 = 전월21 ~ 당월20 기준. 단순화: 이번달20 마감, 시작 전월21
+ const end=new Date(y,m,20), start=new Date(y,m-1,21);
+ return {start:fmt(start),end:fmt(end)};
+}
+function fmt(d){return d.toISOString().slice(0,10);}
+function renderSettle(v){
+ const r=defRange();
+ v.innerHTML='<div class="panel"><h2>월정산 · 일자 조회</h2>'+
+  '<div class="note">정산 대상: <b>수리완료(⑥완료) 건</b> · 정산 기간 기본값은 <b>전월 21일 ~ 당월 20일</b>입니다. 날짜를 바꿔 조회할 수 있습니다.</div>'+
+  '<div class="tools">정산월 <input type="month" id="smMonth" onchange="syncRange()"> '+
+  '시작 <input type="date" id="smStart" value="'+r.start+'"> ~ 종료 <input type="date" id="smEnd" value="'+r.end+'">'+
+  '<button class="btn pri" onclick="doSettle()">정산 조회</button></div>'+
+  '<div id="smOut"></div></div>';
+ doSettle();
+}
+function syncRange(){
+ const mv=document.getElementById('smMonth').value;if(!mv)return;
+ const [y,m]=mv.split('-').map(Number);// 정산월 m → 기간 (m-1월21 ~ m월20)... 사용자 규칙: 전월21~당월20
+ const start=new Date(y,m-2,21), end=new Date(y,m-1,20);
+ document.getElementById('smStart').value=fmt(start);
+ document.getElementById('smEnd').value=fmt(end);
+ doSettle();
+}
+function doSettle(){
+ const s=document.getElementById('smStart').value, e=document.getElementById('smEnd').value;
+ const list=DB.filter(q=>q.stage==='⑥완료').filter(q=>{
+   const d=q.repairDate||q.date;if(!d)return false;return d>=s && d<=e;
+ });
+ let mat=0;let rows='';
+ list.forEach((q,i)=>{mat+=Number(q.amount)||0;
+  rows+='<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td style="max-width:220px">'+esc((q.repair||q.inspect||'').slice(0,50))+'</td><td>'+esc(q.material)+'</td><td class="right">'+won(q.amount)+'</td><td>'+esc(q.engineer)+'</td></tr>';
+ });
+ if(!list.length)rows='<tr><td colspan="9" class="mut" style="text-align:center;padding:18px">해당 기간에 완료된 정산 대상 건이 없습니다.</td></tr>';
+ const total=mat+LABOR;
+ document.getElementById('smOut').innerHTML=
+  '<div class="cards" style="margin-top:8px"><div class="card"><div class="lab">정산 건수</div><div class="num">'+list.length+'</div></div>'+
+  '<div class="card"><div class="lab">자재비 합계</div><div class="num" style="font-size:20px">'+won(mat)+'</div></div>'+
+  '<div class="card"><div class="lab">인건비(상주 2인)</div><div class="num" style="font-size:20px">'+won(LABOR)+'</div></div>'+
+  '<div class="card"><div class="lab">총 정산액</div><div class="num" style="font-size:20px;color:var(--blue)">'+won(total)+'</div></div></div>'+
+  '<table><thead><tr><th>No</th><th>SEQ</th><th>수리완료일</th><th>신고자</th><th>장비명</th><th>점검/수리내용</th><th>자재내역</th><th>자재비</th><th>담당</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+//============ 점검요청 (미완료만, 입력/수정) ============
+function renderReq(v){
+ const list=DB.filter(q=>q.stage!=='⑥완료');
+ let rows='';
+ list.forEach(q=>{rows+=reqRow(q);});
+ if(!list.length)rows='<tr><td colspan="9" class="mut" style="text-align:center;padding:18px">미완료 점검요청 건이 없습니다. (모두 완료됨)</td></tr>';
+ v.innerHTML='<div class="panel"><h2>점검요청 · 미완료 건 ('+list.length+')</h2>'+
+  '<div class="note">완료되지 않은 건만 표시됩니다. 진행단계를 <b>⑥완료</b>로 저장하면 이 목록에서 사라지고 <b>완료함</b>으로 이동합니다.</div>'+
+  '<div class="tools"><button class="btn pri" onclick="addReq()">+ 신규 점검요청</button></div>'+
+  '<div style="overflow-x:auto"><table><thead><tr><th>No</th><th>신고자·장비</th><th style="min-width:130px">진행단계</th><th style="min-width:160px">점검결과</th><th style="min-width:160px">수리결과</th><th style="min-width:130px">자재내역</th><th style="min-width:100px">금액</th><th style="min-width:110px">담당</th><th>저장</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function reqRow(q){
+ const opts=STAGES.map(s=>'<option '+(q.stage===s?'selected':'')+'>'+s+'</option>').join('');
+ const engopts='<option value="">(미지정)</option>'+ENG.map(e=>'<option '+(q.engineer===e.name?'selected':'')+'>'+esc(e.name)+'</option>').join('');
+ return '<tr data-id="'+q.id+'"><td>'+esc(q.no)+'</td>'+
+  '<td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
+  '<td><select class="f-stage">'+opts+'</select></td>'+
+  '<td><textarea class="f-inspect">'+esc(q.inspect)+'</textarea></td>'+
+  '<td><textarea class="f-repair">'+esc(q.repair)+'</textarea></td>'+
+  '<td><textarea class="f-material">'+esc(q.material)+'</textarea></td>'+
+  '<td><input type="number" class="f-amount num-r" style="width:90px" value="'+(Number(q.amount)||0)+'"></td>'+
+  '<td><select class="f-eng">'+engopts+'</select></td>'+
+  '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
+}
+function saveReq(id,btn){
+ const tr=btn.closest('tr');const q=DB.find(x=>x.id===id);if(!q)return;
+ q.stage=tr.querySelector('.f-stage').value;
+ q.inspect=tr.querySelector('.f-inspect').value;
+ q.repair=tr.querySelector('.f-repair').value;
+ q.material=tr.querySelector('.f-material').value;
+ q.amount=Number(tr.querySelector('.f-amount').value)||0;
+ q.engineer=tr.querySelector('.f-eng').value;
+ const e=ENG.find(x=>x.name===q.engineer);q.engEmail=e?e.email:'';q.company=e?e.company:q.company;
+ if(q.stage==='⑥완료' && !q.repairDate)q.repairDate=new Date().toISOString().slice(0,10);
+ persist();render();
+}
+function delReq(id){if(!confirm('이 점검요청 건을 삭제할까요?'))return;DB=DB.filter(x=>x.id!==id);persist();render();}
+function addReq(){
+ const seq='N'+Date.now().toString().slice(-6);
+ const no=Math.max(0,...DB.map(x=>Number(x.no)||0))+1;
+ DB.unshift({id:'R'+seq,no:no,seq:seq,date:new Date().toISOString().slice(0,10),reporter:'(신규)',reporterId:'',equip:'',loc:'',trouble:'',stage:'①접수',inspect:'',repair:'',material:'',amount:0,cause:'',inspectDate:'',repairDate:'',engineer:'',engEmail:'',company:'원익피앤이'});
+ persist();render();
+}
+
+//============ 완료함 (완료건만, 단계 되돌리기) ============
+function renderDone(v){
+ const list=DB.filter(q=>q.stage==='⑥완료');
+ let rows='';
+ list.forEach(q=>{
+  const opts=STAGES.map(s=>'<option '+(q.stage===s?'selected':'')+'>'+s+'</option>').join('');
+  rows+='<tr data-id="'+q.id+'"><td>'+esc(q.no)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td><td>'+esc(q.repairDate||q.date)+'</td><td style="max-width:240px">'+esc((q.repair||q.inspect||'').slice(0,60))+'</td><td class="right">'+won(q.amount)+'</td><td><select class="f-stage2">'+opts+'</select></td><td><button class="btn pri sm" onclick="revertDone(\''+q.id+'\',this)">단계 변경</button> <button class="btn dng sm" onclick="delDone(\''+q.id+'\')">삭제</button></td></tr>';
+ });
+ if(!list.length)rows='<tr><td colspan="7" class="mut" style="text-align:center;padding:18px">완료된 건이 없습니다.</td></tr>';
+ v.innerHTML='<div class="panel"><h2>완료함 · 완료 건 ('+list.length+')</h2>'+
+  '<div class="note">완료 처리된 건만 모입니다. 진행단계를 다른 단계로 바꾸면 다시 <b>점검요청</b> 목록으로 돌아갑니다.</div>'+
+  '<table><thead><tr><th>No</th><th>신고자·장비</th><th>수리완료일</th><th>수리내용</th><th>금액</th><th style="min-width:130px">진행단계</th><th>변경</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function revertDone(id,btn){
+ const tr=btn.closest('tr');const q=DB.find(x=>x.id===id);if(!q)return;
+ const ns=tr.querySelector('.f-stage2').value;q.stage=ns;
+ if(ns!=='⑥완료')q.repairDate='';
+ persist();render();
+}
+function delDone(id){
+ const q=DB.find(x=>x.id===id);if(!q)return;
+ if(!confirm('['+(q.reporter||'')+' · '+(q.equip||'')+'] 완료 건을 영구 삭제할까요?\n삭제하면 복구할 수 없습니다.'))return;
+ DB=DB.filter(x=>x.id!==id);
+ persist();render();
+}
+
+//============ 엔지니어 설정 ============
+function renderEng(v){
+ let rows='';
+ ENG.forEach((e,i)=>{rows+='<tr><td><input type="text" value="'+esc(e.name)+'" onchange="ENG['+i+'].name=this.value;persist()"></td>'+
+  '<td><input type="text" value="'+esc(e.email)+'" onchange="ENG['+i+'].email=this.value;persist()"></td>'+
+  '<td><input type="text" value="'+esc(e.company)+'" onchange="ENG['+i+'].company=this.value;persist()"></td>'+
+  '<td><input type="text" value="'+esc(e.phone)+'" onchange="ENG['+i+'].phone=this.value;persist()"></td>'+
+  '<td><button class="btn dng sm" onclick="delEng('+i+')">삭제</button></td></tr>';});
+ v.innerHTML='<div class="panel"><h2>엔지니어 설정</h2>'+
+  '<div class="note">여기 등록한 엔지니어가 점검요청 화면의 담당자 선택 목록에 자동 반영됩니다.</div>'+
+  '<div class="tools"><button class="btn pri" onclick="addEng()">+ 엔지니어 추가</button></div>'+
+  '<table><thead><tr><th>이름</th><th>이메일</th><th>업체</th><th>연락처</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function addEng(){ENG.push({name:'',email:'',company:'원익피앤이',phone:''});persist();render();}
+function delEng(i){if(!confirm('삭제할까요?'))return;ENG.splice(i,1);persist();render();}
+
+//============ TOS 원본 붙여넣기 (엑셀 복사 → 화면 표에 붙여넣기) ============
+var TOSROWS=[];
+const HEADER_MAP={
+ '고장발생일':'occurDate','고장 발생일':'occurDate','접수일':'date','수리종료일':'repairDate','수리완료일시':'repairDate','수리완료일':'repairDate',
+ '고장상태':'status','상태':'status','장비명':'equip','설비명':'equip','장비위치':'loc','위치':'loc',
+ '신고자':'reporter','신고자명':'reporter','신고자id':'reporterId','신고자 id':'reporterId',
+ '고장내용':'trouble','접수내용':'trouble','현상':'trouble','채널목록':'channels','채널':'channels',
+ '채널수':'chcnt','채널 수':'chcnt','ch수':'chcnt','점검내용':'inspect','수리내용':'repair','고장원인':'cause',
+ '업체명':'company','업체':'company','고장부품':'material','troubleseq':'seq','trouble seq':'seq','seq':'seq','견적금액':'amount','총금액':'amount'
+};
+function statusToStage(st){st=(st||'').toString();
+ if(/완료|정산|종료/.test(st))return '⑥완료';
+ if(/수리/.test(st))return '⑤수리중';
+ if(/자재/.test(st))return '④자재입고대기중';
+ if(/점검/.test(st))return '③점검중';
+ if(/배정/.test(st))return '②엔지니어배정';
+ return '①접수';
+}
+function renderTos(v){
+ v.innerHTML='<div class="panel"><h2>TOS 원본 붙여넣기</h2>'+
+  '<div class="note">엑셀 TOS 원본에서 <b>헤더행(컬럼 제목)을 포함</b>해 범위를 드래그 복사한 뒤, 아래 칸을 클릭하고 <b>Ctrl+V</b>로 붙여넣으세요. 헤더 이름으로 자동 매핑하며 <b>TroubleSEQ 기준 신규 건만</b> 추가합니다.</div>'+
+  '<div id="tosPaste" contenteditable="true" style="min-height:70px;border:2px dashed #94a3b8;border-radius:8px;padding:12px;color:#64748b;outline:none;white-space:pre-wrap;overflow:auto;max-height:140px" data-empty="1">여기를 클릭한 뒤 Ctrl+V 로 붙여넣으세요</div>'+
+  '<div class="tools" style="margin-top:10px;display:flex;align-items:center;gap:8px">'+
+   '<button class="btn" onclick="tosClear()">지우기</button>'+
+   '<span id="tosCnt" class="mut"></span>'+
+   '<span style="flex:1"></span>'+
+   '<button class="btn pri" onclick="tosImport()">신규 건 추가하기</button>'+
+  '</div>'+
+  '<div id="tosGridWrap" style="margin-top:10px;overflow:auto;max-height:360px;border:1px solid #e2e8f0;border-radius:8px;display:none"></div>'+
+  '<div id="tosOut" style="margin-top:12px"></div></div>';
+ var box=document.getElementById('tosPaste');
+ box.addEventListener('focus',function(){if(box.dataset.empty!=='0'){box.textContent='';box.style.color='#0f172a';box.dataset.empty='0';}});
+ box.addEventListener('paste',function(e){
+   e.preventDefault();
+   var t=((e.clipboardData||window.clipboardData).getData('text'))||'';
+   box.textContent='(붙여넣기 완료 — 아래 미리보기를 확인하고 "신규 건 추가하기"를 누르세요)';
+   box.style.color='#16a34a';box.dataset.empty='1';
+   TOSROWS=parseClip(t);
+   tosPreview();
+ });
+}
+function tosClear(){TOSROWS=[];var w=document.getElementById('tosGridWrap');if(w){w.style.display='none';w.innerHTML='';}var c=document.getElementById('tosCnt');if(c)c.textContent='';var o=document.getElementById('tosOut');if(o)o.innerHTML='';var b=document.getElementById('tosPaste');if(b){b.textContent='여기를 클릭한 뒤 Ctrl+V 로 붙여넣으세요';b.style.color='#64748b';b.dataset.empty='1';}}
+function parseClip(text){
+ var rows=[],row=[],cur='',i=0,inQ=false;
+ while(i<text.length){var ch=text[i];
+   if(inQ){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i+=2;continue;}inQ=false;i++;continue;}cur+=ch;i++;continue;}
+   if(ch==='"'){inQ=true;i++;continue;}
+   if(ch==='\t'){row.push(cur);cur='';i++;continue;}
+   if(ch==='\r'){i++;continue;}
+   if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';i++;continue;}
+   cur+=ch;i++;
+ }
+ if(cur!==''||row.length){row.push(cur);rows.push(row);}
+ return rows.filter(function(r){return r.some(function(c){return String(c).trim()!=='';});});
+}
+function tosDetect(){
+ var hr=0,best=0;
+ for(var i=0;i<Math.min(TOSROWS.length,15);i++){var m=0;TOSROWS[i].forEach(function(c){if(HEADER_MAP[String(c).trim().toLowerCase()])m++;});if(m>best){best=m;hr=i;}}
+ var cols=best>0?TOSROWS[hr].map(function(c){return HEADER_MAP[String(c).trim().toLowerCase()]||null;}):[];
+ return {hr:hr,best:best,cols:cols};
+}
+function tosPreview(){
+ var w=document.getElementById('tosGridWrap'),c=document.getElementById('tosCnt');
+ if(!TOSROWS.length){if(w){w.style.display='none';}if(c)c.textContent='붙여넣은 데이터가 없습니다.';return;}
+ var d=tosDetect();
+ var FN={occurDate:'고장발생일',date:'접수일',repairDate:'수리완료일',status:'고장상태',equip:'장비명',loc:'장비위치',reporter:'신고자',reporterId:'신고자ID',trouble:'고장내용',channels:'채널목록',chcnt:'채널수',inspect:'점검내용',repair:'수리내용',cause:'고장원인',company:'업체명',material:'고장부품',seq:'TroubleSEQ',amount:'금액'};
+ var ncol=TOSROWS[d.hr]?TOSROWS[d.hr].length:0;
+ var html='<table style="font-size:12px;border-collapse:collapse;width:max-content"><thead><tr>';
+ for(var j=0;j<ncol;j++){var k=d.cols[j];html+='<th style="white-space:nowrap;border:1px solid #e2e8f0;padding:4px 8px;'+(k?'background:#dbeafe;color:#1e40af':'background:#f1f5f9;color:#94a3b8')+'">'+esc(TOSROWS[d.hr][j]||'')+(k?'<br><span style="font-size:10px">▸ '+FN[k]+'</span>':'<br><span style="font-size:10px">(무시)</span>')+'</th>';}
+ html+='</tr></thead><tbody>';
+ var shown=0;
+ for(var r=d.hr+1;r<TOSROWS.length && shown<30;r++){html+='<tr>';for(var j2=0;j2<ncol;j2++){html+='<td style="white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;border:1px solid #eef2f7;padding:4px 8px">'+esc((TOSROWS[r][j2]||'').toString().slice(0,40))+'</td>';}html+='</tr>';shown++;}
+ html+='</tbody></table>';
+ w.innerHTML=html;w.style.display='block';
+ var dataCnt=TOSROWS.length-(d.hr+1);if(dataCnt<0)dataCnt=0;
+ c.textContent='인식 헤더 '+d.best+'개 · 데이터 '+dataCnt+'행'+(d.best<2?' · ⚠ 헤더를 못 찾았습니다(헤더행 포함해 복사하세요)':' · 미리보기는 최대 30행')+' ';
+}
+function tosImport(){
+ var out=document.getElementById('tosOut');
+ if(!TOSROWS.length){out.innerHTML='<div class="note">먼저 엑셀 데이터를 붙여넣으세요.</div>';return;}
+ var d=tosDetect();
+ if(d.best<2){out.innerHTML='<div class="note">헤더(컬럼명)를 찾지 못했습니다. 엑셀에서 <b>헤더행을 포함</b>해 복사했는지 확인하세요.</div>';return;}
+ var existing={};DB.forEach(function(q){existing[String(q.seq)]=1;});
+ var add=0,dup=0,err=0;
+ for(var i=d.hr+1;i<TOSROWS.length;i++){
+   var row=TOSROWS[i];if(!row||row.every(function(c){return c===''||c==null;}))continue;
+   var o={};d.cols.forEach(function(k,ci){if(k)o[k]=row[ci];});
+   if(!o.seq && !o.equip && !o.reporter){err++;continue;}
+   var seq=(o.seq!=null&&o.seq!=='')?String(o.seq).trim():('X'+i);
+   if(existing[seq]){dup++;continue;}
+   existing[seq]=1;
+   var no=Math.max(0,...DB.map(function(x){return Number(x.no)||0;}))+1;
+   DB.push({id:'R'+seq,no:no,seq:seq,date:o.date||'',reporter:o.reporter||'',reporterId:o.reporterId||'',
+     equip:o.equip||'',loc:o.loc||'',trouble:o.trouble||'',stage:statusToStage(o.status),
+     inspect:o.inspect||'',repair:o.repair||'',material:o.material||'',amount:Number(String(o.amount==null?'':o.amount).replace(/[^0-9.-]/g,''))||0,
+     cause:o.cause||'',inspectDate:'',repairDate:o.repairDate||'',engineer:'',engEmail:'',company:o.company||'원익피앤이'});
+   add++;
+ }
+ persist();
+ out.innerHTML='<div class="ok">완료 · 신규 <b>'+add+'</b>건 추가 / 중복 '+dup+'건 / 오류 '+err+'건. 진행현황·점검요청 화면에서 확인하세요.</div>';
+}
+
+//============ 로그인 ============
+document.getElementById('loginBtn').onclick=function(){
+ if(isAdmin){isAdmin=false;curTab='dash';render();this.textContent='관리자 로그인';return;}
+ const pw=prompt('관리자 비밀번호를 입력하세요 (기본: admin)');
+ if(pw==='admin'){isAdmin=true;this.textContent='로그아웃';render();}
+ else if(pw!=null){alert('비밀번호가 올바르지 않습니다.');}
+};
+
+render();
+</script>
 </body>
 </html>
-
-
-
 
 
 
