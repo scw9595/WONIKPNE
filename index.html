@@ -1108,6 +1108,7 @@ function renderAS(v){
   '<div class="tools no-print"><button class="btn" onclick="exportASExcel()">엑셀 다운로드(전체 42열)</button>'+
   '<button class="btn" onclick="printAS()">인쇄 / PDF</button>'+
   '<span style="flex:1"></span>'+
+  (isSuper?'<button class="btn delall" onclick="clearAsAll()">전체 삭제</button>':'')+
   '<button class="btn pri" onclick="asImpToggle()">＋ 엑셀로 A/S 등록</button></div>'+
   '<div id="asImpArea"></div>'+
   '<div id="crmPv"></div>'+
@@ -2441,7 +2442,9 @@ function renderReq(v){
   '<div class="note">완료되지 않은 건만 표시됩니다. 진행단계를 <b>⑥완료</b>로 저장하면 이 목록에서 사라지고 <b>완료함</b>으로 이동합니다.</div>'+
   '<div class="tools"><button class="btn pri" onclick="addReq()">+ 신규 점검요청</button>'+
   '<button class="btn" onclick="exportReqExcel()">엑셀 다운로드</button>'+
-  '<button class="btn" onclick="printReq()">인쇄 / PDF</button></div>'+
+  '<button class="btn" onclick="printReq()">인쇄 / PDF</button>'+
+  '<span style="flex:1"></span>'+
+  (isSuper?'<button class="btn delall" onclick="clearReqAll()">미완료 전체 삭제</button>':'')+'</div>'+
   '<div style="overflow-x:auto"><table><thead><tr><th>No</th><th>신고자·장비</th><th style="min-width:130px">진행단계</th><th style="min-width:160px">점검결과</th><th style="min-width:160px">수리결과</th><th style="min-width:130px">자재내역</th><th style="min-width:100px">금액</th><th style="min-width:110px">담당</th><th>저장</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function renderReqUser(v,list){
@@ -2495,6 +2498,27 @@ function saveReq(id,btn){
  persist();render();
 }
 function delReq(id){if(!confirm('이 점검요청 건을 삭제할까요?\n(A/S 리스트 관리에는 그대로 보관됩니다.)'))return;var q=DB.find(x=>x.id===id);archiveToAS(q);DB=DB.filter(x=>x.id!==id);persist();render();}
+// ===== A/S 리스트 전체 삭제 (현재 현장 · 메인관리자 전용) =====
+function clearAsAll(){
+ var n=asAll().length;
+ if(n===0){alert('삭제할 A/S 데이터가 없습니다.');return;}
+ if(!confirm('['+SITE+'] A/S 리스트 전체('+n+'건)를 삭제할까요?\n\n접수·진행 데이터, A/S 상세, 보관함이 모두 비워집니다.\n※ 되돌릴 수 없습니다. (필요 시 먼저 백업)'))return;
+ if(!confirm('정말 삭제하시겠습니까?\n['+SITE+'] 전체 A/S 데이터('+n+'건)가 사라집니다.'))return;
+ DB=[];ASARCH=[];ASD={};asEditId=null;
+ persist();saveArch();save(siteKey('tos_as_v8'),ASD);render();
+}
+// ===== 점검요청 미완료건 전체 삭제 (현재 현장 · 메인관리자 전용) =====
+function clearReqAll(){
+ var pend=DB.filter(function(q){return q.stage!=='⑥완료';});
+ if(pend.length===0){alert('삭제할 미완료 점검요청 건이 없습니다.');return;}
+ if(!confirm('['+SITE+'] 미완료 점검요청('+pend.length+'건)을 전체 삭제할까요?\n\n완료된 건은 유지됩니다.\n※ 되돌릴 수 없습니다.'))return;
+ if(!confirm('정말 삭제하시겠습니까?\n미완료 '+pend.length+'건이 사라집니다.'))return;
+ var ids={};pend.forEach(function(q){ids[q.id]=1;});
+ DB=DB.filter(function(q){return q.stage==='⑥완료';});
+ ASARCH=ASARCH.filter(function(a){return !ids[a.id];});
+ pend.forEach(function(q){if(ASD[q.id])delete ASD[q.id];});
+ persist();saveArch();save(siteKey('tos_as_v8'),ASD);render();
+}
 function addReq(){
  const today=new Date().toISOString().slice(0,10);
  const engopts='<option value="">(미지정)</option>'+ENG.map(e=>'<option>'+esc(e.name)+'</option>').join('');
