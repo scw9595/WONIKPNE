@@ -527,6 +527,15 @@ table.reqnew{width:100%;border-collapse:collapse}
 table.reqnew th{text-align:left;background:#f7f8fc;padding:9px 11px;font-size:12.5px;color:#475066;white-space:nowrap;width:90px;border:1px solid #eceef4}
 table.reqnew td{padding:7px 10px;border:1px solid #eceef4}
 table.reqnew input,table.reqnew select,table.reqnew textarea{width:100%;box-sizing:border-box}
+table.delmtx{border-collapse:collapse;font-size:12.5px}
+table.delmtx th,table.delmtx td{border:1px solid #eceef4;padding:6px 9px;white-space:nowrap}
+table.delmtx th{background:#f7f8fc;color:#475066;position:sticky;top:0}
+table.delmtx td.sname{text-align:left;font-weight:700}
+table.delmtx .cnt{color:#64748b;font-size:11px;margin-left:3px}
+.btn.del{background:#fef2f2;border-color:#fecaca;color:#dc2626;padding:3px 9px;font-size:11.5px}
+.btn.del:hover{background:#fee2e2}
+.btn.delall{background:#dc2626;border-color:#dc2626;color:#fff}
+.btn.delall:hover{background:#b91c1c}
 /* 회사 로고 적용 모드: 색박스 대신 이미지 */
 .brand .mark.haslogo,.login-mark.haslogo{background:none!important;box-shadow:none!important;border-radius:0;color:transparent;width:auto;font-size:0}
 .brand .mark.haslogo{height:30px}
@@ -1598,7 +1607,8 @@ function asImpField(h){h=String(h).trim().toLowerCase().replace(/[ .]/g,'');
  if(h==='중분류')return '중분류';
  if(h==='대분류')return '대분류';
  if(h==='채널'||h==='ch')return 'channels';
- if(h.indexOf('접수내용')>=0||h.indexOf('고장내용')>=0||h.indexOf('증상')>=0||h.indexOf('현상')>=0||h==='내용')return 'trouble';
+ if(h.indexOf('접수내용')>=0||h==='내용')return 'trouble';               // A/S: 접수내용=주(主)
+ if(h.indexOf('고장내용')>=0||h.indexOf('증상')>=0||h.indexOf('현상')>=0)return 'trouble_alt'; // 고장내용=보조
  // n차 점검 및 조치 → repair
  if(h.indexOf('n차')>=0||h.indexOf('점검및조치')>=0||(h.indexOf('점검')>=0&&h.indexOf('조치')>=0)||h.indexOf('수리')>=0||h.indexOf('조치')>=0||h.indexOf('처리')>=0)return 'repair';
  // 점검결과(최초 점검내용) → inspect
@@ -1614,7 +1624,7 @@ function asImpField(h){h=String(h).trim().toLowerCase().replace(/[ .]/g,'');
 }function asImpDetect(){var hr=-1,cols=null;
  for(var i=0;i<Math.min(ASIMP.length,12);i++){var row=ASIMP[i];var mp=row.map(function(c){return asImpField(c);});
   var nd=mp.filter(function(x){return x;}).length;
-  if(nd>=2&&(mp.indexOf('trouble')>=0||mp.indexOf('equip')>=0||mp.indexOf('reporter')>=0)){hr=i;cols=mp;break;}}
+  if(nd>=2&&(mp.indexOf('trouble')>=0||mp.indexOf('trouble_alt')>=0||mp.indexOf('equip')>=0||mp.indexOf('reporter')>=0)){hr=i;cols=mp;break;}}
  return {hr:hr,cols:cols};}
 function asImpStage(v){var s=String(v||'').trim();if(!s)return '';
  for(var i=0;i<STAGES.length;i++){if(STAGES[i]===s||STAGES[i].indexOf(s)>=0||s.indexOf(STAGES[i].replace(/[①②③④⑤⑥]/,''))>=0)return STAGES[i];}
@@ -1644,7 +1654,7 @@ function asImpPreview(){var g=document.getElementById('asImpGrid'),c=document.ge
  if(!ASIMP.length){g.style.display='none';c.textContent='붙여넣은 데이터가 없습니다.';return;}
  var d=asImpDetect();
  if(d.hr<0){c.textContent='⚠ 헤더(접수일·신고자·장비·접수내용 등)를 찾지 못했습니다. 헤더행을 포함해 복사하세요.';g.style.display='none';return;}
- var FN={date:'접수일',inspectDate:'최초 점검일',repairDate:'완료일',reporter:'신고자',equip:'충방전기',loc:'위치',channels:'채널',trouble:'접수내용',inspect:'점검결과',repair:'n차 점검·조치',stage:'대응중(완료여부)',ft:'고장유형',ec:'에러코드',pcno:'PC No.',sn:'S/N',spec:'스펙',model:'모델',volt:'전압',amp:'전류',totalCh:'F당 총 채널',failCh:'고장 채널',qty:'수량',grade:'등급','유무상':'유무상',crmNo:'CRM접수번호',crmDate:'CRM작성일자','수주번호':'수주번호','교체부품':'교체 부품','중분류':'중분류','대분류':'대분류','장비':'장비(PACK)',fx_등록구분:'등록구분',fx_최초접수자:'최초접수자',fx_접수방법:'접수방법',fx_위치:'위치(시/도)',fx_지역:'지역',fx_고객명:'고객명',fx_CS수주번호:'CS수주번호',fx_담당자:'담당자',fx_연락처:'연락처',fx_메일주소:'메일주소',fx_점검인원:'점검인원',fx_계열:'계열'};
+ var FN={date:'접수일',inspectDate:'최초 점검일',repairDate:'완료일',reporter:'신고자',equip:'충방전기',loc:'위치',channels:'채널',trouble:'접수내용',trouble_alt:'고장내용→접수내용',inspect:'점검결과',repair:'n차 점검·조치',stage:'대응중(완료여부)',ft:'고장유형',ec:'에러코드',pcno:'PC No.',sn:'S/N',spec:'스펙',model:'모델',volt:'전압',amp:'전류',totalCh:'F당 총 채널',failCh:'고장 채널',qty:'수량',grade:'등급','유무상':'유무상',crmNo:'CRM접수번호',crmDate:'CRM작성일자','수주번호':'수주번호','교체부품':'교체 부품','중분류':'중분류','대분류':'대분류','장비':'장비(PACK)',fx_등록구분:'등록구분',fx_최초접수자:'최초접수자',fx_접수방법:'접수방법',fx_위치:'위치(시/도)',fx_지역:'지역',fx_고객명:'고객명',fx_CS수주번호:'CS수주번호',fx_담당자:'담당자',fx_연락처:'연락처',fx_메일주소:'메일주소',fx_점검인원:'점검인원',fx_계열:'계열'};
  var ncol=ASIMP[d.hr].length;var html='<table style="font-size:12px;border-collapse:collapse;width:max-content"><thead><tr>';
  for(var j=0;j<ncol;j++){var k=d.cols[j];html+='<th style="white-space:nowrap;border:1px solid #e2e8f0;padding:4px 8px;'+(k?'background:#dbeafe;color:#1e40af':'background:#f1f5f9;color:#94a3b8')+'">'+esc(ASIMP[d.hr][j]||'')+(k?'<br><span style="font-size:10px">▸ '+FN[k]+'</span>':'<br><span style="font-size:10px">(무시)</span>')+'</th>';}
  html+='</tr></thead><tbody>';var shown=0;
@@ -1661,7 +1671,7 @@ function asImpDo(){var out=document.getElementById('asImpOut');var ta=document.g
  var add=0,dup=0,err=0;var maxNo=Math.max(0,...DB.map(function(x){return Number(x.no)||0;}));
  for(var i=d.hr+1;i<ASIMP.length;i++){var row=ASIMP[i];if(!row||row.every(function(c){return String(c).trim()==='';}))continue;
   var o={};d.cols.forEach(function(k,ci){if(k)o[k]=String(row[ci]==null?'':row[ci]).trim();});
-  var date=excelDate(o.date||'')||(o.date||'');var trouble=o.trouble||'';var equip=o.equip||'';
+  var date=excelDate(o.date||'')||(o.date||'');var trouble=o.trouble||o.trouble_alt||'';var equip=o.equip||'';
   var insDate=excelDate(o.inspectDate||'')||(o.inspectDate||'');  // 최초 점검일 (폼 컬럼)
   var repDate=excelDate(o.repairDate||'')||(o.repairDate||'');    // 완료일 (폼 컬럼)
   // 충방전기명 컬럼이 없으면 S/N으로 설비DB 역조회
@@ -1775,7 +1785,9 @@ function dashAnalytics(src,label){
  var slaOk=lts.filter(function(d){return d<=SLA_DAYS;}).length;
  var slaRate=lts.length?Math.round(slaOk/lts.length*100):0;
  // 3) 엔지니어별 현황
- var eng={};DB.forEach(function(q){var e=q.engineer||q.reporter||'(미지정)';if(!eng[e])eng[e]={open:0,done:0,lt:[]};
+ var engReg={};(typeof ENG!=='undefined'?ENG:[]).forEach(function(x){if(x&&x.name&&String(x.name).trim())engReg[String(x.name).trim()]=1;});
+ var eng={};DB.forEach(function(q){var e=String(q.engineer||'').trim();if(!engReg[e])return; // 등록 엔지니어만
+  if(!eng[e])eng[e]={open:0,done:0,lt:[]};
   if(q.stage==='⑥완료'){eng[e].done++;var dd=dayDiff(q.date,q.repairDate||q.date);if(dd!==''&&dd>=0)eng[e].lt.push(dd);}else eng[e].open++;});
  var engArr=Object.keys(eng).map(function(k){var o=eng[k];return {nm:k,open:o.open,done:o.done,tot:o.open+o.done,avg:o.lt.length?(o.lt.reduce(function(a,b){return a+b;},0)/o.lt.length):null};}).sort(function(a,b){return b.tot-a.tot;}).slice(0,8);
  // 4) 고장 다발 설비 Top
@@ -2116,7 +2128,46 @@ function renderData(v){
   '</div>'+
   '<div class="panel"><h2>저장 현황 <span class="mut" style="font-size:12px;font-weight:500">(현재 현장: '+esc(SITE)+')</span></h2><div style="overflow-x:auto;max-width:460px"><table><thead><tr><th>항목</th><th class="right">건수</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
   '<div class="panel"><h2>현장별 접수 건수</h2><div style="overflow-x:auto;max-width:360px"><table><thead><tr><th>현장</th><th class="right">접수 건수</th></tr></thead><tbody>'+siteSummary+'</tbody></table></div></div>'+
+  siteDeletePanel()+
   logoSettingPanel();
+}
+// ===== 현장별 데이터 전체 삭제 (메인관리자 전용) =====
+var DEL_ITEMS=[
+  {base:'tos_db_v4',   label:'접수·진행', obj:false},
+  {base:'tos_as_v8',   label:'A/S상세',  obj:true },
+  {base:'tos_asarch_v1',label:'A/S보관함',obj:false},
+  {base:'tos_trash_v1',label:'휴지통',   obj:false},
+  {base:'tos_notice_v4',label:'알림',    obj:false},
+  {base:'tos_inq_v4',  label:'문의',     obj:false}
+];
+function _siteCnt(base,site){var raw=localStorage.getItem(siteKey(base,site));if(raw==null)return (base==='tos_db_v4'&&site==='대전LGES')?'기본':0;try{var o=JSON.parse(raw);return Array.isArray(o)?o.length:(o&&typeof o==='object'?Object.keys(o).length:0);}catch(e){return 0;}}
+function siteDeletePanel(){
+ if(!(typeof isSuper!=='undefined'&&isSuper))return '';
+ var head='<tr><th>현장</th>'+DEL_ITEMS.map(function(it){return '<th>'+it.label+'</th>';}).join('')+'<th>현장 전체</th></tr>';
+ var body=SITES.map(function(s){
+   var tds=DEL_ITEMS.map(function(it){
+     var c=_siteCnt(it.base,s);
+     return '<td><button class="btn del" onclick="delSiteItem(\''+s+'\',\''+it.base+'\',\''+it.label+'\','+(it.obj?'true':'false')+')">삭제</button><span class="cnt">'+c+'</span></td>';
+   }).join('');
+   return '<tr><td class="sname">'+esc(s)+(s===SITE?' <span class="tag t6" style="font-size:10px">현재</span>':'')+'</td>'+tds+
+     '<td><button class="btn delall" onclick="delSiteAll(\''+s+'\')">전체 삭제</button></td></tr>';
+ }).join('');
+ return '<div class="panel"><h2>현장별 데이터 전체 삭제 <span class="mut" style="font-size:12px;font-weight:500">(메인관리자 전용 · 되돌릴 수 없음)</span></h2>'+
+  '<div class="note" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c">각 현장의 항목별로 데이터를 전체 삭제합니다. 숫자는 현재 저장 건수입니다. <b>삭제 후 복구할 수 없으니</b> 먼저 위의 「전체 백업 다운로드」로 백업을 받아두세요. 삭제는 Firebase로 모든 PC에 반영됩니다.</div>'+
+  '<div style="overflow-x:auto"><table class="delmtx"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></div>';
+}
+function delSiteItem(site,base,label,isObj){
+ if(!confirm('['+site+'] '+label+' 데이터를 전체 삭제할까요?\n\n※ 되돌릴 수 없습니다. (필요 시 먼저 백업)'))return;
+ try{localStorage.setItem(siteKey(base,site),isObj?'{}':'[]');}catch(e){}
+ if(site===SITE){var t=curTab;loadSiteData(SITE);curTab=t;}
+ render();
+}
+function delSiteAll(site){
+ if(!confirm('['+site+'] 의 모든 데이터(접수·A/S·보관함·휴지통·알림·문의)를 전체 삭제할까요?\n\n※ 되돌릴 수 없습니다. (필요 시 먼저 백업)'))return;
+ if(!confirm('정말 삭제하시겠습니까?\n['+site+'] 전체 데이터가 사라집니다.'))return;
+ DEL_ITEMS.forEach(function(it){try{localStorage.setItem(siteKey(it.base,site),it.obj?'{}':'[]');}catch(e){}});
+ if(site===SITE){var t=curTab;loadSiteData(SITE);curTab=t;}
+ render();
 }
 // ===== 회사 로고 설정 패널 (메인관리자 전용) =====
 function logoSettingPanel(){
@@ -2427,7 +2478,7 @@ function saveNewReq(){
  DB.unshift({id:'R'+seq,no:no,seq:seq,date:g('nrDate')||new Date().toISOString().slice(0,10),
    reporter:g('nrReporter')||'(신규)',reporterId:'',equip:g('nrEquip'),loc:g('nrLoc'),trouble:trouble,
    stage:g('nrStage')||'①접수',inspect:'',repair:'',material:'',amount:0,cause:'',inspectDate:'',repairDate:'',
-   engineer:engName,engEmail:e?e.email:'',company:e?e.company:'원익피앤이'});
+   engineer:engName,engEmail:e?(e.email||''):'',company:e?(e.company||'원익피앤이'):'원익피앤이'});
  closeM();persist();render();
 }
 
@@ -2480,7 +2531,7 @@ const HEADER_MAP={
  '고장발생일':'occurDate','고장 발생일':'occurDate','접수일':'date','수리종료일':'repairDate','수리완료일시':'repairDate','수리완료일':'repairDate',
  '고장상태':'status','상태':'status','장비명':'equip','설비명':'equip','장비위치':'loc','위치':'loc',
  '신고자':'reporter','신고자명':'reporter','신고자id':'reporterId','신고자 id':'reporterId',
- '고장내용':'trouble','접수내용':'trouble','현상':'trouble','채널목록':'channels','채널':'channels',
+ '고장내용':'trouble','접수내용':'trouble_alt','현상':'trouble_alt','채널목록':'channels','채널':'channels',
  '채널수':'chcnt','채널 수':'chcnt','ch수':'chcnt','점검내용':'inspect','수리내용':'repair','고장원인':'cause',
  '업체명':'company','업체':'company','고장부품':'material','troubleseq':'seq','trouble seq':'seq','seq':'seq','견적금액':'amount','총금액':'amount'
 };
@@ -2694,7 +2745,7 @@ function tosPreview(){
  var w=document.getElementById('tosGridWrap'),c=document.getElementById('tosCnt');
  if(!TOSROWS.length){if(w){w.style.display='none';}if(c)c.textContent='붙여넣은 데이터가 없습니다.';return;}
  var d=tosDetect();
- var FN={occurDate:'고장발생일',date:'접수일',repairDate:'수리완료일',status:'고장상태',equip:'장비명',loc:'장비위치',reporter:'신고자',reporterId:'신고자ID',trouble:'고장내용',channels:'채널목록',chcnt:'채널수',inspect:'점검내용',repair:'수리내용',cause:'고장원인',company:'업체명',material:'고장부품',seq:'TroubleSEQ',amount:'금액'};
+ var FN={occurDate:'고장발생일',date:'접수일',repairDate:'수리완료일',status:'고장상태',equip:'장비명',loc:'장비위치',reporter:'신고자',reporterId:'신고자ID',trouble:'고장내용',trouble_alt:'접수내용→고장내용',channels:'채널목록',chcnt:'채널수',inspect:'점검내용',repair:'수리내용',cause:'고장원인',company:'업체명',material:'고장부품',seq:'TroubleSEQ',amount:'금액'};
  var ncol=TOSROWS[d.hr]?TOSROWS[d.hr].length:0;
  var html='<table style="font-size:12px;border-collapse:collapse;width:max-content"><thead><tr>';
  for(var j=0;j<ncol;j++){var k=d.cols[j];html+='<th style="white-space:nowrap;border:1px solid #e2e8f0;padding:4px 8px;'+(k?'background:#dbeafe;color:#1e40af':'background:#f1f5f9;color:#94a3b8')+'">'+esc(TOSROWS[d.hr][j]||'')+(k?'<br><span style="font-size:10px">▸ '+FN[k]+'</span>':'<br><span style="font-size:10px">(무시)</span>')+'</th>';}
@@ -2722,7 +2773,7 @@ function tosImport(){
    existing[seq]=1;
    var no=Math.max(0,...DB.map(function(x){return Number(x.no)||0;}))+1;
    DB.push({id:'R'+seq,no:no,seq:seq,date:o.date||'',reporter:o.reporter||'',reporterId:o.reporterId||'',
-     equip:o.equip||'',loc:o.loc||'',trouble:o.trouble||'',stage:statusToStage(o.status),
+     equip:o.equip||'',loc:o.loc||'',trouble:(o.trouble||o.trouble_alt||''),stage:statusToStage(o.status),
      inspect:o.inspect||'',repair:o.repair||'',material:o.material||'',amount:Number(String(o.amount==null?'':o.amount).replace(/[^0-9.-]/g,''))||0,
      cause:o.cause||'',inspectDate:'',repairDate:o.repairDate||'',engineer:'',engEmail:'',company:o.company||'원익피앤이'});
    add++;
