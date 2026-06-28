@@ -4,6 +4,184 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WONIK PNE 접수 SYSTEM</title>
+<!-- ===== Firebase 공유 DB (실시간 동기화) ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
+/* ===== firebase-config (내 프로젝트 wonik-pne-cs) ===== */
+window.FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCoEAflTUJZ-G8vmDZFPZ024i2YCIVI1yk",
+  authDomain:        "wonik-pne-cs.firebaseapp.com",
+  databaseURL:       "https://wonik-pne-cs-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "wonik-pne-cs",
+  storageBucket:     "wonik-pne-cs.firebasestorage.app",
+  messagingSenderId: "908808313233",
+  appId:             "1:908808313233:web:f2c04308099bec737c6230",
+  measurementId:     "G-TKRDQ7TF4K"
+};
+window.FIREBASE_ROOT = "wonikpne_tos";
+</script>
+<script>
+/* ============================================================
+   firebase-sync.js  ·  WONIK PNE 접수 SYSTEM 공유 DB 동기화 레이어
+   ────────────────────────────────────────────────────────────
+   - localStorage = 로컬 캐시(앱은 기존처럼 즉시 읽기/쓰기)
+   - Firebase Realtime Database = 모든 사용자가 공유하는 실제 DB
+   - localStorage.setItem 을 후킹하여 'tos_'로 시작하는 모든 데이터를
+     자동으로 Firebase에 미러링하고, 다른 사용자의 변경을 실시간 반영.
+   - Firebase 미설정/오류 시 자동으로 "로컬 전용 모드"로 동작(기존과 동일).
+   ※ 앱(HTML) 코드는 거의 수정하지 않습니다(부팅 1곳 + head 스크립트만).
+   ============================================================ */
+(function () {
+  var ROOT     = window.FIREBASE_ROOT || 'wonikpne_tos';
+  var PREFIX   = 'tos_';
+  // 기기 로컬 전용(공유 제외): 현재 보고 있는 현장, 마지막 저장시각, 변경이력(고빈도)
+  var EXCLUDE  = ['tos_site_v1', 'tos_lastsave_v1', 'tos_changelog_v1'];
+
+  var origSet    = localStorage.setItem.bind(localStorage);
+  var origRemove = localStorage.removeItem.bind(localStorage);
+
+  var db = null, auth = null;
+  var ready = false;          // Firebase 동기화 준비 완료
+  var applyingRemote = false; // 원격 변경을 로컬에 적용하는 중(되돌림 방지)
+  var pending = {};           // 키별 디바운스 타이머
+
+  /* RTDB 경로에 쓸 수 없는 문자( . # $ [ ] / )를 안전하게 인코딩 */
+  function enc(k){ return k.replace(/[.#$\[\]\/]/g, function(c){ return '~' + c.charCodeAt(0).toString(16) + '~'; }); }
+  function dec(k){ return k.replace(/~([0-9a-f]{2})~/gi, function(_, h){ return String.fromCharCode(parseInt(h, 16)); }); }
+
+  function shareable(k){
+    if (!k || k.indexOf(PREFIX) !== 0) return false;
+    if (EXCLUDE.indexOf(k) >= 0) return false;
+    return true;
+  }
+
+  /* ── localStorage 쓰기 후킹 → Firebase 미러 ───────────────── */
+  localStorage.setItem = function (k, v) {
+    origSet(k, v);
+    if (ready && !applyingRemote && shareable(k)) pushKey(k, v);
+  };
+  localStorage.removeItem = function (k) {
+    origRemove(k);
+    if (ready && !applyingRemote && shareable(k)) {
+      try { db.ref(ROOT + '/' + enc(k)).remove(); } catch (e) {}
+    }
+  };
+
+  function pushKey(k, v) {
+    clearTimeout(pending[k]);
+    pending[k] = setTimeout(function () {     // 연속 저장 200ms 디바운스
+      try {
+        db.ref(ROOT + '/' + enc(k)).set({
+          v:  v,                              // 이미 JSON 문자열
+          at: Date.now(),
+          by: (typeof curRoleName === 'function' ? curRoleName() : '사용자')
+        });
+      } catch (e) { console.warn('[FB] 업로드 실패:', k, e); }
+    }, 200);
+  }
+
+  /* ── 부팅: 초기 전체 내려받기 → localStorage 채움 → 콜백 ───── */
+  window.FBSync = {
+    enabled: function(){ return ready; },
+    boot: function (done) {
+      done = done || function(){};
+      var cfg = window.FIREBASE_CONFIG;
+      if (typeof firebase === 'undefined' || !cfg || !cfg.apiKey || cfg.apiKey.indexOf('여기에') === 0) {
+        console.warn('[FB] Firebase 설정 없음 → 로컬(localStorage) 전용 모드로 동작합니다.');
+        return done();
+      }
+      try {
+        firebase.initializeApp(cfg);
+        db = firebase.database();
+        if (firebase.auth) auth = firebase.auth();
+      } catch (e) {
+        console.warn('[FB] 초기화 실패 → 로컬 모드', e);
+        return done();
+      }
+
+      // (선택) 익명 로그인: 규칙을 "auth != null"로 둘 때 사용. 실패해도 계속 진행.
+      var authStep = (auth && auth.signInAnonymously)
+        ? auth.signInAnonymously().catch(function(e){ console.warn('[FB] 익명로그인 생략', e && e.code); })
+        : Promise.resolve();
+
+      authStep.then(function () {
+        return db.ref(ROOT).once('value');
+      }).then(function (snap) {
+        var all = snap.val() || {};
+        applyingRemote = true;
+        Object.keys(all).forEach(function (ek) {
+          var rec = all[ek];
+          if (rec && typeof rec.v === 'string') origSet(dec(ek), rec.v);
+        });
+        applyingRemote = false;
+        ready = true;
+        attachLive();
+        console.log('[FB] 공유 DB 동기화 완료 — 내려받은 항목:', Object.keys(all).length);
+        done();
+      }).catch(function (e) {
+        console.warn('[FB] 초기 동기화 실패 → 로컬 모드', e);
+        done();
+      });
+    }
+  };
+
+  /* ── 실시간 수신: 다른 사용자의 변경 반영 ─────────────────── */
+  function attachLive() {
+    db.ref(ROOT).on('child_added',   onRemote);
+    db.ref(ROOT).on('child_changed', onRemote);
+    db.ref(ROOT).on('child_removed', function (snap) {
+      var key = dec(snap.key);
+      applyingRemote = true; origRemove(key); applyingRemote = false;
+      rerenderIfCurrent(key);
+    });
+  }
+  function onRemote(snap) {
+    var rec = snap.val();
+    if (!rec || typeof rec.v !== 'string') return;
+    var key = dec(snap.key);
+    if (localStorage.getItem(key) === rec.v) return;   // 내가 쓴 것이면 무시
+    applyingRemote = true; origSet(key, rec.v); applyingRemote = false;
+    rerenderIfCurrent(key);
+  }
+
+  /* 사용자가 입력/편집 중이면 화면 새로고침을 미뤄 입력 내용 보호 */
+  function userBusy() {
+    try {
+      if (typeof asEditId !== 'undefined' && asEditId) return true;
+      var a = document.activeElement;
+      if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  var rerenderTimer = null;
+  function rerenderIfCurrent(key) {
+    var base    = key.split('__')[0];
+    var keySite = key.indexOf('__') >= 0 ? key.split('__')[1] : '대전LGES';
+    var COMMON  = ['tos_eng_v4', 'tos_fixpresets_v1', 'tos_matches_v1']; // 현장 공통
+    var curSite = (typeof SITE !== 'undefined' ? SITE : '대전LGES');
+    var affects = (keySite === curSite) || COMMON.indexOf(base) >= 0;
+    if (!affects) return;                 // 다른 현장 데이터는 캐시만 갱신(다음 렌더 때 반영)
+    if (userBusy()) return;               // 편집 중이면 갱신 보류(캐시는 이미 최신)
+
+    clearTimeout(rerenderTimer);
+    rerenderTimer = setTimeout(function () {
+      try {
+        var t = (typeof curTab !== 'undefined') ? curTab : null;
+        var f = (typeof dashFilter !== 'undefined') ? dashFilter : null;
+        if (typeof loadSiteData === 'function' && typeof SITE !== 'undefined') loadSiteData(SITE);
+        if (t !== null) curTab = t;       // 보던 화면 유지(loadSiteData가 dash로 초기화하는 것 복원)
+        if (typeof dashFilter !== 'undefined' && f !== null) dashFilter = f;
+        if (typeof render === 'function') render();
+      } catch (e) { console.warn('[FB] 재렌더 실패', e); }
+    }, 150);
+  }
+})();
+
+</script>
+<!-- ============================================ -->
 <style>
 :root{
  --acc:#4f46e5;--acc2:#6366f1;--acc-soft:#eef2ff;--acc-bd:#c7d2fe;--acc-dk:#4338ca;
@@ -2483,18 +2661,17 @@ document.getElementById('logoutBtn').onclick=function(){
  showLogin();
 };
 
-// 현재 현장 데이터 1회 보존(데모 SEED 등 미저장 상태 방지)
-if(localStorage.getItem(siteKey('tos_db_v4'))==null)persist();
-render();
-showLogin(); // 시작 시 로그인 화면 표시
+// ===== 부팅 (Firebase 공유 DB 동기화 완료 후 시작) =====
+function __bootApp(){
+ // Firebase에서 받은 데이터로 전역 재로딩(현재 SITE 기준). 미설정 시 기존 localStorage 그대로.
+ try{ if(typeof loadSiteData==='function') loadSiteData(SITE); }catch(e){}
+ // 현재 현장 데이터 1회 보존(데모 SEED 등 미저장 상태 방지) → Firebase 비어있으면 첫 기기가 시드 업로드
+ if(localStorage.getItem(siteKey('tos_db_v4'))==null)persist();
+ render();
+ showLogin(); // 시작 시 로그인 화면 표시
+}
+if(window.FBSync&&typeof FBSync.boot==='function'){ FBSync.boot(__bootApp); }
+else { __bootApp(); }
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
