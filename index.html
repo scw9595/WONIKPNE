@@ -523,6 +523,41 @@ table tbody tr:hover{background:#f6f8fe}
 .login-card{border-radius:22px;box-shadow:0 30px 70px -26px rgba(30,41,99,.4),0 2px 8px rgba(16,24,40,.06)}
 .login-mark{box-shadow:0 12px 26px rgba(79,70,229,.4),inset 0 1px 0 rgba(255,255,255,.3)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* ============ 모바일 보기 모드 (.mview) — PC 기본 UI는 영향 없음 ============ */
+#mviewFab{position:fixed;right:14px;bottom:16px;z-index:1000;display:inline-flex;align-items:center;gap:7px;background:#1f2937;color:#fff;border:none;border-radius:999px;padding:11px 17px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px -6px rgba(0,0,0,.45);transition:.15s}
+#mviewFab:active{transform:scale(.95)}
+body.mview #mviewFab{background:#4f46e5}
+@media print{#mviewFab{display:none!important}}
+/* 메인 허브 */
+body.mview .hub-inner{padding:18px 12px 44px}
+body.mview .hub-top{flex-direction:column;align-items:stretch;gap:14px;margin-bottom:18px;padding-bottom:16px}
+body.mview .hub-head h1{font-size:18px}
+body.mview .hub-head .hsub{font-size:12px}
+body.mview .hub-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+body.mview .hub-cols{grid-template-columns:1fr;gap:22px}
+body.mview .site-grid{grid-template-columns:1fr!important}
+body.mview .cs-grid{grid-template-columns:1fr!important}
+body.mview .hopsg{grid-template-columns:1fr 1fr!important}
+/* 앱 셸: 사이드바 → 상단 가로 스크롤 메뉴 */
+body.mview .shell{flex-direction:column}
+body.mview .sidebar{width:100%;flex:none;height:auto;position:sticky;top:0;z-index:30;flex-direction:column;border-right:none;border-bottom:1px solid var(--bd)}
+body.mview .brand{padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:none}
+body.mview .brand .sub{font-size:11px}
+body.mview .nav-sec{display:none}
+body.mview nav#nav{display:flex;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:4px 10px 10px;-webkit-overflow-scrolling:touch}
+body.mview nav#nav button{width:auto;flex:0 0 auto;white-space:nowrap;padding:9px 14px;font-size:13px;border-radius:9px}
+body.mview nav#nav button.on::before{display:none}
+/* 콘텐츠/탑바 */
+body.mview .content{display:block}
+body.mview .topbar{flex-wrap:wrap;padding:9px 12px;gap:8px;position:sticky;top:0}
+body.mview .topbar .pageT{font-size:15px}
+body.mview main#view{padding:14px 11px}
+body.mview .panel{padding:14px;border-radius:12px;overflow-x:auto}
+body.mview .panel h2{font-size:15px}
+body.mview table{font-size:12px}
+body.mview .modal{width:94vw;max-width:94vw;padding:16px}
+/* 큰 화면에서 모바일 미리보기 시 휴대폰 폭으로 */
+@media(min-width:760px){body.mview .hub,body.mview .shell{max-width:460px;margin:0 auto;box-shadow:0 0 0 1px #e6e9f0}}
 table.reqnew{width:100%;border-collapse:collapse}
 table.reqnew th{text-align:left;background:#f7f8fc;padding:9px 11px;font-size:12.5px;color:#475066;white-space:nowrap;width:90px;border:1px solid #eceef4}
 table.reqnew td{padding:7px 10px;border:1px solid #eceef4}
@@ -612,6 +647,9 @@ tbody tr.rowdone td .mut{color:#b6bdc8}
 
 <!-- 상세 모달 -->
 <div class="modal-bg" id="mbg"><div class="modal" id="mbox"></div></div>
+
+<!-- 모바일 보기 토글 버튼 -->
+<button id="mviewFab" onclick="toggleMView()">모바일 보기</button>
 
 <script>
 //============ 데이터 ============
@@ -773,6 +811,13 @@ function applyShell(){
 }
 function enterSite(s){if(SITES.indexOf(s)<0)return;csMode=false;if(s!==SITE)loadSiteData(s);else{curTab='dash';dashFilter=null;}entered=true;applyShell();render();window.scrollTo(0,0);}
 function gotoHub(){entered=false;csMode=false;applyShell();window.scrollTo(0,0);}
+// ===== 모바일 보기 토글 (기기별 저장, Firebase 동기화 제외 키) =====
+function applyMView(on){
+ document.body.classList.toggle('mview',!!on);
+ var b=document.getElementById('mviewFab');if(b)b.textContent=on?'PC 보기':'모바일 보기';
+ try{localStorage.setItem('ui_mview',on?'1':'0');}catch(e){}
+}
+function toggleMView(){applyMView(!document.body.classList.contains('mview'));window.scrollTo(0,0);}
 function nowStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 
 //============ 네비 ============
@@ -2861,6 +2906,7 @@ function __bootApp(){
  if(localStorage.getItem(siteKey('tos_db_v4'))==null)persist();
  render();
  showLogin(); // 시작 시 로그인 화면 표시
+ try{applyMView(localStorage.getItem('ui_mview')==='1');}catch(e){}
 }
 if(window.FBSync&&typeof FBSync.boot==='function'){ FBSync.boot(__bootApp); }
 else { __bootApp(); }
