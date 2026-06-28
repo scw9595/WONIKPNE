@@ -160,7 +160,7 @@ window.FIREBASE_ROOT = "wonikpne_tos";
   function rerenderIfCurrent(key) {
     var base    = key.split('__')[0];
     var keySite = key.indexOf('__') >= 0 ? key.split('__')[1] : '대전LGES';
-    var COMMON  = ['tos_eng_v4', 'tos_fixpresets_v1', 'tos_matches_v1']; // 현장 공통
+    var COMMON  = ['tos_eng_v4', 'tos_fixpresets_v1', 'tos_matches_v1', 'tos_logo_v1']; // 현장 공통
     var curSite = (typeof SITE !== 'undefined' ? SITE : '대전LGES');
     var affects = (keySite === curSite) || COMMON.indexOf(base) >= 0;
     if (!affects) return;                 // 다른 현장 데이터는 캐시만 갱신(다음 렌더 때 반영)
@@ -523,6 +523,26 @@ table tbody tr:hover{background:#f6f8fe}
 .login-card{border-radius:22px;box-shadow:0 30px 70px -26px rgba(30,41,99,.4),0 2px 8px rgba(16,24,40,.06)}
 .login-mark{box-shadow:0 12px 26px rgba(79,70,229,.4),inset 0 1px 0 rgba(255,255,255,.3)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* 회사 로고 적용 모드: 색박스 대신 이미지 */
+.brand .mark.haslogo,.login-mark.haslogo{background:none!important;box-shadow:none!important;border-radius:0;color:transparent;width:auto;font-size:0}
+.brand .mark.haslogo{height:30px}
+.brand .mark.haslogo img{height:30px;width:auto;max-width:150px;display:block;object-fit:contain}
+.login-mark.haslogo{height:54px;margin:0 auto 16px}
+.login-mark.haslogo img{height:54px;width:auto;max-width:230px;display:block;object-fit:contain}
+.logo-set-prev{display:inline-flex;align-items:center;justify-content:center;height:60px;min-width:120px;padding:8px 14px;border:1px solid var(--bd-soft,#eceef4);border-radius:12px;background:#fff}
+.logo-set-prev img{max-height:44px;max-width:200px}
+/* 진행현황: 완료된 건은 하단으로 + 흐리게 */
+tbody tr.rowdone{background:#fafbfc;color:#94a3b8}
+tbody tr.rowdone:hover{background:#f1f5f9}
+tbody tr.rowdone td .mut{color:#b6bdc8}
+/* A/S 리스트 단계 필터 바 */
+.asfbar{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 12px;padding:10px;background:#f7f8fc;border:1px solid var(--bd-soft,#eceef4);border-radius:12px}
+.asfb{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border:1px solid #e2e6ef;border-radius:10px;background:#fff;cursor:pointer;font-size:12.5px;font-weight:600;color:#475066;transition:.12s}
+.asfb:hover{border-color:#c3cadb;background:#fbfcff}
+.asfb b{font-weight:800;color:#0f1729}
+.asfb .tag{font-size:10.5px;padding:1px 6px}
+.asfb.on{border-color:var(--acc,#4f46e5);background:#eef2ff;box-shadow:inset 0 0 0 1px var(--acc-bd,#c7d2fe)}
+.asfb.on b{color:var(--acc-dk,#4338ca)}
 /* 메인화면(허브) 좌측 통합 운영분석 요약 */
 .hubops{border:1px solid var(--bd-soft);border-radius:16px;padding:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04),0 10px 30px -24px rgba(16,24,40,.3)}
 .hopsg{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
@@ -539,7 +559,7 @@ table tbody tr:hover{background:#f6f8fe}
 <div class="login" id="login">
   <span class="login-star" id="loginStar" title="">★</span>
   <div class="login-card">
-    <div class="login-mark">W</div>
+    <div class="login-mark" id="loginMark">W</div>
     <h1 class="login-tt">WONIK PNE 접수 SYSTEM</h1>
     <div class="login-sub">충방전기 고장 접수·점검·정산 통합 관리</div>
     <input type="password" id="loginPw" class="login-inp" placeholder="비밀번호를 입력하세요" autocomplete="current-password">
@@ -555,8 +575,7 @@ table tbody tr:hover{background:#f6f8fe}
   <aside class="sidebar">
     <div class="brand">
       <div class="logo">
-        <div class="mark">W</div>
-        <h1 style="font-size:13px;letter-spacing:-.3px">WONIK PNE 접수 SYSTEM</h1>
+        <div class="mark" id="brandMark">W</div>
       </div>
       <div class="sub">충방전기 고장 접수·점검·정산</div>
     </div>
@@ -781,6 +800,7 @@ function renderNav(){
 }
 function csErrBox(e){return '<div class="panel"><h2>CS 통계</h2><div class="note">집계 중 일부 데이터를 처리하지 못했습니다. 다른 화면은 정상이며, 데이터관리에서 백업/복구로 해결할 수 있습니다.<br><span style="color:#94a3b8;font-size:11px">'+esc(String(e&&e.message||e))+'</span></div></div>';}
 function render(){
+ try{applyBrandLogo();}catch(e){}
  const ct=TABS.find(t=>t.id===curTab);
  if(ct&&ct.adm&&!isAdmin){curTab='dash';dashFilter=null;}
  if(ct&&ct.sup&&!isSuper){curTab='dash';dashFilter=null;}
@@ -949,6 +969,8 @@ function asRowObj(q){
   ((a.sn&&a.model&&a.고장유형)?'정상':'누락'),FX.계열,(a.장비||'PACK')];
 }
 let asEditId=null;
+let asStageFilter=null;   // A/S 리스트 단계 필터(null=전체)
+function setAsStage(s){asStageFilter=(asStageFilter===s)?null:s;render();}
 // ===== 접수내용·조치내용 기반 자동 분류 추천 =====
 function asClassifyText(q,a){
  var t=[(q&&q.trouble)||'',(q&&q.repair)||'',(q&&q.inspect)||'',(a&&a.교체부품)||''].join(' ').toUpperCase();
@@ -984,10 +1006,29 @@ function asClassifyText(q,a){
 function asCur(field,a,sug){return (a[field]&&a[field]!=='')?a[field]:(sug[field]||'');}
 function renderAS(v){
 
- const list=asAll();
+ const fullList=asAll();
+ // 단계별 건수
+ var scnt={}; STAGES.forEach(function(s){scnt[s]=0;});
+ fullList.forEach(function(q){if(scnt[q.stage]!=null)scnt[q.stage]++;});
+ // 단계 필터 적용
+ var list=asStageFilter?fullList.filter(function(q){return q.stage===asStageFilter;}):fullList.slice();
+ // 진행단계 순서대로(①→⑥) 정렬 → 완료는 맨 아래
+ list.sort(function(a,b){
+   var ia=STAGES.indexOf(a.stage);if(ia<0)ia=STAGES.length;
+   var ib=STAGES.indexOf(b.stage);if(ib<0)ib=STAGES.length;
+   if(ia!==ib)return ia-ib;
+   return String(b.date||'').localeCompare(String(a.date||''));
+ });
+ // 단계 필터 바
+ var fbar='<div class="asfbar no-print">'+
+   '<button class="asfb'+(asStageFilter==null?' on':'')+'" onclick="setAsStage(null)">전체 <b>'+fullList.length+'</b></button>';
+ STAGES.forEach(function(s,i){
+   fbar+='<button class="asfb t'+(i+1)+(asStageFilter===s?' on':'')+'" onclick="setAsStage(\''+s+'\')"><span class="tag '+stageCls(s)+'">'+esc(s)+'</span> <b>'+scnt[s]+'</b></button>';
+ });
+ fbar+='</div>';
  let rows='';
  list.forEach(function(q){const a=asGet(q.id,q);const done=q.stage==='⑥완료';const sel=(q.id===asEditId);
-  rows+='<tr'+(sel?' style="background:#eef2ff"':'')+'><td>'+esc(q.no)+'</td><td style="white-space:nowrap">'+esc(q.date)+overdueTag(q,done)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
+  rows+='<tr class="'+(done?'rowdone':'')+'"'+(sel?' style="background:#eef2ff"':'')+'><td>'+esc(q.no)+'</td><td style="white-space:nowrap">'+esc(q.date)+overdueTag(q,done)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
    '<td style="max-width:200px" class="mut">'+esc((q.trouble||'').slice(0,46))+'</td>'+
    '<td>'+badge(a.고장유형)+'</td><td>'+badge(a.에러코드)+'</td><td>'+badge(a.대분류)+' / '+badge(a.중분류)+'</td>'+
    '<td style="max-width:150px">'+esc(a.교체부품||'-')+'</td>'+
@@ -996,9 +1037,9 @@ function renderAS(v){
    '<td style="white-space:nowrap"><button class="btn '+(sel?'':'pri ')+'sm" onclick="asEdit(\''+q.id+'\')">'+(sel?'편집중':'편집')+'</button> <button class="btn sm" style="background:#fee2e2;color:#b91c1c;border-color:#fecaca" onclick="delAS(\''+q.id+'\')">삭제</button></td></tr>';
   if(sel)rows+='<tr class="asEditRow"><td colspan="11" style="padding:0;background:#eef2ff">'+asFormHtml(q)+'</td></tr>';
  });
- if(!list.length)rows='<tr><td colspan="11" class="mut" style="text-align:center;padding:18px">A/S 대상 데이터가 없습니다.</td></tr>';
+ if(!list.length)rows='<tr><td colspan="11" class="mut" style="text-align:center;padding:18px">'+(asStageFilter?('「'+esc(asStageFilter)+'」 단계에 해당하는 A/S 건이 없습니다.'):'A/S 대상 데이터가 없습니다.')+'</td></tr>';
  if(asEditId && !DB.find(function(x){return x.id===asEditId;}))asEditId=null;
- v.innerHTML='<div class="panel"><h2>A/S 리스트 관리 ('+list.length+'건)</h2>'+
+ v.innerHTML='<div class="panel"><h2>A/S 리스트 관리 ('+list.length+'건'+(asStageFilter?' · '+esc(asStageFilter):'')+')</h2>'+
   '<div class="note">회사 A/S 리스트(취합) 관리 화면입니다. <b>접수내용</b>=TOS 고장내용, <b>n차 점검·조치내용</b>=점검요청서 수리결과가 자동 반영됩니다. 표에서 <b>편집</b>을 누르면 해당 행 바로 아래에 입력란이 열리고, 저장하면 닫힙니다. 공통정보(담당자·고객명 등)는 수정 시 전체 A/S 건에 동일 반영됩니다.</div>'+
   '<div class="tools no-print" style="border-bottom:1px solid var(--bd);padding-bottom:10px;margin-bottom:4px">'+
   '<b style="font-size:12px;color:#4338ca">주간 보고(월~금)</b> 기준일 <input type="date" id="weekRef" value="'+todayStr()+'" onchange="renderWeekInfo()">'+
@@ -1012,6 +1053,7 @@ function renderAS(v){
   '<button class="btn pri" onclick="asImpToggle()">＋ 엑셀로 A/S 등록</button></div>'+
   '<div id="asImpArea"></div>'+
   '<div id="crmPv"></div>'+
+  fbar+
   '<div style="overflow-x:auto"><table><thead><tr><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
  if(asEditId){var f=document.getElementById('asForm');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});}
  renderWeekInfo();
@@ -1940,8 +1982,15 @@ function dashRows(){
  if(dashFilter)rows=rows.filter(q=>q.stage===dashFilter);
  const el=document.getElementById('dashKw');const kw=el?el.value.trim().toLowerCase():'';
  if(kw)rows=rows.filter(q=>[q.reporter,q.equip,q.loc,q.trouble,q.inspect,q.repair,q.engineer].some(x=>String(x||'').toLowerCase().includes(kw)));
+ // 진행단계 순서대로(①→⑥) 정렬 → 완료(⑥완료)는 자동으로 맨 아래. 같은 단계는 최신 접수일 우선
+ rows.sort(function(a,b){
+   var ia=STAGES.indexOf(a.stage); if(ia<0)ia=STAGES.length;
+   var ib=STAGES.indexOf(b.stage); if(ib<0)ib=STAGES.length;
+   if(ia!==ib)return ia-ib;
+   return String(b.date||'').localeCompare(String(a.date||''));
+ });
  if(!rows.length)return '<tr><td colspan="7" class="mut" style="text-align:center;padding:20px">표시할 건이 없습니다.</td></tr>';
- return rows.map(q=>'<tr class="clk" onclick="detail(\''+q.id+'\')"><td>'+esc(q.no)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'<div class="mut" style="font-size:11px">'+esc(q.loc)+'</div></td><td><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td><td>'+esc(q.engineer)+'</td><td style="max-width:280px">'+esc((q.repair||q.inspect||'').slice(0,60))+'</td></tr>').join('');
+ return rows.map(q=>{var done=q.stage==='⑥완료';return '<tr class="clk'+(done?' rowdone':'')+'" onclick="detail(\''+q.id+'\')"><td>'+esc(q.no)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'<div class="mut" style="font-size:11px">'+esc(q.loc)+'</div></td><td><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td><td>'+esc(q.engineer)+'</td><td style="max-width:280px">'+esc((q.repair||q.inspect||'').slice(0,60))+'</td></tr>';}).join('');
 }
 function dashSearch(){const tb=document.getElementById('dashTbody');if(tb)tb.innerHTML=dashRows();}
 function setDash(s){dashFilter=s;render();}
@@ -2062,7 +2111,60 @@ function renderData(v){
   '<div style="margin-top:8px;font-size:12px" class="mut">최종 저장: '+esc(load('tos_lastsave_v1','기록 없음'))+'</div>'+
   '</div>'+
   '<div class="panel"><h2>저장 현황 <span class="mut" style="font-size:12px;font-weight:500">(현재 현장: '+esc(SITE)+')</span></h2><div style="overflow-x:auto;max-width:460px"><table><thead><tr><th>항목</th><th class="right">건수</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
-  '<div class="panel"><h2>현장별 접수 건수</h2><div style="overflow-x:auto;max-width:360px"><table><thead><tr><th>현장</th><th class="right">접수 건수</th></tr></thead><tbody>'+siteSummary+'</tbody></table></div></div>';
+  '<div class="panel"><h2>현장별 접수 건수</h2><div style="overflow-x:auto;max-width:360px"><table><thead><tr><th>현장</th><th class="right">접수 건수</th></tr></thead><tbody>'+siteSummary+'</tbody></table></div></div>'+
+  logoSettingPanel();
+}
+// ===== 회사 로고 설정 패널 (메인관리자 전용) =====
+function logoSettingPanel(){
+ if(!(typeof isSuper!=='undefined'&&isSuper)) return '';
+ var data=load('tos_logo_v1','');
+ var prev=data?('<div class="logo-set-prev"><img src="'+data+'" alt="현재 로고"></div>')
+              :'<div class="logo-set-prev mut" style="color:#94a3b8;font-size:12px">로고 없음 (기본 W)</div>';
+ return '<div class="panel"><h2>회사 로고 설정 <span class="mut" style="font-size:12px;font-weight:500">(로그인 화면·사이드바에 표시 · 전체 PC 공유)</span></h2>'+
+  '<div class="note">PNG·JPG·SVG 파일을 올리면 로그인 화면과 좌측 메뉴 상단 로고가 회사 로고로 바뀝니다. 가로로 긴 로고(CI)도 자동으로 맞춰집니다. <b>한 번 설정하면 Firebase로 모든 PC에 자동 적용</b>됩니다.</div>'+
+  '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:4px">'+
+   '<div>'+prev+'</div>'+
+   '<div class="tools" style="margin:0">'+
+     '<label class="btn pri" style="cursor:pointer">로고 이미지 업로드<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display:none" onchange="uploadLogo(this)"></label>'+
+     (data?'<button class="btn" onclick="removeLogo()">기본 로고로 되돌리기</button>':'')+
+   '</div>'+
+  '</div>'+
+  '<div style="margin-top:10px;font-size:12px" class="mut">권장: 배경이 투명한 PNG 또는 가로형 CI. 너무 큰 파일은 자동으로 줄여 저장합니다.</div>'+
+ '</div>';
+}
+function uploadLogo(input){
+ var f=input.files&&input.files[0];if(!f)return;
+ if(f.size>5*1024*1024){alert('파일이 너무 큽니다(5MB 이하 권장).');return;}
+ var rd=new FileReader();
+ rd.onload=function(){
+   var src=rd.result;
+   if(f.type==='image/svg+xml'){ saveLogo(src); return; }   // SVG는 그대로
+   // 비트맵: 가로 480px로 축소해 용량 최적화(투명 유지)
+   var im=new Image();
+   im.onload=function(){
+     var maxW=480, w=im.width, h=im.height;
+     if(w>maxW){ h=Math.round(h*maxW/w); w=maxW; }
+     var c=document.createElement('canvas');c.width=w;c.height=h;
+     c.getContext('2d').drawImage(im,0,0,w,h);
+     var out;
+     try{ out=c.toDataURL('image/png'); }catch(e){ out=src; }
+     saveLogo(out);
+   };
+   im.onerror=function(){ saveLogo(src); };
+   im.src=src;
+ };
+ rd.readAsDataURL(f);
+}
+function saveLogo(dataURL){
+ save('tos_logo_v1',dataURL);
+ applyBrandLogo();
+ if(typeof curTab!=='undefined'&&curTab==='data')render();
+ alert('회사 로고가 적용되었습니다. 다른 PC에는 새로고침 시 반영됩니다.');
+}
+function removeLogo(){
+ if(!confirm('기본 로고(W)로 되돌릴까요?'))return;
+ try{localStorage.removeItem('tos_logo_v1');}catch(e){}
+ applyBrandLogo();render();
 }
 function backupData(){
  var dump={_app:'WONIK PNE 접수 SYSTEM',_at:logNow(),data:{}};
@@ -2602,8 +2704,18 @@ function tosImport(){
 
 //============ 로그인 화면 ============
 var superPending=false; // 별표3회 → 메인관리자 로그인 대기
+// ===== 회사 로고 적용 (로그인 화면 + 사이드바) =====
+function applyBrandLogo(){
+ var data=load('tos_logo_v1','');
+ [['loginMark',1],['brandMark',0]].forEach(function(p){
+   var el=document.getElementById(p[0]);if(!el)return;
+   if(data){ el.classList.add('haslogo'); el.innerHTML='<img src="'+data+'" alt="회사 로고">'; }
+   else { el.classList.remove('haslogo'); el.innerHTML='W'; }
+ });
+}
 function showLogin(){
  isAdmin=false;isSuper=false;superPending=false;
+ applyBrandLogo();
  var lo=document.getElementById('logoutBtn');if(lo)lo.style.display='none';
  document.getElementById('login').classList.add('on');
  var err=document.getElementById('loginErr');if(err)err.textContent='';
