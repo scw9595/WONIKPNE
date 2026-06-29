@@ -610,18 +610,6 @@ body.mview #userGreet{font-size:11.5px;padding:6px 10px;top:8px;right:10px}
 .mat-x{border:none;background:#f1f5f9;color:#94a3b8;border-radius:5px;width:20px;height:22px;cursor:pointer;font-size:13px;font-weight:700;line-height:1;flex:0 0 auto}
 .mat-x:hover{background:#fee2e2;color:#dc2626}
 .mat-add{margin-top:5px;padding:3px 9px}
-.mat-cell{min-width:210px}
-.mat-wrap{display:flex;flex-direction:column;gap:4px}
-.mat-row{display:flex;align-items:center;gap:4px}
-.mat-row .f-mat{padding:4px 6px;border:1px solid #d7dbe6;border-radius:6px;font-size:12px}
-.mat-row .f-matq{padding:4px 4px;border:1px solid #d7dbe6;border-radius:6px;font-size:12px;text-align:right}
-.mat-x{border:none;background:#f1f5f9;color:#94a3b8;border-radius:5px;width:20px;height:22px;cursor:pointer;font-size:13px;font-weight:700;line-height:1;flex:0 0 auto}
-.mat-x:hover{background:#fee2e2;color:#dc2626}
-.mat-add{margin-top:5px;padding:3px 9px}
-.srchbar{display:flex;align-items:center;gap:8px;margin:4px 0 10px}
-.srchbar input{flex:1;min-width:0;padding:8px 12px;border:1px solid #d7dbe6;border-radius:8px;font-size:13px}
-.srchbar input:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
-.as-chk,#asAllChk{width:16px;height:16px;cursor:pointer}
 .acc-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .acc-tbl th{background:#f3f5fb;text-align:left;padding:9px 11px;font-size:12px;color:#475066;border-bottom:1px solid #e6e9f0;white-space:nowrap}
 .acc-tbl td{padding:8px 11px;border-bottom:1px solid #f0f2f7}
@@ -1189,11 +1177,11 @@ function asGet(id,q){if(!ASD[id]){var o={유무상:'유상',crmNo:'',crmDate:'',
 function weekStr(d){if(!d)return'';const dt=new Date(d);if(isNaN(dt))return'';const m=dt.getMonth()+1;const first=new Date(dt.getFullYear(),dt.getMonth(),1).getDay();const wk=Math.ceil((dt.getDate()+first)/7);return m+'월'+wk+'주';}
 function dayDiff(a,b){if(!a||!b)return'';const d1=new Date(a),d2=new Date(b);if(isNaN(d1)||isNaN(d2))return'';return Math.round((d2-d1)/86400000);}
 function asRowObj(q){
- const a=asGet(q.id,q);const done=q.stage==='⑥완료';const comp=done?(q.repairDate||q.date):'';
+ const a=asGet(q.id,q);const done=q.stage==='⑥완료';const comp=q.repairDate||(done?q.date:'');
  const lt=dayDiff(q.date,comp);const FX=fixFor(a);
  return [a.유무상,a.crmNo,a.crmDate,FX.등록구분,FX.최초접수자,FX.접수방법,a.등급,q.date,comp,
   FX.위치,FX.지역,FX.고객명,a.수주번호,FX.CS수주번호,a.sn,a.model,a.spec,a.totalCh,a.failCh,a.고장유형,
-  q.trouble,FX.담당자,FX.연락처,FX.메일주소,a.에러코드,q.date,q.repair,FX.점검인원,a.교체부품,a.중분류,a.대분류,a.qty,
+  q.trouble,FX.담당자,FX.연락처,FX.메일주소,a.에러코드,(q.inspectDate||''),q.repair,FX.점검인원,a.교체부품,a.중분류,a.대분류,a.qty,
   weekStr(q.date),weekStr(comp),(done?'완료':'대응중'),lt,(done?'완료':'진행중'),lt,lt,
   ((a.sn&&a.model&&a.고장유형)?'정상':'누락'),FX.계열,(a.장비||'PACK')];
 }
@@ -1241,8 +1229,6 @@ function renderAS(v){
  fullList.forEach(function(q){if(scnt[q.stage]!=null)scnt[q.stage]++;});
  // 단계 필터 적용
  var list=asStageFilter?fullList.filter(function(q){return q.stage===asStageFilter;}):fullList.slice();
- // 검색 필터
- if(asQ)list=list.filter(function(q){var a=asGet(q.id,q);return matchQ([q.no,q.date,q.reporter,q.equip,q.trouble,q.repair,a.고장유형,a.에러코드,a.대분류,a.중분류,a.교체부품,a.sn,a.model,q.stage].join(' '),asQ);});
  // 진행단계 순서대로(①→⑥) 정렬 → 완료는 맨 아래
  list.sort(function(a,b){
    var ia=STAGES.indexOf(a.stage);if(ia<0)ia=STAGES.length;
@@ -1259,16 +1245,16 @@ function renderAS(v){
  fbar+='</div>';
  let rows='';
  list.forEach(function(q){const a=asGet(q.id,q);const done=q.stage==='⑥완료';const sel=(q.id===asEditId);
-  rows+='<tr class="'+(done?'rowdone':'')+'"'+(sel?' style="background:#eef2ff"':'')+'><td style="text-align:center"><input type="checkbox" class="as-chk" data-id="'+q.id+'"'+(asSel[q.id]?' checked':'')+' onclick="asSelToggle(\''+q.id+'\',this)"></td><td>'+esc(q.no)+'</td><td style="white-space:nowrap">'+esc(q.date)+overdueTag(q,done)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
+  rows+='<tr class="'+(done?'rowdone':'')+'"'+(sel?' style="background:#eef2ff"':'')+'><td>'+esc(q.no)+'</td><td style="white-space:nowrap">'+esc(q.date)+overdueTag(q,done)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
    '<td style="max-width:200px" class="mut">'+esc((q.trouble||'').slice(0,46))+'</td>'+
    '<td>'+badge(a.고장유형)+'</td><td>'+badge(a.에러코드)+'</td><td>'+badge(a.대분류)+' / '+badge(a.중분류)+'</td>'+
    '<td style="max-width:150px">'+esc(a.교체부품||'-')+'</td>'+
    '<td><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td>'+
    '<td>'+(done?'완료':'대응중')+'</td>'+
    '<td style="white-space:nowrap"><button class="btn '+(sel?'':'pri ')+'sm" onclick="asEdit(\''+q.id+'\')">'+(sel?'편집중':'편집')+'</button> <button class="btn sm" style="background:#fee2e2;color:#b91c1c;border-color:#fecaca" onclick="delAS(\''+q.id+'\')">삭제</button></td></tr>';
-  if(sel)rows+='<tr class="asEditRow"><td colspan="12" style="padding:0;background:#eef2ff">'+asFormHtml(q)+'</td></tr>';
+  if(sel)rows+='<tr class="asEditRow"><td colspan="11" style="padding:0;background:#eef2ff">'+asFormHtml(q)+'</td></tr>';
  });
- if(!list.length)rows='<tr><td colspan="12" class="mut" style="text-align:center;padding:18px">'+(asQ?('「'+esc(asQ)+'」 검색 결과가 없습니다.'):asStageFilter?('「'+esc(asStageFilter)+'」 단계에 해당하는 A/S 건이 없습니다.'):'A/S 대상 데이터가 없습니다.')+'</td></tr>';
+ if(!list.length)rows='<tr><td colspan="11" class="mut" style="text-align:center;padding:18px">'+(asStageFilter?('「'+esc(asStageFilter)+'」 단계에 해당하는 A/S 건이 없습니다.'):'A/S 대상 데이터가 없습니다.')+'</td></tr>';
  if(asEditId && !DB.find(function(x){return x.id===asEditId;}))asEditId=null;
  v.innerHTML='<div class="panel"><h2>A/S 리스트 관리 ('+list.length+'건'+(asStageFilter?' · '+esc(asStageFilter):'')+')</h2>'+
   '<div class="note">회사 A/S 리스트(취합) 관리 화면입니다. <b>접수내용</b>=TOS 고장내용, <b>n차 점검·조치내용</b>=점검요청서 수리결과가 자동 반영됩니다. 표에서 <b>편집</b>을 누르면 해당 행 바로 아래에 입력란이 열리고, 저장하면 닫힙니다. 공통정보(담당자·고객명 등)는 수정 시 전체 A/S 건에 동일 반영됩니다.</div>'+
@@ -1280,15 +1266,12 @@ function renderAS(v){
   '<button class="btn" onclick="crmPreview()">CRM 미리보기</button></div>'+
   '<div class="tools no-print"><button class="btn" onclick="exportASExcel()">엑셀 다운로드(전체 42열)</button>'+
   '<button class="btn" onclick="printAS()">인쇄 / PDF</button>'+
-  '<button class="btn dng" onclick="asBulkDel()">선택 삭제</button>'+
-  '<span id="asSelBar" class="mut" style="font-size:12px;font-weight:700;color:#b91c1c">'+(asSelCount()?'선택 '+asSelCount()+'건':'')+'</span>'+
   '<span style="flex:1"></span>'+
   '<button class="btn pri" onclick="asImpToggle()">＋ 엑셀로 A/S 등록</button></div>'+
-  '<div class="srchbar no-print"><input type="text" id="asQ" value="'+esc(asQ)+'" placeholder="검색: 신고자, 장비, 접수내용, 고장유형, 에러코드, 대/중분류, 교체부품, S/N, 단계" oninput="asSearch(this.value)">'+(asQ?'<button class="btn sm" onclick="asQ=\'\';render()">검색 해제</button>':'')+'</div>'+
   '<div id="asImpArea"></div>'+
   '<div id="crmPv"></div>'+
   fbar+
-  '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:center"><input type="checkbox" id="asAllChk" onclick="asSelAll(this)" title="전체 선택"></th><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  '<div style="overflow-x:auto"><table><thead><tr><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
  if(asEditId){var f=document.getElementById('asForm');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});}
  renderWeekInfo();
 }
@@ -1298,13 +1281,13 @@ function asReclass(id){var q=asAll().find(function(x){return x.id===id;});if(!q)
  var set=function(eid,val){var el=document.getElementById(eid);if(el)el.value=val;};
  set('as_ft',s.고장유형);set('as_ec',s.에러코드);set('as_dc',s.대분류);set('as_mc',s.중분류);}
 function asFormHtml(q){
- const a=asGet(q.id,q);const done=q.stage==='⑥완료';const comp=done?(q.repairDate||q.date):'';
+ const a=asGet(q.id,q);const done=q.stage==='⑥완료';const comp=q.repairDate||(done?q.date:'');
  const sug=asClassifyText(q,a);
  return '<div id="asForm" style="padding:16px 18px;border:0;border-radius:0;background:#eef2ff;box-shadow:none"><h2 style="margin-top:0">A/S 항목 입력 · No.'+esc(q.no)+' / '+esc(q.reporter)+'</h2>'+
   '<div class="note" style="margin-bottom:6px">회색 칸은 TOS·점검요청서·날짜에서 <b>자동 반영</b>됩니다. 공통정보는 수정 시 전체 A/S 건에 적용됩니다.</div>'+
   '<div class="assec">자동 반영 (TOS · 점검요청서 · 날짜)</div>'+
   '<div class="asgrid">'+
-   asAuto('접수일',q.date)+asAuto('최초 점검일',q.date)+asAuto('완료일',comp||'(미완료)')+
+   asAuto('접수일',q.date)+asAuto('최초 점검일',q.inspectDate||'-')+asAuto('완료일',comp||'(미완료)')+
    asAuto('접수주차',weekStr(q.date))+asAuto('완료주차',weekStr(comp))+asAuto('대응중',done?'완료':'대응중')+asAuto('L/T(일)',String(dayDiff(q.date,comp)))+
    asAuto('접수내용(TOS 고장내용)',q.trouble)+asAuto('n차 점검·조치(수리결과)',q.repair||'(미입력)')+
   '</div>'+
@@ -1719,7 +1702,7 @@ function exportCsTypeExcel(){
 }
 
 function badge(t){return t?'<span class="tag t3" style="background:#eef2ff;color:#3730a3">'+esc(t)+'</span>':'<span class="mut">-</span>';}
-function selOpts(key,cur){var list=AS_DB[key]||[];var extra=(cur&&list.indexOf(cur)<0)?'<option value="'+esc(cur)+'" selected>'+esc(cur)+' (점검요청서 자재)</option>':'';return '<option value="">(선택)</option>'+extra+list.map(function(o){return '<option'+(cur===o?' selected':'')+'>'+esc(o)+'</option>';}).join('');}
+function selOpts(key,cur){return '<option value="">(선택)</option>'+AS_DB[key].map(function(o){return '<option'+(cur===o?' selected':'')+'>'+esc(o)+'</option>';}).join('');}
 function crmDateFromNo(no){var s=String(no||'').replace(/[^0-9]/g,'');if(s.length<8)return '';var y=s.slice(0,4),m=s.slice(4,6),d=s.slice(6,8);if(m<'01'||m>'12'||d<'01'||d>'31')return '';return y+'-'+m+'-'+d;}
 function crmDateSync(){var no=document.getElementById('as_cn');var cd=document.getElementById('as_cd');if(no&&cd)cd.value=crmDateFromNo(no.value);}
 function asEdit(id){asEditId=(asEditId===id?null:id);render();}
@@ -2667,13 +2650,11 @@ function delMdExtra(id){
 
 //============ 점검요청 (미완료만, 입력/수정) ============
 function renderReq(v){
- const all=DB.filter(q=>q.stage!=='⑥완료');
- const list=reqQ?all.filter(q=>matchQ([q.no,q.reporter,q.equip,q.loc,q.trouble,q.inspect,q.repair,q.material,q.engineer,q.stage].join(' '),reqQ)):all;
+ const list=DB.filter(q=>q.stage!=='⑥완료');
  let rows='';
  list.forEach(q=>{rows+=reqRow(q);});
- if(!list.length)rows='<tr><td colspan="9" class="mut" style="text-align:center;padding:18px">'+(reqQ?'「'+esc(reqQ)+'」 검색 결과가 없습니다.':'미완료 점검요청 건이 없습니다. (모두 완료됨)')+'</td></tr>';
- v.innerHTML=materialDatalist()+'<div class="panel"><h2>점검요청 · 미완료 건 ('+list.length+(reqQ?' / 전체 '+all.length:'')+')</h2>'+
-  '<div class="srchbar no-print"><input type="text" id="reqQ" value="'+esc(reqQ)+'" placeholder="검색: 신고자, 장비, 위치, 접수내용, 점검·수리결과, 자재, 담당, 단계" oninput="reqSearch(this.value)">'+(reqQ?'<button class="btn sm" onclick="reqQ=\'\';render()">검색 해제</button>':'')+'</div>'+
+ if(!list.length)rows='<tr><td colspan="9" class="mut" style="text-align:center;padding:18px">미완료 점검요청 건이 없습니다. (모두 완료됨)</td></tr>';
+ v.innerHTML=materialDatalist()+'<div class="panel"><h2>점검요청 · 미완료 건 ('+list.length+')</h2>'+
   '<div class="note">완료되지 않은 건만 표시됩니다. 진행단계를 <b>⑥완료</b>로 저장하면 이 목록에서 사라지고 <b>완료함</b>으로 이동합니다. 자재내역은 칸을 클릭하면 DB 목록에서 고르거나 검색·직접입력할 수 있습니다.</div>'+
   '<div class="tools"><button class="btn pri" onclick="addReq()">+ 신규 점검요청</button>'+
   '<button class="btn" onclick="exportReqExcel()">엑셀 다운로드</button>'+
@@ -2756,40 +2737,6 @@ function collectMat(scope){
  var str=items.map(function(it){return it.q&&it.q!==1?(it.m+' '+it.q+'EA'):it.m;}).join(', ');
  return {materials:items,str:str};
 }
-// ===== 검색엔진 (점검요청서 · A/S 리스트 공용) =====
-var reqQ='', asQ='', asSel={};
-function matchQ(hay,q){
- if(!q)return true;
- hay=String(hay==null?'':hay).toLowerCase();
- return String(q).toLowerCase().split(/\s+/).every(function(tok){return !tok||hay.indexOf(tok)>=0;}); // 공백=AND
-}
-function reqSearch(v){reqQ=v;clearTimeout(window._rqT);window._rqT=setTimeout(function(){render();var e=document.getElementById('reqQ');if(e){e.focus();try{e.setSelectionRange(e.value.length,e.value.length);}catch(x){}}},180);}
-function asSearch(v){asQ=v;clearTimeout(window._asT);window._asT=setTimeout(function(){render();var e=document.getElementById('asQ');if(e){e.focus();try{e.setSelectionRange(e.value.length,e.value.length);}catch(x){}}},180);}
-// ===== A/S 선택 삭제 (체크박스 · 전체선택) =====
-function asSelCount(){return Object.keys(asSel).length;}
-function asSelBarUpd(){
- var b=document.getElementById('asSelBar');if(b)b.textContent=asSelCount()?('선택 '+asSelCount()+'건'):'';
- var all=document.getElementById('asAllChk');
- if(all){var boxes=document.querySelectorAll('.as-chk');var n=boxes.length,c=0;boxes.forEach(function(x){if(x.checked)c++;});all.checked=(n>0&&c===n);all.indeterminate=(c>0&&c<n);}
-}
-function asSelToggle(id,el){if(el&&el.checked)asSel[id]=true;else delete asSel[id];asSelBarUpd();}
-function asSelAll(el){var on=el.checked;document.querySelectorAll('.as-chk').forEach(function(c){c.checked=on;var id=c.getAttribute('data-id');if(on)asSel[id]=true;else delete asSel[id];});asSelBarUpd();}
-function asBulkDel(){
- var ids=Object.keys(asSel);if(!ids.length){alert('삭제할 항목을 먼저 선택하세요.');return;}
- if(!confirm('선택한 '+ids.length+'건을 삭제함으로 보낼까요?\n삭제함에서 언제든 복구할 수 있습니다.'))return;
- ids.forEach(function(id){
-   var q=asAll().find(function(x){return x.id===id;});if(!q)return;
-   var inDB=DB.some(function(x){return x.id===id;});
-   var asd=ASD[id]?JSON.parse(JSON.stringify(ASD[id])):null;
-   TRASH.unshift({tu:'T'+Date.now()+'_'+Math.floor(Math.random()*100000),id:id,q:JSON.parse(JSON.stringify(q)),as:asd,inDB:inDB,delAt:logNow(),delBy:curRoleName()});
-   DB=DB.filter(function(x){return x.id!==id;});
-   ASARCH=ASARCH.filter(function(x){return x.id!==id;});
-   if(ASD[id])delete ASD[id];
- });
- if(TRASH.length>500)TRASH.length=500;
- asSel={};asEditId=null;
- saveTrash();persist();saveArch();save(siteKey('tos_as_v8'),ASD);render();
-}
 function reqRow(q){
  const opts=STAGES.map(s=>'<option '+(q.stage===s?'selected':'')+'>'+s+'</option>').join('');
  const engopts='<option value="">(미지정)</option>'+ENG.map(e=>'<option '+(q.engineer===e.name?'selected':'')+'>'+esc(e.name)+'</option>').join('');
@@ -2809,7 +2756,6 @@ function saveReq(id,btn){
  q.inspect=tr.querySelector('.f-inspect').value;
  q.repair=tr.querySelector('.f-repair').value;
  var mat=collectMat(tr);q.materials=mat.materials;q.material=mat.str;
- try{var asd_a=asGet(q.id,q);asd_a.교체부품=mat.str;save(siteKey('tos_as_v8'),ASD);}catch(e){}
  q.amount=Number(tr.querySelector('.f-amount').value)||0;
  var mdEl=tr.querySelector('.f-md');if(mdEl)q.md=Number(mdEl.value)||0;
  q.engineer=tr.querySelector('.f-eng').value;
@@ -2850,7 +2796,6 @@ function saveNewReq(){
    reporter:g('nrReporter')||'(신규)',reporterId:'',equip:g('nrEquip'),loc:g('nrLoc'),trouble:trouble,
    stage:g('nrStage')||'①접수',inspect:'',repair:'',material:nrMat.str,materials:nrMat.materials,amount:0,cause:'',inspectDate:'',repairDate:'',
    engineer:engName,engEmail:e?(e.email||''):'',company:e?(e.company||'원익피앤이'):'원익피앤이'});
- if(nrMat.str){try{var na=asGet('R'+seq,DB[0]);na.교체부품=nrMat.str;save(siteKey('tos_as_v8'),ASD);}catch(e3){}}
  var sched=g('nrSched');
  if(sched){CAL.push({id:'C'+Date.now().toString(36)+Math.floor(Math.random()*1000),date:sched,title:(g('nrReporter')||'(신규)')+' / '+g('nrEquip'),memo:trouble,done:false,eng:engName,reqId:'R'+seq});saveCal();}
  closeM();persist();render();
@@ -2938,28 +2883,20 @@ function excelDate(val){
  var s=String(val==null?'':val).trim();
  if(!s)return '';
  var pad=function(x){return String(x).padStart(2,'0');};
- // 0) 한글 날짜: 2026년 1월 2일
- var k=s.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?/);
+ var k=s.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?/); // 한글: 2026년 1월 2일
  if(k)return k[1]+'-'+pad(k[2])+'-'+pad(k[3]);
- // 1) 구분자(- . /) 주변 공백 제거 → "2026. 1. 2" → "2026.1.2"
- var t=s.replace(/\s*([-.\/])\s*/g,'$1');
- // 2) YYYY[sep]M[sep]D (연도 4자리 먼저: ISO·한국 단축)
- var m=t.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+ var t=s.replace(/\s*([-.\/])\s*/g,'$1'); // 구분자 주변 공백 제거 (2026. 1. 2 → 2026.1.2)
+ var m=t.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/); // YYYY-M-D
  if(m){var mo=+m[2],dy=+m[3];if(mo>=1&&mo<=12&&dy>=1&&dy<=31)return m[1]+'-'+pad(mo)+'-'+pad(dy);}
- // 3) M[sep]D[sep]YYYY (연도 4자리 마지막: 미국식 m/d/yyyy)
- m=t.match(/^(\d{1,2})[-.\/](\d{1,2})[-.\/](\d{4})$/);
+ m=t.match(/^(\d{1,2})[-.\/](\d{1,2})[-.\/](\d{4})$/); // M-D-YYYY (미국식)
  if(m){var mo2=+m[1],dy2=+m[2];if(mo2>=1&&mo2<=12&&dy2>=1&&dy2<=31)return m[3]+'-'+pad(mo2)+'-'+pad(dy2);}
- // 4) 2자리 연도 3분할: 점(.)=한국 단축 yy.m.d / 대시·슬래시=미국 mm-dd-yy
- m=t.match(/^(\d{1,2})([-.\/])(\d{1,2})\2(\d{1,2})$/);
+ m=t.match(/^(\d{1,2})([-.\/])(\d{1,2})\2(\d{1,2})$/); // 2자리연도: 점=한국 yy.m.d, 대시/슬래시=미국 mm-dd-yy
  if(m){var sep=m[2],a=+m[1],b=+m[3],c=+m[4],Y,MO,DY;
-   if(sep==='.'){Y=a;MO=b;DY=c;}          // 한국 단축: 연.월.일
-   else{Y=c;MO=a;DY=b;}                     // 미국: 월-일-연
+   if(sep==='.'){Y=a;MO=b;DY=c;}else{Y=c;MO=a;DY=b;}
    if(MO>=1&&MO<=12&&DY>=1&&DY<=31){Y=Y<100?(Y+2000):Y;return Y+'-'+pad(MO)+'-'+pad(DY);}
  }
- // 5) MM-DD / M/D (연도 없음 → 기준연도)
- m=t.match(/^(\d{1,2})[-.\/](\d{1,2})$/);
+ m=t.match(/^(\d{1,2})[-.\/](\d{1,2})$/); // M-D (연도없음 → 기준연도)
  if(m){var mo3=+m[1],dy3=+m[2];if(mo3>=1&&mo3<=12&&dy3>=1&&dy3<=31)return SKON_YEAR+'-'+pad(mo3)+'-'+pad(dy3);}
- // 6) 엑셀 일련번호 (값 붙여넣기)
  if(/^\d+$/.test(t)){var n=parseInt(t,10);if(n>=20000&&n<=80000){var d=new Date(Date.UTC(1899,11,30)+n*86400000);return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate());}}
  return '';
 }
