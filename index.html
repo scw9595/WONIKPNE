@@ -1214,13 +1214,7 @@ function renderHub(){
 }
 // 메인화면에서 CS 통계 화면 진입 (관리자 권한 필요)
 function enterCsView(tab){
- if(!isAdmin){
-  var pw=prompt('CS 통계는 관리자 전용입니다. 비밀번호를 입력하세요');
-  if(pw==null)return;
-  if(pw==='yes@@231021'){isSuper=true;isAdmin=true;}
-  else{alert('비밀번호가 올바르지 않습니다.');return;}
-  var lo=document.getElementById('logoutBtn');if(lo)lo.style.display='';
- }
+ // CS 통계는 일반 사용자도 열람 가능 (로그인 상태면 바로 진입)
  curTab=tab;dashFilter=null;entered=true;csMode=true;applyShell();render();window.scrollTo(0,0);
 }
 const CS_TABS=['dash2','csmon','cstyp','csops'];
@@ -1263,10 +1257,10 @@ const TABS=[
  {id:'data',  name:'데이터관리',    adm:true},
  {id:'settle',name:'월정산',        adm:true, usr:true},
  {id:'trash', name:'삭제함',        adm:true, usr:true},
- {id:'dash2', name:'CS 대시보드',     adm:true, hub:true},
- {id:'csmon', name:'CS 월별 현황',    adm:true, hub:true},
- {id:'cstyp', name:'월별 CS 유형분석',adm:true, hub:true},
- {id:'csops', name:'운영 분석',       adm:true, hub:true},
+ {id:'dash2', name:'CS 대시보드',     adm:true, hub:true, usr:true},
+ {id:'csmon', name:'CS 월별 현황',    adm:true, hub:true, usr:true},
+ {id:'cstyp', name:'월별 CS 유형분석',adm:true, hub:true, usr:true},
+ {id:'csops', name:'운영 분석',       adm:true, hub:true, usr:true},
  {id:'admin', name:'관리자 모드',    adm:true},
  {id:'log',   name:'변경 이력',      adm:true, sup:true},
  {id:'acclog',name:'접속 이력',      adm:true, sup:true},
