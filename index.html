@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <!-- saved from url=(0035)https://scw9595.github.io/WONIKPNE/ -->
 <html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -606,7 +607,11 @@ body.mview #userGreet{font-size:11.5px;padding:6px 10px;top:8px;right:10px}
 .srchbar input{flex:1;min-width:0;padding:8px 12px;border:1px solid #d7dbe6;border-radius:8px;font-size:13px}
 .srchbar input:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
 .as-chk,#asAllChk{width:16px;height:16px;cursor:pointer}
-.mat-cell{min-width:210px}
+.mat-cell{min-width:300px}
+.mat-row .f-matp{padding:4px 4px;border:1px solid #d7dbe6;border-radius:6px;font-size:12px;text-align:right;background:#fffef5}
+.mat-mk{font-size:10px;color:#94a3b8;min-width:60px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mat-mk.ok{color:#059669;font-weight:700}
+.mat-mk.warn{color:#d97706;font-weight:700}
 .mat-wrap{display:flex;flex-direction:column;gap:4px}
 .mat-row{display:flex;align-items:center;gap:4px}
 .mat-row .f-mat{padding:4px 6px;border:1px solid #d7dbe6;border-radius:6px;font-size:12px}
@@ -1021,6 +1026,27 @@ function stageCls(s){const i=STAGES.indexOf(s);return 't'+(i>=0?i+1:1);}
 const SEED=[{"no": 1, "seq": 11858, "date": "2026-06-24", "reporter": "김영환", "equip": "PNE-400-5-SOX-002", "loc": "대전 / 충방전동 / 1층 / ", "trouble": "6/23에 \"[INV]HDC ERROR\"라고 TOS 통해서 알림톡 받았고요, 일시정지되어 있어서 혹시나 하고 \"작업계속\"누르니 \"[PCU]단자전압이상\"으로 Code가 변경되었습니다._x000D_\n그러고 나서 충방전이 안되는 상태라서 수리 요청 드립니다.", "stage": "⑥완료", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "채널보드 교체 후 정상화 완료", "material": "BRC2.0 스위칭 채널보드 2EA", "amount": 0, "reporterId": "yhwankim", "inspectDate": "", "repairDate": "2026-06-24", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11858"}, {"no": 2, "seq": 11857, "date": "2026-06-24", "reporter": "이승준", "equip": "PNE-40-4B-003-C", "loc": "대전 / 4연구동 / 지하 / 4B(충방전실)", "trouble": "채널 전체 연결 끊김 이후 복귀 안됨.", "stage": "⑥완료", "inspect": "충방전기 원인불명 꺼짐증상", "repair": "충방전기 리셋 후 연결완료", "material": "", "amount": 0, "reporterId": "cookie880", "inspectDate": "", "repairDate": "2026-06-24", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11857"}, {"no": 3, "seq": 11854, "date": "2026-06-24", "reporter": "김대욱", "equip": "PNE-300-151", "loc": "대전 / 전지동 / 1층 / ", "trouble": "해당 채널 2ea 고장입니당", "stage": "④자재입고대기중", "inspect": "FUSE 1EA 교체 필요합니다.", "repair": "", "material": "250GH-160UL", "amount": 20000, "reporterId": "eodnr172813", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11854"}, {"no": 4, "seq": 11850, "date": "2026-06-24", "reporter": "김태호", "equip": "PNE-10-43208-005-E(CH91~105)", "loc": "대전 / 4연구동 / 3층 / 43208", "trouble": "작일 발생한 동일한 현상 (연결끊어짐) 발생하였습니다. 자가 조치 가능한 수준이라면 연락 부탁드립니다. (김태호 사원 010-5598-4207)", "stage": "⑥완료", "inspect": "CCC안전조건으로 인한 장비꺼짐", "repair": "충방전기 안전조건 변경 후 정상", "material": "", "amount": 0, "reporterId": "taiho99", "inspectDate": "", "repairDate": "2026-06-24", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11850"}, {"no": 5, "seq": 11845, "date": "2026-06-23", "reporter": "김동현", "equip": "PNE-Recycle-Mono-002", "loc": "대전 / 5P동 / 2층 / ", "trouble": "잦은 전류 이상 발생", "stage": "④자재입고대기중", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "", "material": "BRC2.0 스위칭 채널보드", "amount": 0, "reporterId": "kim.dh", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11845"}, {"no": 6, "seq": 11784, "date": "2026-06-22", "reporter": "김휘중", "equip": "PNE-200-497", "loc": "대전 / 충방전동 / 4층 / ", "trouble": "유선상으로 말씀드린것과 같이 전압 배선 부터 교체해보려고합니다. 해당 충방전기 전압 배선 교체 확인 부탁드립니다. ", "stage": "④자재입고대기중", "inspect": "전채널 전압배선 교체필요", "repair": "", "material": "", "amount": 0, "reporterId": "kimhj2508", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11784"}, {"no": 7, "seq": 11634, "date": "2026-06-10", "reporter": "권현진", "equip": "PNE-200-606", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "0.1초 패턴 사이클 진행시 전류가 제대로 인가되지 않습니다. 점검 부탁드립니다. ", "stage": "③점검중", "inspect": "", "repair": "", "material": "", "amount": 0, "reporterId": "hyunjin.kwon", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11634"}, {"no": 8, "seq": 11403, "date": "2026-05-21", "reporter": "이지선", "equip": "PNE-300-CDR2-5", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "전류 이상으로 Channel 사용 불가", "stage": "④자재입고대기중", "inspect": "MAIN SMPS 불량으로 교체예정", "repair": "", "material": "JWE-P34 3.3V 3EA", "amount": 0, "reporterId": "batteryjisun", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11403"}, {"no": 9, "seq": 11100, "date": "2026-04-28", "reporter": "오인규", "equip": "PNE-500-JJ3-001-A", "loc": "대전 / 가공동 / 1층 / ", "trouble": "셀 체결이 안되어 있는데 준비상태로 뜨고 전압도 1V정도 측정되는 상태_x000D_\n-> 현재 사용 불가. 채널 보드 재고 확인 (혹은 신규 수급) 후 채널 보드 교체 예정으로 (신규 수급 시 약 1달까지도 소요), 개발팀에서 수리 가능 일자 알려주면 수리해주기로 함 (수리에 하루 정도 소요 예정)_x000D_\n원익피앤이 김수빈 과장님과 4/28 오전 논의 완료", "stage": "⑥완료", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "채널보드 교체 후 정상화 완료", "material": "BRC2.0 스위칭 채널보드", "amount": 0, "reporterId": "inkyuoh3", "inspectDate": "", "repairDate": "2026-04-28", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11100"}, {"no": 10, "seq": 11035, "date": "2026-04-24", "reporter": "이영진", "equip": "PNE-200-4P121-020-U", "loc": "대전 / 4P동 / 1층 / 4p120", "trouble": "10번 채널 충전 안 됩니다. (셀, 지그 체결 문제 X)", "stage": "③점검중", "inspect": "전압, 전류배선 CROS 체크 필요", "repair": "", "material": "", "amount": 0, "reporterId": "yeong_zzin", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11035"}, {"no": 11, "seq": 11021, "date": "2026-04-23", "reporter": "김효성", "equip": "PNE-200-161", "loc": "대전 / 충방전동 / 1층 / ", "trouble": "17,18번 : 출력 전류 밸런스 에러_x000D_\n21,22번: 전류이상_x000D_\n25,26번: 전압센싱 안됨_x000D_\n27,28번: 전압센싱 안됨_x000D_\n29,30번: 전류 이상", "stage": "④자재입고대기중", "inspect": "", "repair": "", "material": "", "amount": 0, "reporterId": "hyosung0625", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R11021"}, {"no": 12, "seq": 10707, "date": "2026-03-30", "reporter": "심수진", "equip": "PNE-400-5-DP-004", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "PCU 출력전류 balance error ", "stage": "⑥완료", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "채널보드 교체 후 정상화 완료", "material": "BRC2.0 스위칭 채널보드 2EA", "amount": 0, "reporterId": "sjsim25", "inspectDate": "", "repairDate": "2026-03-30", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R10707"}, {"no": 13, "seq": 9889, "date": "2026-01-15", "reporter": "김동현", "equip": "PNE-Recycle-Mono-002", "loc": "대전 / 5P동 / 2층 / ", "trouble": "전류 이상 발생 건으로 수리 진행하여 리노핀 교체하였으나, 전류 이상이 계속 발생함.", "stage": "④자재입고대기중", "inspect": "채널보드 불량으로 교체필요합니다.", "repair": "", "material": "", "amount": 0, "reporterId": "kim.dh", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R9889"}, {"no": 14, "seq": 9816, "date": "2026-01-08", "reporter": "김종관", "equip": "PNE-400-5-DP-003", "loc": "대전 / 충방전동 / 2층 / ", "trouble": "실제 셀전압은 3.228V 이나, 채널에서 전압이 0V로 뜨는 오류가 있습니다. 개선 조치 부탁드립니다. ", "stage": "④자재입고대기중", "inspect": "메인보드는 교체완료하였느나, BD 로직 설정필요", "repair": "", "material": "", "amount": 0, "reporterId": "batterykim", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R9816"}, {"no": 15, "seq": 6881, "date": "2025-04-22", "reporter": "김휘중", "equip": "PNE-100-122", "loc": "대전 / 충방전동 / 4층 / ", "trouble": "PCU 전압 이상이 뜹니다. _x000D_\n_x000D_\n어제 PNE 고장신고 된 채널 고치면서 같이 망가진거 아닌가 생각됩니다.  최대한 빠르게 처리해주시면 감사드리겠습니다. ", "stage": "④자재입고대기중", "inspect": "채널보드, 메인보드, 인버터 교체필요", "repair": "", "material": "", "amount": 0, "reporterId": "kimhj2508", "inspectDate": "", "repairDate": "", "cause": "", "engineer": "서정우", "engEmail": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "id": "R6881"}];
 const ENG_SEED=[{"name": "서정우", "email": "tjwjddn9595@lgespartner.com", "company": "원익피앤이", "phone": ""}];
 const LABOR=13500000; // 인건비 상주 2인 (대전LGES 전용)
+var PRICEBOOK=[{"m":"CH B/D 저전류 (HYB_2CH BD)","cat":"BOARD","k":"CHBD저전류HYB2CHBD","p":436000,"md":"1MD"},{"m":"DAQ SUB BD","cat":"BOARD","k":"DAQSUBBD","p":28000,"md":"2MD"},{"m":"DC FAN BD","cat":"BOARD","k":"DCFANBD","p":40000,"md":"1MD"},{"m":"GATE Driver BD","cat":"BOARD","k":"GATEDRIVERBD","p":220000,"md":"2MD"},{"m":"MAIN BD","cat":"BOARD","k":"MAINBD","p":null,"md":"2MD"},{"m":"SHUNT BD","cat":"BOARD","k":"SHUNTBD","p":149000,"md":""},{"m":"CONTROL BD","cat":"BOARD","k":"CONTROLBD","p":693000,"md":""},{"m":"200A_OV_POWER_MAIN BD","cat":"BOARD","k":"200AOVPOWERMAINBD","p":1045000,"md":""},{"m":"CH_CONTROL BD","cat":"BOARD","k":"CHCONTROLBD","p":1436000,"md":""},{"m":"HYB_CH BD","cat":"BOARD","k":"HYBCHBD","p":297000,"md":""},{"m":"PM 보드(75~100A)","cat":"BOARD","k":"PM보드75100A","p":315000,"md":"2MD"},{"m":"CF CARD","cat":"CF CARD","k":"CFCARD","p":150000,"md":"1MD"},{"m":"FP-108-1","cat":"DC FAN","k":"FP1081","p":20000,"md":"1MD"},{"m":"ENO","cat":"ENO","k":"ENO","p":57000,"md":"1MD"},{"m":"250GH-160UL","cat":"FUSE","k":"250GH160UL","p":20000,"md":"1MD"},{"m":"MC-03-01","cat":"JIG 뭉치","k":"MC0301","p":15000,"md":"1MD"},{"m":"CA254CC","cat":"JIG핀","k":"CA254CC","p":5000,"md":"1MD"},{"m":"CA233CC","cat":"JIG핀","k":"CA233CC","p":4000,"md":"1MD"},{"m":"PC 쿨러","cat":"PC 쿨러","k":"PC쿨러","p":680000,"md":"1MD"},{"m":"EVR400-24ST","cat":"RELAY","k":"EVR40024ST","p":150000,"md":"1MD"},{"m":"EVR600-24ST","cat":"RELAY","k":"EVR60024ST","p":180000,"md":"1MD"},{"m":"CTT-400","cat":"RELAY","k":"CTT400","p":140000,"md":""},{"m":"SBC","cat":"SBC","k":"SBC","p":650000,"md":"1MD"},{"m":"CS-50-15","cat":"SMPS","k":"CS5015","p":71000,"md":"1MD"},{"m":"CS-75-15","cat":"SMPS","k":"CS7515","p":83000,"md":"1MD"},{"m":"CS-75-24","cat":"SMPS","k":"CS7524","p":82000,"md":"1MD"},{"m":"NF-C300-24","cat":"SMPS","k":"NFC30024","p":470000,"md":"1MD"},{"m":"K29-7.5","cat":"SMPS","k":"K2975","p":650000,"md":"1MD"},{"m":"K29-3.3","cat":"SMPS","k":"K2933","p":500000,"md":"1MD"},{"m":"RS 50-15","cat":"SMPS","k":"RS5015","p":30000,"md":"1MD"},{"m":"RS 75-15","cat":"SMPS","k":"RS7515","p":35000,"md":"1MD"},{"m":"RS 50-24","cat":"SMPS","k":"RS5024","p":30000,"md":"1MD"},{"m":"RS 75-24","cat":"SMPS","k":"RS7524","p":35000,"md":"1MD"},{"m":"CS-75-05","cat":"SMPS","k":"CS7505","p":83000,"md":""},{"m":"CS-50-24","cat":"SMPS","k":"CS5024","p":73000,"md":""},{"m":"LRS-350-24","cat":"SMPS","k":"LRS35024","p":60000,"md":""},{"m":"KIN-1500AP RM","cat":"UPS","k":"KIN1500APRM","p":708000,"md":"1MD"},{"m":"KIN-1500AP","cat":"UPS","k":"KIN1500AP","p":600000,"md":"1MD"},{"m":"MRT-1000AP RM","cat":"UPS","k":"MRT1000APRM","p":818000,"md":"1MD"},{"m":"KIN-1000AP","cat":"UPS","k":"KIN1000AP","p":786000,"md":"1MD"},{"m":"VGD-3000 AP RM","cat":"UPS","k":"VGD3000APRM","p":1890000,"md":"1MD"},{"m":"BNT-1000AP","cat":"UPS","k":"BNT1000AP","p":320000,"md":""},{"m":"UPS+기구물","cat":"UPS+기구물","k":"UPS기구물","p":null,"md":"1MD"},{"m":"온도모듈 I-7018","cat":"온도모듈","k":"온도모듈I7018","p":480000,"md":""},{"m":"온도모듈 I-7018Z","cat":"온도모듈","k":"온도모듈I7018Z","p":480000,"md":""},{"m":"온도배선 K TYPE","cat":"온도센서배선 1M","k":"온도배선KTYPE","p":1700,"md":""},{"m":"온도컨버터 I-7520A","cat":"온도컨버터","k":"온도컨버터I7520A","p":150000,"md":""},{"m":"판다인버터","cat":"인버터","k":"판다인버터","p":411000,"md":"1MD"},{"m":"지우전자 인버터 R15","cat":"인버터","k":"지우전자인버터R15","p":519000,"md":"1MD"},{"m":"악어클립","cat":"전압센싱용 클립","k":"악어클립","p":5000,"md":""},{"m":"CA293CC","cat":"지그 단 전압센싱용","k":"CA293CC","p":31000,"md":""}];
+// ===== 자재 단가표 매칭 (대전 LG 자재 단가표 기준) =====
+function pbNormKey(s){return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9가-힣]/g,'');}
+function pbMatch(name){
+ var k=pbNormKey(name);if(!k)return null;var i,p,pk;
+ for(i=0;i<PRICEBOOK.length;i++){if(PRICEBOOK[i].k===k)return PRICEBOOK[i];} // 1) 정확 일치
+ var best=null,bestLen=0;                                                    // 2) 포함관계(긴 모델 우선, 최소 4자)
+ for(i=0;i<PRICEBOOK.length;i++){p=PRICEBOOK[i];pk=p.k;
+   if(pk.length>=4 && (k.indexOf(pk)>=0||pk.indexOf(k)>=0)){if(pk.length>bestLen){best=p;bestLen=pk.length;}}
+ }
+ return best;
+}
+// A/S 폼: 교체부품·수량 → 자재금액 자동 계산
+function asAmtCalc(){
+ var pt=document.getElementById('as_pt'),qt=document.getElementById('as_qt'),amt=document.getElementById('as_amt'),mk=document.getElementById('as_amtmk');
+ if(!amt)return;
+ var name=pt?pt.value:'';var qn=Number(qt?qt.value:1)||1;var p=pbMatch(name);
+ if(p&&p.p!=null){ if(amt.dataset.manual!=='1')amt.value=p.p*qn; if(mk){mk.textContent='✓ '+p.m+' · 단가 '+p.p.toLocaleString()+'원 ×'+qn;mk.style.color='#059669';} }
+ else if(p&&p.p==null){ if(mk){mk.textContent='단가협의 품목('+p.m+') · 직접 입력';mk.style.color='#d97706';} }
+ else { if(mk){mk.textContent=name?'단가표 미매칭 · 금액 직접 입력':'';mk.style.color='#94a3b8';} }
+}
 function isLaborSite(){return SITE==='대전LGES';} // 상주 인건비 현장 여부
 function mdRate(){return Number(load(siteKey('tos_mdrate_v1'),0))||0;} // 1MD(공수) 단가
 function setMdRate(v){localStorage.setItem(siteKey('tos_mdrate_v1'),JSON.stringify(Number(v)||0));}
@@ -1585,7 +1611,8 @@ function renderAS(v){
   '<div id="crmPv"></div>'+
   fbar+
   '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:center"><input type="checkbox" id="asAllChk" onclick="asSelAll(this)" title="전체 선택"></th><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
- if(asEditId){var f=document.getElementById('asForm');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});}
+ if(asEditId){var f=document.getElementById('asForm');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});
+  var _amt=document.getElementById('as_amt');if(_amt&&Number(_amt.value)>0)_amt.dataset.manual='1';asAmtCalc();}
  renderWeekInfo();asSelBarUpd();
 }
 function fixF(label,key){return '<div class="asf"><label>'+esc(label)+'</label><input id="fx_'+key+'" value="'+esc(AS_FIX[key]||'')+'"></div>';}
@@ -1598,14 +1625,9 @@ function asFormHtml(q){
  const sug=asClassifyText(q,a);
  return '<div id="asForm" style="padding:16px 18px;border:0;border-radius:0;background:#eef2ff;box-shadow:none"><h2 style="margin-top:0">A/S 항목 입력 · No.'+esc(q.no)+' / '+esc(q.reporter)+'</h2>'+
   '<div class="note" style="margin-bottom:6px">회색 칸은 TOS·점검요청서·날짜에서 <b>자동 반영</b>됩니다. 공통정보는 수정 시 전체 A/S 건에 적용됩니다.</div>'+
-  '<div class="assec">날짜 입력 (직접 입력·수정 가능)</div>'+
+  '<div class="assec">자동 반영 (TOS · 점검요청서 · 날짜)</div>'+
   '<div class="asgrid">'+
-   '<div class="asf"><label>접수일</label><input type="date" id="as_date" value="'+esc(isoDate(q.date))+'"></div>'+
-   '<div class="asf"><label>최초 점검일</label><input type="date" id="as_insdate" value="'+esc(isoDate(q.inspectDate))+'"></div>'+
-   '<div class="asf"><label>완료일</label><input type="date" id="as_repdate" value="'+esc(isoDate(q.repairDate))+'"></div>'+
-  '</div>'+
-  '<div class="assec">자동 반영 (TOS · 점검요청서)</div>'+
-  '<div class="asgrid">'+
+   asAuto('접수일',q.date)+asAuto('최초 점검일',q.inspectDate||'-')+asAuto('완료일',comp||'(미완료)')+
    asAuto('접수주차',weekStr(q.date))+asAuto('완료주차',weekStr(comp))+asAuto('대응중',done?'완료':'대응중')+asAuto('L/T(일)',String(dayDiff(q.date,comp)))+
    asAuto('접수내용(TOS 고장내용)',q.trouble)+asAuto('n차 점검·조치(수리결과)',q.repair||'(미입력)')+
   '</div>'+
@@ -1622,7 +1644,7 @@ function asFormHtml(q){
    '<div class="asf"><label>에러코드 (DB)'+sugTag(a.에러코드,sug.에러코드)+'</label><select id="as_ec">'+selOpts('에러코드',asCur('에러코드',a,sug))+'</select></div>'+
    '<div class="asf"><label>대분류 (DB)'+sugTag(a.대분류,sug.대분류)+'</label><select id="as_dc">'+selOpts('대분류',asCur('대분류',a,sug))+'</select></div>'+
    '<div class="asf"><label>중분류 (DB)'+sugTag(a.중분류,sug.중분류)+'</label><select id="as_mc">'+selOpts('중분류',asCur('중분류',a,sug))+'</select></div>'+
-   '<div class="asf" style="grid-column:span 2"><label>교체 부품 (DB)</label><select id="as_pt">'+selOpts('교체부품',a.교체부품)+'</select></div>'+
+   '<div class="asf" style="grid-column:span 2"><label>교체 부품 (DB)</label><select id="as_pt" onchange="asAmtCalc()">'+selOpts('교체부품',a.교체부품)+'</select></div>'+
    '<div class="asf"><label>CRM 접수번호</label><input id="as_cn" value="'+esc(a.crmNo)+'" placeholder="예: 202606260015" oninput="crmDateSync()"></div>'+
    '<div class="asf"><label>CRM 작성일자 <span class="mut" style="font-size:11px">(접수번호에서 자동)</span></label><input id="as_cd" value="'+esc(a.crmDate||crmDateFromNo(a.crmNo))+'" readonly style="background:#f3f4f6"></div>'+
    '<div class="asf"><label>수주번호</label><input id="as_so" value="'+esc(a.수주번호)+'"></div>'+
@@ -1633,7 +1655,8 @@ function asFormHtml(q){
    '<div class="asf"><label>전류 (A)</label><input id="as_am" value="'+esc(a.amp||'')+'"></div>'+
    '<div class="asf"><label>F당 총 채널</label><input id="as_tc" value="'+esc(a.totalCh)+'"></div>'+
    '<div class="asf"><label>고장 채널</label><input id="as_fc" value="'+esc(a.failCh)+'"></div>'+
-   '<div class="asf"><label>수량</label><input id="as_qt" value="'+esc(a.qty)+'"></div>'+
+   '<div class="asf"><label>수량</label><input id="as_qt" value="'+esc(a.qty)+'" oninput="asAmtCalc()"></div>'+
+   '<div class="asf"><label>자재 금액(자동·원)</label><input id="as_amt" type="number" value="'+(Number(q&&q.amount)||0)+'" title="교체부품 단가표 매칭 자동 · 직접 수정 가능" oninput="this.dataset.manual=\'1\'"><div id="as_amtmk" class="mut" style="font-size:10px;margin-top:2px"></div></div>'+
    '<div class="asf"><label>등급</label><input id="as_gr" value="'+esc(a.등급)+'"></div>'+
   '</div>'+
   '<div style="text-align:right;margin-top:16px"><button class="btn" onclick="asCancel()">닫기</button> <button class="btn pri" onclick="asSave(\''+q.id+'\')">저장</button></div></div>';
@@ -2101,21 +2124,16 @@ function trashEmpty(){
  TRASH=[];saveTrash();render();
 }
 function asAuto(label,val){return '<div class="asf"><label>'+esc(label)+'</label><div class="asauto">'+esc(val||'-')+'</div></div>';}
-function isoDate(v){var s=String(v==null?'':v).trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;var r=excelDate(s);return /^\d{4}-\d{2}-\d{2}$/.test(r)?r:'';}
 function asSave(id){
  const a=asGet(id);const g=function(x){const el=document.getElementById(x);return el?el.value:'';};
- // 날짜 3종(접수일·최초점검일·완료일) — DB 또는 보관(ASARCH) 레코드에 저장
- var _qd=DB.find(function(x){return x.id===id;})||ASARCH.find(function(x){return x.id===id;});
- if(_qd){var nd=g('as_date'),ni=g('as_insdate'),nr=g('as_repdate');
-  if(nd!=='')_qd.date=nd;          // 접수일: 입력 시 갱신(빈값이면 기존 유지)
-  _qd.inspectDate=ni;              // 최초 점검일: 입력값 그대로(빈값=지움)
-  _qd.repairDate=nr;               // 완료일: 입력값 그대로(빈값=지움)
- }
  a.유무상=g('as_um');a.고장유형=g('as_ft');a.에러코드=g('as_ec');a.대분류=g('as_dc');a.중분류=g('as_mc');a.교체부품=g('as_pt');
  a.crmNo=g('as_cn');a.crmDate=crmDateFromNo(a.crmNo)||g('as_cd');a.수주번호=g('as_so');a.sn=g('as_sn');a.spec=g('as_sp');var _sp=parseSpec(a.spec);a.model=g('as_md')||_sp.model;a.volt=g('as_vt')||_sp.volt;a.amp=g('as_am')||_sp.amp;
  a.totalCh=g('as_tc');a.failCh=g('as_fc');a.qty=g('as_qt');a.등급=g('as_gr');
+ // 자재 금액 → DB(또는 보관) 레코드의 amount에 저장
+ var _qa=DB.find(function(x){return x.id===id;})||(typeof ASARCH!=='undefined'?ASARCH.find(function(x){return x.id===id;}):null);
+ if(_qa){var _am=g('as_amt');if(_am!=='')_qa.amount=Number(_am)||0;}
  var _q=DB.find(function(x){return x.id===id;});if(_q)learnMatch(_q.equip,a,_q.loc);
- persist();saveArch();save(siteKey('tos_as_v8'),ASD);asEditId=null;render();
+ save(siteKey('tos_as_v8'),ASD);asEditId=null;render();
 }
 function asExportData(){return asAll().map(function(q){return asRowObj(q);});}
 function exportASExcel(){tableToExcel('A/S 리스트 (취합) · '+asAll().length+'건',AS_HEAD,asExportData(),'AS리스트_'+todayStr());}
@@ -3039,12 +3057,14 @@ function printReq(){const d=reqExportData();
  printArea(body,'점검요청서');
 }
 function materialDatalist(){
- var parts=(AS_DB['교체부품']||[]).filter(function(x){return x&&x!=='직접입력';}).map(function(x){return '<option value="'+esc(x)+'">';}).join('');
- return '<datalist id="dl-material">'+parts+'</datalist>';
+ var seen={};
+ var pbo=PRICEBOOK.map(function(p){seen[p.m]=1;return '<option value="'+esc(p.m)+'">'+esc(p.cat+(p.p!=null?' · '+p.p.toLocaleString()+'원':' · 단가협의'))+'</option>';}).join('');
+ var parts=(AS_DB['교체부품']||[]).filter(function(x){return x&&x!=='직접입력'&&!seen[x];}).map(function(x){return '<option value="'+esc(x)+'">';}).join('');
+ return '<datalist id="dl-material">'+pbo+parts+'</datalist>';
 }
 // 자재내역(자재+수량) 동적 항목
 function matItems(q){
- if(q&&Array.isArray(q.materials)&&q.materials.length)return q.materials.map(function(it){return {m:it.m||'',q:(it.q==null?1:it.q)};});
+ if(q&&Array.isArray(q.materials)&&q.materials.length)return q.materials.map(function(it){return {m:it.m||'',q:(it.q==null?1:it.q),p:(it.p==null?null:it.p)};});
  // 구버전 q.material 문자열을 항목으로 변환
  var s=String((q&&q.material)||'').replace(/_x000D_/g,' ').trim();
  if(!s||s==='-')return [];
@@ -3052,32 +3072,64 @@ function matItems(q){
    part=part.trim();if(!part)return null;
    var qty=1,mq=part.match(/(\d+)\s*(EA|ea|개|PCS|pcs)/);if(mq)qty=parseInt(mq[1],10)||1;
    var name=part.replace(/\s*\d+\s*(EA|ea|개|PCS|pcs)\s*$/,'').trim();if(!name)name=part;
-   return {m:name,q:qty};
+   return {m:name,q:qty,p:null};
  }).filter(function(x){return x;});
 }
-function matRowHtml(m,qty){
+function matRowHtml(m,qty,price){
  return '<div class="mat-row">'+
-   '<input type="text" class="f-mat" list="dl-material" value="'+esc(m||'')+'" placeholder="DB 검색/직접입력" style="width:130px">'+
-   '<input type="number" class="f-matq num-r" min="0" value="'+(qty==null?1:qty)+'" title="수량" style="width:52px">'+
+   '<input type="text" class="f-mat" list="dl-material" value="'+esc(m||'')+'" placeholder="DB 검색/직접입력" style="width:128px" oninput="matMatch(this)">'+
+   '<input type="number" class="f-matq num-r" min="0" value="'+(qty==null?1:qty)+'" title="수량" style="width:46px" oninput="matRecalc(this)">'+
    '<span class="mut" style="font-size:10px">EA</span>'+
+   '<input type="number" class="f-matp num-r" min="0" value="'+(price==null||price===''?'':price)+'" placeholder="단가" title="단가(매칭 자동/직접 입력)" style="width:84px" oninput="this.dataset.manual=\'1\';matRecalc(this)">'+
+   '<span class="mat-mk"></span>'+
    '<button type="button" class="mat-x" onclick="matDelRow(this)" title="삭제">×</button>'+
  '</div>';
 }
 function matCellHtml(q){
- var items=matItems(q);if(!items.length)items=[{m:'',q:1}];
- var rows=items.map(function(it){return matRowHtml(it.m,it.q);}).join('');
+ var items=matItems(q);if(!items.length)items=[{m:'',q:1,p:null}];
+ var rows=items.map(function(it){
+   var pr=(it.p!=null&&it.p!=='')?it.p:'';
+   if(pr===''){var mm=pbMatch(it.m);if(mm&&mm.p!=null)pr=mm.p;}
+   return matRowHtml(it.m,it.q,pr);
+ }).join('');
  return '<div class="mat-wrap">'+rows+'</div>'+
    '<button type="button" class="btn sm mat-add" onclick="matAddRow(this)">+ 자재 추가</button>';
 }
 function matAddRow(btn){
  var td=btn.closest('td');var wrap=td?td.querySelector('.mat-wrap'):null;if(!wrap)return;
- wrap.insertAdjacentHTML('beforeend',matRowHtml('',1));
+ wrap.insertAdjacentHTML('beforeend',matRowHtml('',1,''));
  var ins=wrap.querySelectorAll('.f-mat');if(ins.length)ins[ins.length-1].focus();
 }
 function matDelRow(btn){
  var row=btn.closest('.mat-row');var wrap=btn.closest('.mat-wrap');if(!row||!wrap)return;
+ var ref=row.querySelector('.f-matq')||row.querySelector('.f-matp');
  row.remove();
- if(!wrap.querySelector('.mat-row'))wrap.insertAdjacentHTML('beforeend',matRowHtml('',1));
+ if(!wrap.querySelector('.mat-row'))wrap.insertAdjacentHTML('beforeend',matRowHtml('',1,''));
+ var any=wrap.querySelector('.f-matq');if(any)matRecalc(any);
+}
+// 자재명 입력 시 단가표 자동 매칭
+function matMatch(el){
+ var row=el.closest('.mat-row');if(!row)return;
+ var name=(el.value||'').trim();
+ var mk=row.querySelector('.mat-mk');var pinp=row.querySelector('.f-matp');
+ var p=pbMatch(name);
+ if(p&&p.p!=null){ if(pinp&&pinp.dataset.manual!=='1'){pinp.value=p.p;} if(mk){mk.textContent='✓ '+p.m;mk.className='mat-mk ok';} }
+ else if(p&&p.p==null){ if(mk){mk.textContent='단가협의: '+p.m;mk.className='mat-mk warn';} }
+ else { if(mk){mk.textContent=name?'단가 직접입력':'';mk.className='mat-mk';} }
+ matRecalc(el);
+}
+// 자재행 합계 → 자재금액(f-amount) 자동 반영
+function matRecalc(el){
+ var wrap=el.closest('.mat-wrap');if(!wrap)return;
+ var total=0;
+ wrap.querySelectorAll('.mat-row').forEach(function(r){
+   var qn=Number((r.querySelector('.f-matq')||{}).value)||0;
+   var pp=Number((r.querySelector('.f-matp')||{}).value)||0;
+   total+=qn*pp;
+ });
+ var host=el.closest('tr')||el.closest('#mbox')||el.closest('#mbox2')||document;
+ var amt=host&&host.querySelector?host.querySelector('.f-amount'):null;
+ if(amt&&amt.dataset.manual!=='1')amt.value=total;
 }
 // scope(tr 또는 모달) 안의 자재 항목 수집 → {materials:[], str:''}
 function collectMat(scope){
@@ -3085,10 +3137,12 @@ function collectMat(scope){
  (scope.querySelectorAll('.mat-row')||[]).forEach(function(r){
    var m=(r.querySelector('.f-mat')||{}).value;m=(m||'').trim();
    var qv=(r.querySelector('.f-matq')||{}).value;var qn=Number(qv);if(!(qn>=0))qn=1;
-   if(m)items.push({m:m,q:qn});
+   var pv=(r.querySelector('.f-matp')||{}).value;var pn=(pv===''||pv==null)?null:Number(pv);
+   if(m)items.push({m:m,q:qn,p:pn});
  });
  var str=items.map(function(it){return it.q&&it.q!==1?(it.m+' '+it.q+'EA'):it.m;}).join(', ');
- return {materials:items,str:str};
+ var amount=items.reduce(function(s,it){return s+(Number(it.p)||0)*(Number(it.q)||0);},0);
+ return {materials:items,str:str,amount:amount};
 }
 function reqRow(q){
  const opts=STAGES.map(s=>'<option '+(q.stage===s?'selected':'')+'>'+s+'</option>').join('');
@@ -3099,7 +3153,7 @@ function reqRow(q){
   '<td><textarea class="f-inspect">'+esc(q.inspect)+'</textarea></td>'+
   '<td><textarea class="f-repair">'+esc(q.repair)+'</textarea></td>'+
   '<td class="mat-cell">'+matCellHtml(q)+'</td>'+
-  '<td><input type="number" class="f-amount num-r" style="width:90px" value="'+(Number(q.amount)||0)+'">'+(isLaborSite()?'':'<div style="margin-top:4px"><span style="font-size:10px;color:#94a3b8">공수(MD)</span><input type="number" step="0.5" class="f-md num-r" style="width:90px;display:block" value="'+(Number(q.md)||0)+'"></div>')+'</td>'+
+  '<td><input type="number" class="f-amount num-r" style="width:90px" value="'+(Number(q.amount)||0)+'" title="자재금액(자재행 단가×수량 자동합계 · 직접수정 가능)" oninput="this.dataset.manual=\'1\'">'+(isLaborSite()?'':'<div style="margin-top:4px"><span style="font-size:10px;color:#94a3b8">공수(MD)</span><input type="number" step="0.5" class="f-md num-r" style="width:90px;display:block" value="'+(Number(q.md)||0)+'"></div>')+'</td>'+
   '<td><select class="f-eng">'+engopts+'</select></td>'+
   '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn sm" onclick="schedFromReq(\''+q.id+'\')">일정</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
 }
