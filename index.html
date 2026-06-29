@@ -602,6 +602,10 @@ tbody tr.rowdone td .mut{color:#b6bdc8}
 .hopsf{font-size:11.5px;color:#64748b;margin-top:11px;line-height:1.55;padding-top:10px;border-top:1px solid var(--bd-soft)}
 #userGreet{position:fixed;top:12px;right:14px;z-index:1001;background:#111827;color:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;border:1px solid #1f2937}
 body.mview #userGreet{font-size:11.5px;padding:6px 10px;top:8px;right:10px}
+.srchbar{display:flex;align-items:center;gap:8px;margin:4px 0 10px}
+.srchbar input{flex:1;min-width:0;padding:8px 12px;border:1px solid #d7dbe6;border-radius:8px;font-size:13px}
+.srchbar input:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.as-chk,#asAllChk{width:16px;height:16px;cursor:pointer}
 .mat-cell{min-width:210px}
 .mat-wrap{display:flex;flex-direction:column;gap:4px}
 .mat-row{display:flex;align-items:center;gap:4px}
@@ -1187,6 +1191,7 @@ function asRowObj(q){
 }
 let asEditId=null;
 let asStageFilter=null;   // A/S 리스트 단계 필터(null=전체)
+let reqQ='', asQ='', asSel={};   // 점검요청서/A/S 검색어, A/S 다중선택
 function setAsStage(s){asStageFilter=(asStageFilter===s)?null:s;render();}
 // ===== 접수내용·조치내용 기반 자동 분류 추천 =====
 function asClassifyText(q,a){
@@ -1229,6 +1234,8 @@ function renderAS(v){
  fullList.forEach(function(q){if(scnt[q.stage]!=null)scnt[q.stage]++;});
  // 단계 필터 적용
  var list=asStageFilter?fullList.filter(function(q){return q.stage===asStageFilter;}):fullList.slice();
+ // 검색 필터
+ if(asQ)list=list.filter(function(q){var a=asGet(q.id,q);return matchQ([q.no,q.date,q.reporter,q.equip,q.trouble,q.repair,a.고장유형,a.에러코드,a.대분류,a.중분류,a.교체부품,a.sn,a.model,q.stage].join(' '),asQ);});
  // 진행단계 순서대로(①→⑥) 정렬 → 완료는 맨 아래
  list.sort(function(a,b){
    var ia=STAGES.indexOf(a.stage);if(ia<0)ia=STAGES.length;
@@ -1245,16 +1252,16 @@ function renderAS(v){
  fbar+='</div>';
  let rows='';
  list.forEach(function(q){const a=asGet(q.id,q);const done=q.stage==='⑥완료';const sel=(q.id===asEditId);
-  rows+='<tr class="'+(done?'rowdone':'')+'"'+(sel?' style="background:#eef2ff"':'')+'><td>'+esc(q.no)+'</td><td style="white-space:nowrap">'+esc(q.date)+overdueTag(q,done)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
+  rows+='<tr class="'+(done?'rowdone':'')+'"'+(sel?' style="background:#eef2ff"':'')+'><td style="text-align:center"><input type="checkbox" class="as-chk" data-id="'+q.id+'"'+(asSel[q.id]?' checked':'')+' onclick="asSelToggle(\''+q.id+'\',this)"></td><td>'+esc(q.no)+'</td><td style="white-space:nowrap">'+esc(q.date)+overdueTag(q,done)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
    '<td style="max-width:200px" class="mut">'+esc((q.trouble||'').slice(0,46))+'</td>'+
    '<td>'+badge(a.고장유형)+'</td><td>'+badge(a.에러코드)+'</td><td>'+badge(a.대분류)+' / '+badge(a.중분류)+'</td>'+
    '<td style="max-width:150px">'+esc(a.교체부품||'-')+'</td>'+
    '<td><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td>'+
    '<td>'+(done?'완료':'대응중')+'</td>'+
    '<td style="white-space:nowrap"><button class="btn '+(sel?'':'pri ')+'sm" onclick="asEdit(\''+q.id+'\')">'+(sel?'편집중':'편집')+'</button> <button class="btn sm" style="background:#fee2e2;color:#b91c1c;border-color:#fecaca" onclick="delAS(\''+q.id+'\')">삭제</button></td></tr>';
-  if(sel)rows+='<tr class="asEditRow"><td colspan="11" style="padding:0;background:#eef2ff">'+asFormHtml(q)+'</td></tr>';
+  if(sel)rows+='<tr class="asEditRow"><td colspan="12" style="padding:0;background:#eef2ff">'+asFormHtml(q)+'</td></tr>';
  });
- if(!list.length)rows='<tr><td colspan="11" class="mut" style="text-align:center;padding:18px">'+(asStageFilter?('「'+esc(asStageFilter)+'」 단계에 해당하는 A/S 건이 없습니다.'):'A/S 대상 데이터가 없습니다.')+'</td></tr>';
+ if(!list.length)rows='<tr><td colspan="12" class="mut" style="text-align:center;padding:18px">'+(asQ?('「'+esc(asQ)+'」 검색 결과가 없습니다.'):asStageFilter?('「'+esc(asStageFilter)+'」 단계에 해당하는 A/S 건이 없습니다.'):'A/S 대상 데이터가 없습니다.')+'</td></tr>';
  if(asEditId && !DB.find(function(x){return x.id===asEditId;}))asEditId=null;
  v.innerHTML='<div class="panel"><h2>A/S 리스트 관리 ('+list.length+'건'+(asStageFilter?' · '+esc(asStageFilter):'')+')</h2>'+
   '<div class="note">회사 A/S 리스트(취합) 관리 화면입니다. <b>접수내용</b>=TOS 고장내용, <b>n차 점검·조치내용</b>=점검요청서 수리결과가 자동 반영됩니다. 표에서 <b>편집</b>을 누르면 해당 행 바로 아래에 입력란이 열리고, 저장하면 닫힙니다. 공통정보(담당자·고객명 등)는 수정 시 전체 A/S 건에 동일 반영됩니다.</div>'+
@@ -1266,14 +1273,17 @@ function renderAS(v){
   '<button class="btn" onclick="crmPreview()">CRM 미리보기</button></div>'+
   '<div class="tools no-print"><button class="btn" onclick="exportASExcel()">엑셀 다운로드(전체 42열)</button>'+
   '<button class="btn" onclick="printAS()">인쇄 / PDF</button>'+
+  '<button class="btn dng" onclick="asBulkDel()">선택 삭제</button>'+
+  '<span id="asSelBar" style="font-size:12px;font-weight:700;color:#b91c1c">'+(asSelCount()?'선택 '+asSelCount()+'건':'')+'</span>'+
   '<span style="flex:1"></span>'+
   '<button class="btn pri" onclick="asImpToggle()">＋ 엑셀로 A/S 등록</button></div>'+
+  '<div class="srchbar no-print"><input type="text" id="asQ" value="'+esc(asQ)+'" placeholder="검색: 신고자, 장비, 접수내용, 고장유형, 에러코드, 대/중분류, 교체부품, S/N, 단계 (여러 단어=모두 포함)" oninput="asSearch(this.value)">'+(asQ?'<button class="btn sm" onclick="asQ=\'\';render()">검색 해제</button>':'')+'</div>'+
   '<div id="asImpArea"></div>'+
   '<div id="crmPv"></div>'+
   fbar+
-  '<div style="overflow-x:auto"><table><thead><tr><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:center"><input type="checkbox" id="asAllChk" onclick="asSelAll(this)" title="전체 선택"></th><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
  if(asEditId){var f=document.getElementById('asForm');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});}
- renderWeekInfo();
+ renderWeekInfo();asSelBarUpd();
 }
 function fixF(label,key){return '<div class="asf"><label>'+esc(label)+'</label><input id="fx_'+key+'" value="'+esc(AS_FIX[key]||'')+'"></div>';}
 function sugTag(cur,sug){if(cur&&cur!=='')return '';if(!sug)return '';return ' <span class="tag t3" style="background:#eff6ff;color:#1d4ed8;font-weight:600;font-size:10px">자동추천: '+esc(sug)+'</span>';}
@@ -1718,6 +1728,31 @@ function delAS(id){var q=asAll().find(function(x){return x.id===id;});if(!q)retu
  if(ASD[id])delete ASD[id];
  if(asEditId===id)asEditId=null;
  persist();saveArch();save(siteKey('tos_as_v8'),ASD);render();}
+//============ 검색엔진 (점검요청서 · A/S 공용) ============
+function matchQ(hay,q){if(!q)return true;hay=String(hay==null?'':hay).toLowerCase();return String(q).toLowerCase().split(/\s+/).every(function(tok){return !tok||hay.indexOf(tok)>=0;});}
+function reqSearch(v){reqQ=v;clearTimeout(window._rqT);window._rqT=setTimeout(function(){render();var e=document.getElementById('reqQ');if(e){e.focus();try{e.setSelectionRange(e.value.length,e.value.length);}catch(x){}}},220);}
+function asSearch(v){asQ=v;clearTimeout(window._asT);window._asT=setTimeout(function(){render();var e=document.getElementById('asQ');if(e){e.focus();try{e.setSelectionRange(e.value.length,e.value.length);}catch(x){}}},220);}
+//============ A/S 다중 선택 삭제 (체크박스 · 전체선택) ============
+function asSelCount(){return Object.keys(asSel).length;}
+function asSelBarUpd(){var b=document.getElementById('asSelBar');if(b)b.textContent=asSelCount()?('선택 '+asSelCount()+'건'):'';var all=document.getElementById('asAllChk');if(all){var boxes=document.querySelectorAll('.as-chk');var n=boxes.length,c=0;boxes.forEach(function(x){if(x.checked)c++;});all.checked=(n>0&&c===n);all.indeterminate=(c>0&&c<n);}}
+function asSelToggle(id,el){if(el&&el.checked)asSel[id]=true;else delete asSel[id];asSelBarUpd();}
+function asSelAll(el){var on=el.checked;document.querySelectorAll('.as-chk').forEach(function(c){c.checked=on;var id=c.getAttribute('data-id');if(on)asSel[id]=true;else delete asSel[id];});asSelBarUpd();}
+function asBulkDel(){
+ var ids=Object.keys(asSel);if(!ids.length){alert('삭제할 항목을 먼저 체크하세요.');return;}
+ if(!confirm('선택한 '+ids.length+'건을 삭제함으로 보낼까요?\n삭제함에서 언제든 복구할 수 있습니다.'))return;
+ ids.forEach(function(id){
+   var q=asAll().find(function(x){return x.id===id;});if(!q)return;
+   var inDB=DB.some(function(x){return x.id===id;});
+   var asd=ASD[id]?JSON.parse(JSON.stringify(ASD[id])):null;
+   TRASH.unshift({tu:'T'+Date.now()+'_'+Math.floor(Math.random()*100000),id:id,q:JSON.parse(JSON.stringify(q)),as:asd,inDB:inDB,delAt:logNow(),delBy:curRoleName()});
+   DB=DB.filter(function(x){return x.id!==id;});
+   ASARCH=ASARCH.filter(function(x){return x.id!==id;});
+   if(ASD[id])delete ASD[id];
+ });
+ if(TRASH.length>500)TRASH.length=500;
+ asSel={};asEditId=null;
+ saveTrash();persist();saveArch();save(siteKey('tos_as_v8'),ASD);render();
+}
 //============ 삭제함 (복구 가능) ============
 function renderTrash(v){
  var rows=TRASH.map(function(e){
@@ -2650,15 +2685,17 @@ function delMdExtra(id){
 
 //============ 점검요청 (미완료만, 입력/수정) ============
 function renderReq(v){
- const list=DB.filter(q=>q.stage!=='⑥완료');
+ const all=DB.filter(q=>q.stage!=='⑥완료');
+ const list=reqQ?all.filter(q=>matchQ([q.no,q.reporter,q.equip,q.loc,q.trouble,q.inspect,q.repair,q.material,q.engineer,q.stage].join(' '),reqQ)):all;
  let rows='';
  list.forEach(q=>{rows+=reqRow(q);});
- if(!list.length)rows='<tr><td colspan="9" class="mut" style="text-align:center;padding:18px">미완료 점검요청 건이 없습니다. (모두 완료됨)</td></tr>';
- v.innerHTML=materialDatalist()+'<div class="panel"><h2>점검요청 · 미완료 건 ('+list.length+')</h2>'+
+ if(!list.length)rows='<tr><td colspan="9" class="mut" style="text-align:center;padding:18px">'+(reqQ?'「'+esc(reqQ)+'」 검색 결과가 없습니다.':'미완료 점검요청 건이 없습니다. (모두 완료됨)')+'</td></tr>';
+ v.innerHTML=materialDatalist()+'<div class="panel"><h2>점검요청 · 미완료 건 ('+list.length+(reqQ?' / 전체 '+all.length:'')+')</h2>'+
   '<div class="note">완료되지 않은 건만 표시됩니다. 진행단계를 <b>⑥완료</b>로 저장하면 이 목록에서 사라지고 <b>완료함</b>으로 이동합니다. 자재내역은 칸을 클릭하면 DB 목록에서 고르거나 검색·직접입력할 수 있습니다.</div>'+
   '<div class="tools"><button class="btn pri" onclick="addReq()">+ 신규 점검요청</button>'+
   '<button class="btn" onclick="exportReqExcel()">엑셀 다운로드</button>'+
   '<button class="btn" onclick="printReq()">인쇄 / PDF</button></div>'+
+  '<div class="srchbar no-print"><input type="text" id="reqQ" value="'+esc(reqQ)+'" placeholder="검색: 신고자, 장비, 위치, 접수내용, 점검·수리결과, 자재, 담당, 단계 (여러 단어=모두 포함)" oninput="reqSearch(this.value)">'+(reqQ?'<button class="btn sm" onclick="reqQ=\'\';render()">검색 해제</button>':'')+'</div>'+
   '<div style="overflow-x:auto"><table><thead><tr><th>No</th><th>신고자·장비</th><th style="min-width:130px">진행단계</th><th style="min-width:160px">점검결과</th><th style="min-width:160px">수리결과</th><th style="min-width:130px">자재내역</th><th style="min-width:100px">금액</th><th style="min-width:110px">담당</th><th>저장</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function renderReqUser(v,list){
