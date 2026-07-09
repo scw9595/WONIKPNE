@@ -827,7 +827,7 @@ let DB   = load(siteKey('tos_db_v4'), null) || (SITE==='대전LGES'?SEED.map(x=>
 let ENG  = load('tos_eng_v4', null) || ENG_SEED.map(x=>Object.assign({},x));
 let NOTICES = (load(siteKey('tos_notice_v4'), null) || []).filter(function(n){return !(n.id==='N0'&&n.text===DEFAULT_NOTICE);});
 let INQ  = load(siteKey('tos_inq_v4'), null) || [];
-let isAdmin=false, isSuper=false, isCustomer=false, curTab='dash', dashFilter=null;
+let isAdmin=false, isSuper=false, curTab='dash', dashFilter=null;
 let CAL=[], calYM='';
 let currentUser='';  // 일반 사용자(그룹원) 로그인 이름
 const GROUP_USERS=['정재헌','정진배','권용진','김소혜','김수빈','김주완','박준영','오정현','유병규','이미현','정은경','진주화','최영훈','김민섭','김창훈','마진영','오창호','유소원','윤상빈','이진수','김정호','심우민','이호승'];
@@ -851,7 +851,7 @@ function loadSiteData(s){
 }
 function switchSite(s){if(SITES.indexOf(s)<0||s===SITE)return;loadSiteData(s);render();}
 // ===== 현장 선택 허브 =====
-let entered=false, csMode=false;
+let entered=false, csMode=false, custMode=false;
 function siteColor(s){var c=siteCust(s);return c==='삼성'?'#2563eb':c==='SK'?'#dc2626':c==='LG'?'#9333ea':c==='현대'?'#0891b2':'#475569';}
 function siteStats(s){
  var db=(s===SITE)?DB:(load(siteKey('tos_db_v4',s),null)||(s==='대전LGES'?SEED:[]));
@@ -893,29 +893,23 @@ function hubCsPreview(){
 // ============ A/S 분류 DB (관리자 편집 가능) ============
 function applyASDB(){try{var s=JSON.parse(localStorage.getItem('tos_asdb_v1')||'null');if(s&&typeof s==='object'){Object.keys(s).forEach(function(k){if(Array.isArray(s[k])&&AS_DB[k])AS_DB[k]=s[k];});}}catch(e){}}
 function saveASDB(){try{localStorage.setItem('tos_asdb_v1',JSON.stringify(AS_DB));}catch(e){}}
+function relearnASDB(){
+ if(!confirm('전체 현장에 저장된 접수·A/S 데이터에서 고장유형·에러코드·대분류·중분류·교체부품을 수집해 자동추천 목록에 추가합니다.\n기존 항목은 유지되고 새 값만 추가됩니다. 진행할까요?'))return;
+ var cats=['고장유형','에러코드','대분류','중분류','교체부품'];
+ var add={};cats.forEach(function(k){add[k]=0;});
+ function put(k,val){if(val==null)return;val=(''+val).trim();if(!val)return;if(!AS_DB[k])AS_DB[k]=[];if(AS_DB[k].indexOf(val)<0){AS_DB[k].push(val);add[k]++;}}
+ SITES.forEach(function(s){
+  var asd=(s===SITE)?ASD:(load(siteKey('tos_as_v8',s),{})||{});
+  Object.keys(asd).forEach(function(id){var o=asd[id]||{};put('고장유형',o.고장유형);put('에러코드',o.에러코드);put('대분류',o.대분류);put('중분류',o.중분류);put('교체부품',o.교체부품);if(Array.isArray(o.parts))o.parts.forEach(function(p){put('교체부품',p&&p.part);});});
+  var db=(s===SITE)?DB:(load(siteKey('tos_db_v4',s),null)||[]);
+  (db||[]).forEach(function(q){if(q){put('고장유형',q.failType);put('에러코드',q.errCode);}});
+ });
+ cats.forEach(function(k){if(AS_DB[k])AS_DB[k].sort(function(a,b){return (''+a).localeCompare(''+b,'ko');});});
+ saveASDB();render();
+ alert('자동추천 재학습 완료\n\n고장유형 +'+add['고장유형']+'\n에러코드 +'+add['에러코드']+'\n대분류 +'+add['대분류']+'\n중분류 +'+add['중분류']+'\n교체부품 +'+add['교체부품']);
+}
 function adminAddDB(key){var el=document.getElementById('adb_'+key);var v=el?el.value.trim():'';if(!v){alert('추가할 항목을 입력하세요.');return;}if(AS_DB[key].indexOf(v)>=0){alert('이미 존재하는 항목입니다.');return;}AS_DB[key].push(v);saveASDB();render();}
 function adminDelDB(key,idx){if(!AS_DB[key]||idx<0||idx>=AS_DB[key].length)return;if(!confirm('삭제할까요?\n['+key+'] '+AS_DB[key][idx]))return;AS_DB[key].splice(idx,1);saveASDB();render();}
-function relearnASDB(){
- if(!confirm('지금까지 저장된 모든 접수·A/S 데이터를 훑어서\n고장유형·에러코드·대분류·중분류·교체부품 자동추천 목록을 다시 학습합니다.\n(기존 항목은 유지, 새 값만 추가)\n\n계속할까요?'))return;
- var cats=['고장유형','에러코드','대분류','중분류','교체부품'];
- var added={}; cats.forEach(function(c){added[c]=0; if(!AS_DB[c])AS_DB[c]=[];});
- function add(cat,val){ if(val==null)return; val=String(val).trim(); if(!val||val==='직접입력'||val==='선택')return; if(AS_DB[cat].indexOf(val)<0){AS_DB[cat].push(val);added[cat]++;} }
- function scanDetail(d){ if(!d)return; add('고장유형',d.고장유형); add('에러코드',d.에러코드); add('대분류',d.대분류); add('중분류',d.중분류); if(Array.isArray(d.parts)){d.parts.forEach(function(p){add('교체부품',p&&p.part);});} if(d.교체부품){String(d.교체부품).split(/[,;]/).forEach(function(x){add('교체부품',x);});} }
- function scanRec(r){ if(!r)return; add('고장유형',r.고장유형); add('에러코드',r.에러코드); add('대분류',r.대분류); add('중분류',r.중분류); }
- try{
-  SITES.forEach(function(st){
-   var asd=load(siteKey('tos_as_v8',st),{})||{}; try{Object.keys(asd).forEach(function(k){scanDetail(asd[k]);});}catch(e){}
-   var arch=load(siteKey('tos_asarch_v1',st),[])||[]; if(Array.isArray(arch))arch.forEach(function(a){scanDetail(a);scanRec(a);});
-   var db=load(siteKey('tos_db_v4',st),[])||[]; if(Array.isArray(db))db.forEach(scanRec);
-  });
- }catch(e){}
- cats.forEach(function(c){ AS_DB[c].sort(function(a,b){return String(a).localeCompare(String(b),'ko');}); });
- saveASDB();
- var total=cats.reduce(function(x,c){return x+added[c];},0);
- var msg=cats.map(function(c){return '· '+c+': 신규 '+added[c]+'건 (총 '+AS_DB[c].length+')';}).join('\n');
- alert('자동추천 재학습 완료 — 신규 '+total+'건 추가\n\n'+msg+'\n\n모든 PC에 자동 동기화됩니다.');
- render();
-}
 // ============ 관리자 모드 ============
 function enterAdmin(){
  if(!isAdmin){
@@ -985,7 +979,7 @@ function renderAdmin(v){
    '</div></div>'+
    '<div class="panel"><h2>A/S 분류 DB 관리 <span class="mut" style="font-size:12px;font-weight:500">(A/S 리스트 관리의 선택 목록 · 전체 현장 공통)</span></h2>'+
    '<div class="note">여기서 추가/삭제한 항목은 A/S 리스트 관리의 고장유형·에러코드·대/중분류·교체부품 선택지에 즉시 반영되고, Firebase로 모든 PC에 공유됩니다.</div>'+
-   '<div class="tools no-print" style="margin:6px 0 10px"><button class="btn pri" onclick="relearnASDB()">저장된 데이터로 자동추천 재학습</button> <span class="mut" style="font-size:12px">지금까지 저장된 모든 접수·A/S 데이터의 값을 목록에 반영합니다.</span></div>'+
+   '<div class="tools no-print" style="margin-bottom:8px"><button class="btn pri sm" onclick="relearnASDB()">저장된 데이터로 자동추천 재학습</button> <span class="mut" style="font-size:11.5px">전체 현장의 접수·A/S 데이터에서 값을 수집해 자동추천 목록에 채웁니다.</span></div>'+
    '<div class="adb-grid">'+dbCards+'</div></div>';
 }
 // ============ 일정관리 캘린더 ============
@@ -1049,7 +1043,8 @@ function schedFromReq(id){var q=DB.find(function(x){return x.id===id;});if(!q)re
 function renderHub(){
  var sumT=0,sumO=0,sumD=0,actSites=0;
  SITES.forEach(function(s){var st=siteStats(s);sumT+=st.total;sumO+=st.open;sumD+=st.done;if(st.total>0)actSites++;});
- var cards=SITES.map(function(s){
+ var hubSites=custMode?SITES.filter(function(s){return s.indexOf('LGES')>=0;}):SITES;
+ var cards=hubSites.map(function(s){
   var st=siteStats(s);var col=siteColor(s);
   var dp=st.total>0?Math.round(st.done/st.total*100):0;
   var bar='<div class="scBar"><i style="width:'+dp+'%;background:#059669"></i><i style="width:'+(100-dp)+'%;background:'+(st.open>0?'#f0b43a':'#e5e8ee')+'"></i></div>';
@@ -1137,9 +1132,9 @@ const TABS=[
 function renderNav(){
  const n=document.getElementById('nav');n.innerHTML='';
  TABS.forEach(t=>{
-   if(isCustomer){ if(t.id!=='dash') return; } // LGES 고객: 진행현황만 노출
    if(csMode){ if(!t.hub) return; } // CS 모드: CS 통계 탭만 노출
    else { if(t.hub) return; }       // 현장 모드: CS 통계 탭 숨김
+   if(custMode){ if(t.id!=='dash') return; } // 고객 모드: 진행현황만
    if(t.adm && !isAdmin && !t.usr) return; // usr:true 메뉴는 일반 사용자도 노출
    if(t.sup && !isSuper) return;
    const b=document.createElement('button');
@@ -1153,8 +1148,8 @@ function renderNav(){
 function csErrBox(e){return '<div class="panel"><h2>CS 통계</h2><div class="note">집계 중 일부 데이터를 처리하지 못했습니다. 다른 화면은 정상이며, 데이터관리에서 백업/복구로 해결할 수 있습니다.<br><span style="color:#94a3b8;font-size:11px">'+esc(String(e&&e.message||e))+'</span></div></div>';}
 function render(){
  try{applyBrandLogo();}catch(e){}
+ if(custMode){curTab='dash';dashFilter=null;}
  const ct=TABS.find(t=>t.id===curTab);
- if(isCustomer&&curTab!=='dash'){curTab='dash';dashFilter=null;}
  if(ct&&ct.adm&&!isAdmin&&!ct.usr){curTab='dash';dashFilter=null;}
  if(ct&&ct.sup&&!isSuper){curTab='dash';dashFilter=null;}
  renderNav();const v=document.getElementById('view');
@@ -2052,7 +2047,7 @@ function asImpDo(){var out=document.getElementById('asImpOut');var ta=document.g
  if(!ASIMP.length){if(out)out.innerHTML='<div class="note">먼저 데이터를 붙여넣거나 파일을 업로드하세요.</div>';return;}
  var d=asImpDetect();if(d.hr<0){if(out)out.innerHTML='<div class="note">헤더를 찾지 못했습니다. 헤더행을 포함해 복사했는지 확인하세요.</div>';return;}
  var existing={};DB.forEach(function(q){existing[String(q.seq)]=1;});
- var add=0,dup=0,err=0,dupfill=0;var maxNo=Math.max(0,...DB.map(function(x){return Number(x.no)||0;}));
+ var add=0,dup=0,err=0;var maxNo=Math.max(0,...DB.map(function(x){return Number(x.no)||0;}));
  for(var i=d.hr+1;i<ASIMP.length;i++){var row=ASIMP[i];if(!row||row.every(function(c){return String(c).trim()==='';}))continue;
   var o={};d.cols.forEach(function(k,ci){if(k)o[k]=String(row[ci]==null?'':row[ci]).trim();});
   var date=excelDate(o.date||'')||(o.date||'');var trouble=o.trouble||o.trouble_alt||'';var equip=o.equip||'';
@@ -2063,21 +2058,7 @@ function asImpDo(){var out=document.getElementById('asImpOut');var ta=document.g
   if(!trouble&&!equip&&!o.sn){err++;continue;}
   var loc=(o.loc||'')+(o.pcno?(' · PC '+o.pcno):'');
   var seq=o.crmNo?('AX|CRM|'+o.crmNo):('AX|'+date+'|'+(o.sn||equip)+'|'+trouble.slice(0,24));
-  if(existing[seq]){
-    var _eq=DB.find(function(x){return String(x.seq)===seq;});
-    if(_eq){var _f=0;
-      [['inspect',o.inspect],['repair',o.repair],['repairDate',repDate],['inspectDate',insDate],['trouble',trouble],['equip',equip]].forEach(function(p){
-        if(p[1]!=null&&String(p[1]).trim()!==''&&(_eq[p[0]]==null||String(_eq[p[0]]).trim()===''))  {_eq[p[0]]=p[1];_f++;}
-      });
-      var _a2=asGet(_eq.id,_eq);
-      [['\uc218\uc8fc\ubc88\ud638',o['\uc218\uc8fc\ubc88\ud638']],['sn',o.sn],['spec',o.spec],['\uad50\uccb4\ubd80\ud488',o['\uad50\uccb4\ubd80\ud488']],['\uc911\ubd84\ub958',o['\uc911\ubd84\ub958']],['\ub300\ubd84\ub958',o['\ub300\ubd84\ub958']],['\uc5d0\ub7ec\ucf54\ub4dc',o.ec]].forEach(function(p){
-        if(p[1]!=null&&String(p[1]).trim()!==''&&(_a2[p[0]]==null||String(_a2[p[0]]).trim()===''))  {_a2[p[0]]=p[1];_f++;}
-      });
-      if(_f)dupfill++;
-    }
-    dup++;continue;
-  }
-  existing[seq]=1;
+  if(existing[seq]){dup++;continue;}existing[seq]=1;
   // 엑셀 업로드 단계 규칙: '대응중' 컬럼이 '완료'면 ⑥완료, 그 외는 모두 ③점검중
   var stRaw=asImpStage(o.stage);var stage=(stRaw==='⑥완료')?'⑥완료':'③점검중';maxNo++;
   // 접수내용=trouble / 점검결과=inspect / n차 점검·조치=repair / 날짜는 컬럼값 그대로
@@ -2102,7 +2083,7 @@ function asImpDo(){var out=document.getElementById('asImpOut');var ta=document.g
   try{ if(equip){ learnMatch(equip,a,loc); } else if(a.sn){ learnMatchSN(a,loc); } }catch(_e){}
   add++;}
  persist();save(siteKey('tos_as_v8'),ASD);
- if(out)out.innerHTML='<div class="ok">완료 · 신규 <b>'+add+'</b>건 등록 / 중복 '+dup+'건(그중 빈칸 보완 '+dupfill+'건) / 오류 '+err+'건.<br>"완료" 표시만 ⑥완료, 나머지는 ③점검중으로 등록되어 <b>점검요청서</b>에 점검결과·수리결과와 함께 자동 반영되었습니다.</div>';
+ if(out)out.innerHTML='<div class="ok">완료 · 신규 <b>'+add+'</b>건 등록 / 중복 '+dup+'건 / 오류 '+err+'건.<br>"완료" 표시만 ⑥완료, 나머지는 ③점검중으로 등록되어 <b>점검요청서</b>에 점검결과·수리결과와 함께 자동 반영되었습니다.</div>';
  render();}
 // ===== 주간(월~금) 추출 + CRM 업로드 텍스트 =====
 function mondayOf(d){var dt=new Date(d);if(isNaN(dt))dt=new Date();var day=dt.getDay();var diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);dt.setHours(0,0,0,0);return dt;}
@@ -2989,7 +2970,6 @@ function saveReq(id,btn){
  q.inspect=tr.querySelector('.f-inspect').value;
  q.repair=tr.querySelector('.f-repair').value;
  var mat=collectMat(tr);q.materials=mat.materials;q.material=mat.str;
- try{var _asd=asGet(q.id,q);_asd.parts=(mat.materials||[]).map(function(it){return {part:it.m,qty:String(it.q||'')};});_asd['\uad50\uccb4\ubd80\ud488']=mat.str;if(typeof saveASDB==='function')saveASDB();else save(siteKey('tos_as_v8'),ASD);}catch(_e){}
  q.amount=Number(tr.querySelector('.f-amount').value)||0;
  var mdEl=tr.querySelector('.f-md');if(mdEl)q.md=Number(mdEl.value)||0;
  q.engineer=tr.querySelector('.f-eng').value;
@@ -3041,7 +3021,7 @@ function renderDone(v){
  let rows='';
  list.forEach(q=>{
   const opts=STAGES.map(s=>'<option '+(q.stage===s?'selected':'')+'>'+s+'</option>').join('');
-  rows+='<tr data-id="'+q.id+'"><td>'+esc(q.no)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td><td>'+esc(q.repairDate||q.date)+'</td><td style="max-width:270px"><textarea class="f-donerep" style="width:100%;min-height:46px;padding:5px;border:1px solid #d1d5db;border-radius:6px;font:inherit;resize:vertical">'+esc(q.repair||'')+'</textarea><button class="btn sm" style="margin-top:3px" onclick="doneSaveRepair(\''+q.id+'\',this)">\uc218\ub9ac\ub0b4\uc6a9 \uc800\uc7a5</button></td><td class="right">'+won(q.amount)+'</td><td><select class="f-stage2">'+opts+'</select></td><td><button class="btn pri sm" onclick="revertDone(\''+q.id+'\',this)">단계 변경</button> <button class="btn dng sm" onclick="delDone(\''+q.id+'\')">삭제</button></td></tr>';
+  rows+='<tr data-id="'+q.id+'"><td>'+esc(q.no)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td><td>'+esc(q.repairDate||q.date)+'</td><td style="max-width:240px"><textarea class="done-rep" style="width:100%;min-width:170px;min-height:38px;font-size:12px;line-height:1.4;resize:vertical" placeholder="수리내용 입력">'+esc(q.repair||q.inspect||'')+'</textarea><div style="margin-top:3px"><button class="btn pri sm" onclick="doneSaveRepair(\''+q.id+'\',this)">저장</button></div></td><td class="right">'+won(q.amount)+'</td><td><select class="f-stage2">'+opts+'</select></td><td><button class="btn pri sm" onclick="revertDone(\''+q.id+'\',this)">단계 변경</button> <button class="btn dng sm" onclick="delDone(\''+q.id+'\')">삭제</button></td></tr>';
  });
  if(!list.length)rows='<tr><td colspan="7" class="mut" style="text-align:center;padding:18px">완료된 건이 없습니다.</td></tr>';
  v.innerHTML='<div class="panel"><h2>완료함 · 완료 건 ('+list.length+')</h2>'+
@@ -3050,12 +3030,11 @@ function renderDone(v){
 }
 function doneSaveRepair(id,btn){
  var q=DB.find(function(x){return x.id===id;});if(!q)return;
- var tr=btn.closest('tr');var ta=tr?tr.querySelector('.f-donerep'):null;if(!ta)return;
+ var ta=btn.closest('tr').querySelector('.done-rep');if(!ta)return;
  q.repair=ta.value;
  persist();
- var t=btn.textContent;btn.textContent='\uc800\uc7a5\ub428';setTimeout(function(){try{btn.textContent=t;}catch(_e){}},1200);
+ if(btn){var o=btn.textContent;btn.textContent='저장됨';btn.disabled=true;setTimeout(function(){btn.textContent=o;btn.disabled=false;},1000);}
 }
-
 function revertDone(id,btn){
  const tr=btn.closest('tr');const q=DB.find(x=>x.id===id);if(!q)return;
  const ns=tr.querySelector('.f-stage2').value;q.stage=ns;
@@ -3334,24 +3313,13 @@ function tosImport(){
  var d=tosDetect();
  if(d.best<2){out.innerHTML='<div class="note">헤더(컬럼명)를 찾지 못했습니다. 엑셀에서 <b>헤더행을 포함</b>해 복사했는지 확인하세요.</div>';return;}
  var existing={};DB.forEach(function(q){existing[String(q.seq)]=1;});
- var add=0,dup=0,err=0,dupfill=0;
+ var add=0,dup=0,err=0;
  for(var i=d.hr+1;i<TOSROWS.length;i++){
    var row=TOSROWS[i];if(!row||row.every(function(c){return c===''||c==null;}))continue;
    var o={};d.cols.forEach(function(k,ci){if(k)o[k]=row[ci];});
    if(!o.seq && !o.equip && !o.reporter){err++;continue;}
    var seq=(o.seq!=null&&o.seq!=='')?String(o.seq).trim():('X'+i);
-   if(existing[seq]){
-     var _eq=DB.find(function(x){return String(x.seq)===seq;});
-     if(_eq){var _f=0;
-       [['inspect',o.inspect],['repair',o.repair],['material',o.material],['cause',o.cause],['repairDate',o.repairDate],['reporter',o.reporter],['equip',o.equip],['loc',o.loc]].forEach(function(p){
-         if(p[1]!=null&&String(p[1]).trim()!==''&&(_eq[p[0]]==null||String(_eq[p[0]]).trim()===''))  {_eq[p[0]]=p[1];_f++;}
-       });
-       var _tr=(o.trouble||o.trouble_alt||'');if(_tr&&(!_eq.trouble||!String(_eq.trouble).trim())){_eq.trouble=_tr;_f++;}
-       var _st=statusToStage(o.status);if(_st&&_st!=='\u2460\uc811\uc218'&&(!_eq.stage||_eq.stage==='\u2460\uc811\uc218')){_eq.stage=_st;_f++;}
-       if(_f)dupfill++;
-     }
-     dup++;continue;
-   }
+   if(existing[seq]){dup++;continue;}
    existing[seq]=1;
    var no=Math.max(0,...DB.map(function(x){return Number(x.no)||0;}))+1;
    DB.push({id:'R'+seq,no:no,seq:seq,date:o.date||'',reporter:o.reporter||'',reporterId:o.reporterId||'',
@@ -3362,7 +3330,7 @@ function tosImport(){
    add++;
  }
  persist();
- out.innerHTML='<div class="ok">완료 · 신규 <b>'+add+'</b>건 추가 / 중복 '+dup+'건(그중 빈칸 보완 '+dupfill+'건) / 오류 '+err+'건. 진행현황·점검요청 화면에서 확인하세요.</div>';
+ out.innerHTML='<div class="ok">완료 · 신규 <b>'+add+'</b>건 추가 / 중복 '+dup+'건 / 오류 '+err+'건. 진행현황·점검요청 화면에서 확인하세요.</div>';
 }
 
 //============ 로그인 화면 ============
@@ -3377,7 +3345,7 @@ function applyBrandLogo(){
  });
 }
 function showLogin(){
- isAdmin=false;isSuper=false;isCustomer=false;superPending=false;currentUser='';updateGreet();
+ isAdmin=false;isSuper=false;superPending=false;custMode=false;currentUser='';updateGreet();
  applyBrandLogo();
  var lo=document.getElementById('logoutBtn');if(lo)lo.style.display='none';
  document.getElementById('login').classList.add('on');
@@ -3398,17 +3366,18 @@ function updateLoginUI(){
  }
 }
 function doLogin(){
+ custMode=false;
  var pw=document.getElementById('loginPw').value;
  var err=document.getElementById('loginErr');
  if(superPending){
    if(pw==='yes@@231021'){isSuper=true;isAdmin=true;enterApp();return;}
    err.textContent='메인관리자 비밀번호가 올바르지 않습니다.';return;
  }
- if(pw==='LGES'||pw==='lges'){isCustomer=true;isAdmin=false;isSuper=false;currentUser='LGES 고객';enterApp();return;} // LGES 고객용: 진행현황만
- if(pw==='wonikpne'){isCustomer=false;isAdmin=false;isSuper=false;currentUser='';enterApp();return;} // wonikpne = 일반 사용자
- if(pw==='yes@@231021'){isCustomer=false;isAdmin=true;isSuper=true;currentUser='';enterApp();return;} // 메인관리자 비번으로도 바로 로그인
+ if(pw==='LGES'||pw==='lges'){custMode=true;isAdmin=false;isSuper=false;currentUser='LGES 고객';enterApp();return;} // LGES 고객용 — 진행현황만
+ if(pw==='wonikpne'){isAdmin=false;isSuper=false;currentUser='';enterApp();return;} // wonikpne = 일반 사용자
+ if(pw==='yes@@231021'){isAdmin=true;isSuper=true;currentUser='';enterApp();return;} // 메인관리자 비번으로도 바로 로그인
  var nm=pw.trim();
- if(GROUP_USERS.indexOf(nm)>=0){isCustomer=false;isAdmin=false;isSuper=false;currentUser=nm;enterApp();return;} // 그룹원 이름으로 일반 사용자 로그인
+ if(GROUP_USERS.indexOf(nm)>=0){isAdmin=false;isSuper=false;currentUser=nm;enterApp();return;} // 그룹원 이름으로 일반 사용자 로그인
  err.textContent='비밀번호가 올바르지 않습니다.';
 }
 function enterApp(){
