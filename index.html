@@ -1248,21 +1248,21 @@ function printArea(bodyHtml,title,orient){
 function exportSettleExcel(){
  if(!_settle)doSettle();const d=_settle;
  if(d.labor){
-  const headers=['No','SEQ','수리완료일','신고자','장비명','점검/수리내용','자재내역','자재비','담당엔지니어','접수일','에러코드','대분류','중분류'];
-  const rows=d.list.map(function(q,i){var ad=(typeof ASD!=='undefined'&&ASD&&ASD[q.id])?ASD[q.id]:{};return [i+1,q.seq,q.repairDate||q.date,q.reporter,q.equip,(q.repair||q.inspect||''),q.material,Number(q.amount)||0,q.engineer,q.date,ad.에러코드||'',ad.대분류||'',ad.중분류||''];});
-  rows.push(['','','','','','','자재비 합계',d.mat,'']);
-  rows.push(['','','','','','','인건비(상주 2인)',LABOR,'']);
-  rows.push(['','','','','','','총 정산액',d.total,'']);
+  const headers=['No','SEQ','접수일','수리완료일','신고자','장비명','점검/수리내용','에러코드','대분류','중분류','자재내역','자재비','담당엔지니어'];
+  const rows=d.list.map(function(q,i){var _ad=asGet(q.id,q);return [i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.repair||q.inspect||''),_ad.에러코드||'',_ad.대분류||'',_ad.중분류||'',q.material,Number(q.amount)||0,q.engineer];});
+  rows.push(['','','','','','','','','','','자재비 합계',d.mat,'']);
+  rows.push(['','','','','','','','','','','인건비(상주 2인)',LABOR,'']);
+  rows.push(['','','','','','','','','','','총 정산액',d.total,'']);
   tableToExcel('월정산 '+SITE+' ('+d.s+' ~ '+d.e+')',headers,rows,'월정산_'+SITE.replace(/[\/]/g,'_')+'_'+d.s+'_'+d.e);
  }else{
-  const headers=['No','SEQ','수리완료일','신고자','장비명','점검/수리내용','자재내역','자재비','공수(MD)','담당엔지니어','접수일','에러코드','대분류','중분류'];
-  const rows=d.list.map(function(q,i){var ad=(typeof ASD!=='undefined'&&ASD&&ASD[q.id])?ASD[q.id]:{};return [i+1,q.seq,q.repairDate||q.date,q.reporter,q.equip,(q.repair||q.inspect||''),q.material,Number(q.amount)||0,Number(q.md)||0,q.engineer,q.date,ad.에러코드||'',ad.대분류||'',ad.중분류||''];});
-  mdExtra().filter(function(x){return x.date>=d.s&&x.date<=d.e;}).forEach(function(x){rows.push(['(별도공수)','',x.date,x.person||'','',x.desc||'','',0,Number(x.md)||0,'']);});
-  rows.push(['','','','','','','자재비 합계',d.mat,'','']);
-  rows.push(['','','','','','','공수 합계(MD)','',d.mdTotal,'']);
-  rows.push(['','','','','','','1MD 단가',d.rate,'','']);
-  rows.push(['','','','','','','인건비(공수×단가)',d.laborCost,'','']);
-  rows.push(['','','','','','','총 정산액',d.total,'','']);
+  const headers=['No','SEQ','접수일','수리완료일','신고자','장비명','점검/수리내용','에러코드','대분류','중분류','자재내역','자재비','공수(MD)','담당엔지니어'];
+  const rows=d.list.map(function(q,i){var _ad=asGet(q.id,q);return [i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.repair||q.inspect||''),_ad.에러코드||'',_ad.대분류||'',_ad.중분류||'',q.material,Number(q.amount)||0,Number(q.md)||0,q.engineer];});
+  mdExtra().filter(function(x){return x.date>=d.s&&x.date<=d.e;}).forEach(function(x){rows.push(['(별도공수)','',x.date,'',x.person||'','',x.desc||'','','','','',0,Number(x.md)||0,'']);});
+  rows.push(['','','','','','','','','','','자재비 합계',d.mat,'','']);
+  rows.push(['','','','','','','','','','','공수 합계(MD)','',d.mdTotal,'']);
+  rows.push(['','','','','','','','','','','1MD 단가',d.rate,'','']);
+  rows.push(['','','','','','','','','','','인건비(공수×단가)',d.laborCost,'','']);
+  rows.push(['','','','','','','','','','','총 정산액',d.total,'','']);
   tableToExcel('월정산 '+SITE+' ('+d.s+' ~ '+d.e+')',headers,rows,'월정산_'+SITE.replace(/[\/]/g,'_')+'_'+d.s+'_'+d.e);
  }
 }
@@ -1274,8 +1274,8 @@ function printSettle(){
    '<tr class="tot"><td colspan="11" class="right">인건비 (공수 '+d.mdTotal+'MD × '+won(d.rate)+')</td><td class="right">'+won(d.laborCost)+'</td></tr>';}
  let body='<h1>월 정 산 서</h1><div class="sub">'+esc(SITE)+' · 원익피앤이(WONIK PNE) 충방전기</div>'+
   '<div class="meta"><span>정산기간 '+d.s+' ~ '+d.e+'</span><span>출력일 '+todayStr()+' · 완료건 '+d.list.length+'건</span></div>'+
-  '<table><thead><tr><th>No</th><th>SEQ</th><th>수리완료일</th><th>신고자</th><th>장비명</th><th>접수일</th><th>에러코드</th><th>대분류</th><th>중분류</th><th>점검/수리내용</th><th>자재내역</th><th class="right">자재비</th></tr></thead><tbody>'+
-  d.list.map(function(q,i){var ad=(typeof ASD!=='undefined'&&ASD&&ASD[q.id])?ASD[q.id]:{};return '<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td>'+esc(q.date)+'</td><td>'+esc(ad.에러코드||'')+'</td><td>'+esc(ad.대분류||'')+'</td><td>'+esc(ad.중분류||'')+'</td><td>'+esc(q.repair||q.inspect||'')+'</td><td>'+esc(q.material||'')+'</td><td class="right">'+won(q.amount)+'</td></tr>';}).join('')+
+  '<table><thead><tr><th>No</th><th>SEQ</th><th>접수일</th><th>수리완료일</th><th>신고자</th><th>장비명</th><th>점검/수리내용</th><th>에러코드</th><th>대분류</th><th>중분류</th><th>자재내역</th><th class="right">자재비</th></tr></thead><tbody>'+
+  d.list.map(function(q,i){var _ad=asGet(q.id,q);return '<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td>'+esc(q.repair||q.inspect||'')+'</td><td>'+esc(_ad.에러코드||'')+'</td><td>'+esc(_ad.대분류||'')+'</td><td>'+esc(_ad.중분류||'')+'</td><td>'+esc(q.material||'')+'</td><td class="right">'+won(q.amount)+'</td></tr>';}).join('')+
   '</tbody><tfoot>'+
   '<tr class="tot"><td colspan="11" class="right">자재비 합계</td><td class="right">'+won(d.mat)+'</td></tr>'+
   laborRows+
@@ -2793,9 +2793,8 @@ function doSettle(){
  });
  var labor=isLaborSite();
  let mat=0,mdJob=0;let rows='';
- list.forEach((q,i)=>{mat+=Number(q.amount)||0;mdJob+=Number(q.md)||0;
-  var ad=(typeof ASD!=='undefined'&&ASD&&ASD[q.id])?ASD[q.id]:{};
-  rows+='<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td>'+esc(q.date)+'</td><td>'+esc(ad.에러코드||'')+'</td><td>'+esc(ad.대분류||'')+'</td><td>'+esc(ad.중분류||'')+'</td><td style="max-width:220px">'+esc((q.repair||q.inspect||'').slice(0,50))+'</td><td>'+esc(q.material)+'</td><td class="right">'+won(q.amount)+'</td>'+(labor?'':'<td class="right">'+(Number(q.md)||0)+'</td>')+'<td>'+esc(q.engineer)+'</td></tr>';
+ list.forEach((q,i)=>{mat+=Number(q.amount)||0;mdJob+=Number(q.md)||0;var _ad=asGet(q.id,q);
+  rows+='<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td style="max-width:220px">'+esc((q.repair||q.inspect||'').slice(0,50))+'</td><td>'+esc(_ad.에러코드||'')+'</td><td>'+esc(_ad.대분류||'')+'</td><td>'+esc(_ad.중분류||'')+'</td><td>'+esc(q.material)+'</td><td class="right">'+won(q.amount)+'</td>'+(labor?'':'<td class="right">'+(Number(q.md)||0)+'</td>')+'<td>'+esc(q.engineer)+'</td></tr>';
  });
  var colspan=labor?13:14;
  if(!list.length)rows='<tr><td colspan="'+colspan+'" class="mut" style="text-align:center;padding:18px">해당 기간에 완료된 정산 대상 건이 없습니다.</td></tr>';
@@ -2811,7 +2810,7 @@ function doSettle(){
   '<div class="card"><div class="lab">인건비(공수×단가)</div><div class="num" style="font-size:20px">'+won(laborCost)+'</div></div>';}
  cards+='<div class="card"><div class="lab">총 정산액</div><div class="num" style="font-size:20px;color:var(--acc)">'+won(total)+'</div></div></div>';
  document.getElementById('smOut').innerHTML=cards+
-  '<table><thead><tr><th>No</th><th>SEQ</th><th>수리완료일</th><th>신고자</th><th>장비명</th><th>접수일</th><th>에러코드</th><th>대분류</th><th>중분류</th><th>점검/수리내용</th><th>자재내역</th><th>자재비</th>'+(labor?'':'<th class="right">공수(MD)</th>')+'<th>담당</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  '<table><thead><tr><th>No</th><th>SEQ</th><th>접수일</th><th>수리완료일</th><th>신고자</th><th>장비명</th><th>점검/수리내용</th><th>에러코드</th><th>대분류</th><th>중분류</th><th>자재내역</th><th>자재비</th>'+(labor?'':'<th class="right">공수(MD)</th>')+'<th>담당</th></tr></thead><tbody>'+rows+'</tbody></table>';
 }
 //============ 별도 공수(MD) 월별 입력 (대전LGES 외) ============
 function renderMdExtra(){
