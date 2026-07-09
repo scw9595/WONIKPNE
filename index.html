@@ -748,6 +748,7 @@ function pbNormKey(s){return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-
 function pbMatch(name){
  var k=pbNormKey(name);if(!k)return null;var i,p,pk;
  for(i=0;i<PRICEBOOK.length;i++){if(PRICEBOOK[i].k===k)return PRICEBOOK[i];} // 1) 정확 일치
+ if(typeof PBLEARN!=='undefined'&&PBLEARN&&PBLEARN[k]!=null){return {m:String(name).trim(),k:k,p:PBLEARN[k]};} // 1.5) 학습 단가(한번 입력하면 자동)
  var best=null,bestLen=0;                                                    // 2) 포함관계(긴 모델 우선, 최소 4자)
  for(i=0;i<PRICEBOOK.length;i++){p=PRICEBOOK[i];pk=p.k;
    if(pk.length>=4 && (k.indexOf(pk)>=0||pk.indexOf(k)>=0)){if(pk.length>bestLen){best=p;bestLen=pk.length;}}
@@ -794,6 +795,24 @@ function saveMdExtra(arr){save(siteKey('tos_mdextra_v1'),arr);}
 
 function load(k,def){try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;}}
 function save(k,v){localStorage.setItem(k,JSON.stringify(v));try{localStorage.setItem('tos_lastsave_v1',logNow());logChange(k,v);}catch(e){}}
+/* ===== 자재 단가 자동학습(한번 입력→다음 자동입력, 전 PC 동기화) ===== */
+var PBLEARN=load('tos_pricebook_v1',{});
+function savePriceLearn(){
+ try{
+  var amtEl=document.getElementById('as_amt'); if(!amtEl)return;
+  var amt=Number(String(amtEl.value||'').replace(/[^0-9.\-]/g,''))||0; if(amt<=0)return;
+  var parts=(typeof asPartsCollect==='function')?asPartsCollect():[]; if(!parts.length)return;
+  var matched=0,unmatched=[];
+  parts.forEach(function(r){ var qn=Number(r.qty)||1; var p=pbMatch(r.part);
+   if(p&&p.p!=null){matched+=p.p*qn;} else if(r.part){unmatched.push({name:r.part,qty:qn});} });
+  if(unmatched.length!==1)return;           // 0개/2개↑는 모호 → 학습 보류
+  var u=unmatched[0],rem=amt-matched; if(rem<=0||!u.name)return;
+  var unit=Math.round(rem/(u.qty||1)); if(unit<=0)return;
+  var k=pbNormKey(u.name); if(!k)return;
+  if(PBLEARN[k]===unit)return;
+  PBLEARN[k]=unit; save('tos_pricebook_v1',PBLEARN);  // 저장→Firebase 자동 동기화
+ }catch(e){}
+}
 // ===== SITE(현장)별 분리 관리 =====
 const SITES=['대전LGES','오창LGES','천안삼성SDI','대전SKON','울산삼성SDI','서울/경기/기타','기흥삼성SDI'];
 let SITE=load('tos_site_v1','대전LGES');if(SITES.indexOf(SITE)<0)SITE='대전LGES';
@@ -1939,6 +1958,7 @@ function asSave(id){
  var _qa=DB.find(function(x){return x.id===id;})||(typeof ASARCH!=='undefined'?ASARCH.find(function(x){return x.id===id;}):null);
  if(_qa){var _am=g('as_amt');if(_am!=='')_qa.amount=Number(_am)||0;}
  var _q=DB.find(function(x){return x.id===id;});if(_q)learnMatch(_q.equip,a,_q.loc);
+ try{savePriceLearn();}catch(e){}
  save(siteKey('tos_as_v8'),ASD);asEditId=null;render();
 }
 function asExportData(){return asAll().map(function(q){return asRowObj(q);});}
