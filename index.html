@@ -1270,77 +1270,102 @@ function _x_zip(entries){
 function _x_b64(dataUrl){var b64=(dataUrl.split(',')[1])||'';var bin=atob(b64);var a=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a;}
 function _x_col(n){var s='';n++;while(n>0){var m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
 function _x_esc(s){if(s==null)return '';return String(s).replace(/[&<>"]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]);});}
-function settleXlsx(title,headers,rows,photoRows,filename){
+// ===== 월정산 자재 표시(실제 입력분만 · 수량 · 여러개면 줄나눔) =====
+function stlMatArr(q){
+ if(q&&Array.isArray(q.materials)&&q.materials.length){
+  return q.materials.map(function(it){return {m:String(it.m||'').trim(),q:(it.q==null||it.q===''?1:it.q)};}).filter(function(it){return it.m;});
+ }
+ return [];
+}
+function stlMatHtml(q){
+ var a=stlMatArr(q);
+ if(!a.length)return '<span class="mut">-</span>';
+ return a.map(function(it){return esc(it.m)+' <b>'+esc(String(it.q))+'EA</b>';}).join('<br>');
+}
+function stlMatXl(q){
+ var a=stlMatArr(q);
+ if(!a.length)return '';
+ return a.map(function(it){return it.m+' '+it.q+'EA';}).join('\n');
+}
+
+function settleXlsx(o){
  var enc=new TextEncoder();var PX=9525,imgExt=110;
- var media=[],drawings=[],rels=[],imgN=0,ridN=0;
- var photoStartCol=headers.length+1;var maxPhotos=0;
- for(var i=0;i<photoRows.length;i++){
-  var ph=photoRows[i]||[];if(ph.length>maxPhotos)maxPhotos=ph.length;
-  for(var k=0;k<ph.length;k++){
-   imgN++;ridN++;
-   var durl=ph[k];var isPng=/^data:image\/png/i.test(durl);var ext=isPng?'png':'jpeg';
-   var fn='image'+imgN+'.'+ext;media.push({name:'xl/media/'+fn,data:_x_b64(durl)});
-   var rid='rId'+ridN;rels.push({id:rid,tg:'../media/'+fn});
-   var fromCol=photoStartCol+k, fromRow=i+2, cx=imgExt*PX, cy=imgExt*PX;
-   drawings.push('<xdr:oneCellAnchor><xdr:from><xdr:col>'+fromCol+'</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>'+fromRow+'</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="'+cx+'" cy="'+cy+'"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'+(imgN+1)+'" name="p'+imgN+'"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="'+rid+'"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>');
-  }
+ var STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0&quot;원&quot;"/></numFmts><fonts count="6"><font><sz val="10"/><name val="맑은 고딕"/></font><font><b/><sz val="20"/><name val="맑은 고딕"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/></font><font><b/><sz val="10"/><name val="맑은 고딕"/></font><font><sz val="9"/><color rgb="FF666666"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F3864"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2F5FA"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF0F8"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right><top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="14"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="164" fontId="5" fillId="2" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="5" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+ var headers=o.headers,rows=o.rows,photoRows=o.photoRows||[],totals=o.totals||[];
+ var matCol=o.matCol,numCols=o.numCols||[],numset={};numCols.forEach(function(x){numset[x]=1;});
+ var nc_data=headers.length;
+ var maxPhotos=0;for(var i=0;i<photoRows.length;i++){if((photoRows[i]||[]).length>maxPhotos)maxPhotos=(photoRows[i]||[]).length;}
+ var nc=nc_data+maxPhotos;
+ function C(ref,s,v,num){if(num){return '<c r="'+ref+'" s="'+s+'"><v>'+(isFinite(v)?v:0)+'</v></c>';}return '<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+_x_esc(v)+'</t></is></c>';}
+ var sd='',merges=[];
+ // Row1 title
+ var r1=C('A1',1,o.title,false);for(var j=1;j<nc;j++)r1+=C(_x_col(j)+'1',1,'',false);
+ sd+='<row r="1" ht="30" customHeight="1">'+r1+'</row>';merges.push('A1:'+_x_col(nc-1)+'1');
+ // Info rows 2-4
+ var mid=Math.floor(nc/2);
+ var info=[['수신처',o.recipient,'문서번호',o.docNo],['공급자',o.supplier,'정산기간',o.period],['작성일',o.dateStr,'완료건수',(o.count+'건')]];
+ for(var ri=0;ri<info.length;ri++){var rn=2+ri;var it=info[ri];var c=C('A'+rn,2,it[0],false);c+=C(_x_col(1)+rn,3,it[1],false);for(var j=2;j<mid;j++)c+=C(_x_col(j)+rn,3,'',false);c+=C(_x_col(mid)+rn,2,it[2],false);c+=C(_x_col(mid+1)+rn,3,it[3],false);for(var j=mid+2;j<nc;j++)c+=C(_x_col(j)+rn,3,'',false);sd+='<row r="'+rn+'" ht="18" customHeight="1">'+c+'</row>';merges.push(_x_col(1)+rn+':'+_x_col(mid-1)+rn);merges.push(_x_col(mid+1)+rn+':'+_x_col(nc-1)+rn);}
+ sd+='<row r="5" ht="6" customHeight="1"></row>';
+ var hdrRow=6;
+ var hc='';for(var j=0;j<nc_data;j++)hc+=C(_x_col(j)+hdrRow,4,headers[j],false);for(var k=0;k<maxPhotos;k++)hc+=C(_x_col(nc_data+k)+hdrRow,4,'사진'+(k+1),false);
+ sd+='<row r="'+hdrRow+'" ht="30" customHeight="1">'+hc+'</row>';
+ var drawings=[],media=[],rels=[],imgN=0;var rownum=hdrRow;
+ for(var i=0;i<rows.length;i++){rownum++;var r=rows[i];var zebra=(i%2===1);var cc='';
+  for(var j=0;j<r.length;j++){var v=r[j];var ref=_x_col(j)+rownum;
+   if(numset[j]){cc+=C(ref,zebra?10:7,(typeof v==='number'?v:(Number(v)||0)),true);}
+   else if(j===matCol){cc+=C(ref,zebra?8:5,v,false);}
+   else{if(typeof v==='number'&&isFinite(v)){cc+=C(ref,zebra?9:6,v,true);}else{cc+=C(ref,zebra?9:6,v,false);}}}
+  var ph=photoRows[i]||[];for(var k=0;k<maxPhotos;k++){cc+=C(_x_col(nc_data+k)+rownum,zebra?9:6,'',false);}
+  var hasPh=ph.length>0;var mv=(matCol<r.length?String(r[matCol]||''):'');var matLines=mv.split('\n').length;
+  var ht=Math.max(20,matLines*16,hasPh?84:0);
+  sd+='<row r="'+rownum+'" ht="'+ht+'" customHeight="1">'+cc+'</row>';
+  for(var k=0;k<ph.length;k++){imgN++;var durl=ph[k];var isPng=/^data:image\/png/i.test(durl);var ext=isPng?'png':'jpeg';var fn='image'+imgN+'.'+ext;media.push({name:'xl/media/'+fn,data:_x_b64(durl)});var rid='rId'+imgN;rels.push({id:rid,tg:'../media/'+fn});var fromCol=nc_data+k,cx=imgExt*PX,cy=imgExt*PX;drawings.push('<xdr:oneCellAnchor><xdr:from><xdr:col>'+fromCol+'</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>'+(rownum-1)+'</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="'+cx+'" cy="'+cy+'"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'+(imgN+1)+'" name="p'+imgN+'"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="'+rid+'"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>');}
  }
- var colsXml=maxPhotos>0?('<cols><col min="'+(photoStartCol+1)+'" max="'+(photoStartCol+maxPhotos)+'" width="17" customWidth="1"/></cols>'):'';
- var sd='<row r="1"><c r="A1" t="inlineStr"><is><t xml:space="preserve">'+_x_esc(title)+'</t></is></c></row>';
- var hc='';for(var j=0;j<headers.length;j++){hc+='<c r="'+_x_col(j)+'2" t="inlineStr"><is><t xml:space="preserve">'+_x_esc(headers[j])+'</t></is></c>';}
- sd+='<row r="2">'+hc+'</row>';
- for(var i=0;i<rows.length;i++){
-  var r=rows[i];var rowNum=i+3;var hasPh=photoRows[i]&&photoRows[i].length;
-  var cc='';
-  for(var j=0;j<r.length;j++){
-   var v=r[j];var ref=_x_col(j)+rowNum;
-   if(typeof v==='number'&&isFinite(v)){cc+='<c r="'+ref+'"><v>'+v+'</v></c>';}
-   else{cc+='<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+_x_esc(v)+'</t></is></c>';}
-  }
-  sd+='<row r="'+rowNum+'"'+(hasPh?' ht="90" customHeight="1"':'')+'>'+cc+'</row>';
+ var vcol=numCols[0];
+ for(var t=0;t<totals.length;t++){rownum++;var tt=totals[t];var grand=!!tt.grand;var lblStyle=grand?13:11;var numStyle=grand?12:10;var c='';
+  for(var j=0;j<nc;j++){var ref=_x_col(j)+rownum;if(j===matCol){c+=C(ref,lblStyle,tt.label,false);}else if(j===vcol){c+=C(ref,numStyle,tt.val,true);}else{c+=C(ref,(matCol<j&&j<vcol)?(grand?13:11):0,'',false);}}
+  sd+='<row r="'+rownum+'" ht="22" customHeight="1">'+c+'</row>';
+  if(vcol-matCol>1)merges.push(_x_col(matCol)+rownum+':'+_x_col(vcol-1)+rownum);
  }
+ rownum+=2;var ap=C('A'+rownum,0,'본 정산서는 원익피앤이(주)에서 작성하였습니다.    작성자 : ______________ (인)',false);for(var j=1;j<nc;j++)ap+=C(_x_col(j)+rownum,0,'',false);sd+='<row r="'+rownum+'">'+ap+'</row>';merges.push('A'+rownum+':'+_x_col(nc-1)+rownum);
+ var cols='<cols><col min="1" max="1" width="5"/><col min="'+(matCol+1)+'" max="'+(matCol+1)+'" width="26"/>'+(maxPhotos>0?'<col min="'+(nc_data+1)+'" max="'+(nc_data+maxPhotos)+'" width="17"/>':'')+'</cols>';
+ var mergeXml='<mergeCells count="'+merges.length+'">'+merges.map(function(m){return '<mergeCell ref="'+m+'"/>';}).join('')+'</mergeCells>';
+ var freeze='<sheetViews><sheetView workbookViewId="0"><pane ySplit="6" topLeftCell="A7" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
  var hasDraw=drawings.length>0;
- var ws='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+colsXml+'<sheetData>'+sd+'</sheetData>'+(hasDraw?'<drawing r:id="rIdDraw"/>':'')+'</worksheet>';
- var E=[];
- function put(n,s){E.push({name:n,data:enc.encode(s)});}
- var ctOver='<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+(hasDraw?'<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>':'');
+ var ws='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+freeze+cols+'<sheetData>'+sd+'</sheetData>'+mergeXml+'<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>'+(hasDraw?'<drawing r:id="rIdDraw"/>':'')+'</worksheet>';
+ var E=[];function put(n,s){E.push({name:n,data:enc.encode(s)});}
+ var ctOver='<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+(hasDraw?'<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>':'');
  put('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="png" ContentType="image/png"/>'+ctOver+'</Types>');
  put('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
  put('xl/workbook.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="월정산" sheetId="1" r:id="rId1"/></sheets></workbook>');
- put('xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+ put('xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+ put('xl/styles.xml',STYLES);
  put('xl/worksheets/sheet1.xml',ws);
- if(hasDraw){
-  put('xl/worksheets/_rels/sheet1.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdDraw" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>');
-  put('xl/drawings/drawing1.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+drawings.join('')+'</xdr:wsDr>');
-  var dr='';rels.forEach(function(x){dr+='<Relationship Id="'+x.id+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="'+x.tg+'"/>';});
-  put('xl/drawings/_rels/drawing1.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+dr+'</Relationships>');
-  media.forEach(function(m){E.push(m);});
- }
- var blob=_x_zip(E);var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename+'.xlsx';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},150);
+ if(hasDraw){put('xl/worksheets/_rels/sheet1.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdDraw" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>');put('xl/drawings/drawing1.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+drawings.join('')+'</xdr:wsDr>');var dr='';rels.forEach(function(x){dr+='<Relationship Id="'+x.id+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="'+x.tg+'"/>';});put('xl/drawings/_rels/drawing1.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+dr+'</Relationships>');media.forEach(function(m){E.push(m);});}
+ var blob=_x_zip(E);var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=o.filename+'.xlsx';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},150);
 }
 
 function exportSettleExcel(){
  if(!_settle)doSettle();const d=_settle;
  var _ph=stlPhotos();
+ var docNo='WPNE-'+String(d.s||'').replace(/-/g,'').slice(0,6)+'-'+SITE;
+ var supplier='원익피앤이(주) WONIK PNE · 충방전기';
+ var recipient=(/대전/.test(SITE)?'LG에너지솔루션 (대전)':SITE);
+ var period=d.s+' ~ '+d.e;
+ var fname='월정산_'+SITE.replace(/[\/]/g,'_')+'_'+d.s+'_'+d.e;
  if(d.labor){
   const headers=['No','SEQ','접수일','수리완료일','신고자','장비명','접수내용','점검/수리내용','LV1','LV2','LV3','자재내역','자재비','담당엔지니어','사진(장)'];
   const rows=[];const photoRows=[];
-  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(q.repair||q.inspect||''),_ad.에러코드||_lv.lv1,_ad.대분류||_lv.lv2,_ad.중분류||_lv.lv3,q.material,Number(q.amount)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
-  rows.push(['','','','','','','','','','','','자재비 합계',d.mat,'','']);photoRows.push([]);
-  rows.push(['','','','','','','','','','','','인건비(상주 3인)',LABOR,'','']);photoRows.push([]);
-  rows.push(['','','','','','','','','','','','총 정산액',d.total,'','']);photoRows.push([]);
-  settleXlsx('월정산 '+SITE+' ('+d.s+' ~ '+d.e+')',headers,rows,photoRows,'월정산_'+SITE.replace(/[\/]/g,'_')+'_'+d.s+'_'+d.e);
+  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(q.repair||q.inspect||''),_ad.에러코드||_lv.lv1,_ad.대분류||_lv.lv2,_ad.중분류||_lv.lv3,stlMatXl(q),Number(q.amount)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
+  var totals=[{label:'자재비 합계',val:d.mat},{label:'인건비(상주 3인)',val:LABOR},{label:'총 정산액',val:d.total,grand:true}];
+  settleXlsx({title:'월 정 산 서',docNo:docNo,recipient:recipient,supplier:supplier,period:period,dateStr:todayStr(),count:d.list.length,headers:headers,rows:rows,photoRows:photoRows,totals:totals,matCol:11,numCols:[12],filename:fname});
  }else{
   const headers=['No','SEQ','접수일','수리완료일','신고자','장비명','접수내용','점검/수리내용','LV1','LV2','LV3','자재내역','자재비','공수(MD)','담당엔지니어','사진(장)'];
   const rows=[];const photoRows=[];
-  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(q.repair||q.inspect||''),_ad.에러코드||_lv.lv1,_ad.대분류||_lv.lv2,_ad.중분류||_lv.lv3,q.material,Number(q.amount)||0,Number(q.md)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
+  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(q.repair||q.inspect||''),_ad.에러코드||_lv.lv1,_ad.대분류||_lv.lv2,_ad.중분류||_lv.lv3,stlMatXl(q),Number(q.amount)||0,Number(q.md)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
   mdExtra().filter(function(x){return x.date>=d.s&&x.date<=d.e;}).forEach(function(x){rows.push(['(별도공수)','',x.date,'',x.person||'','','',x.desc||'','','','','',0,Number(x.md)||0,'','']);photoRows.push([]);});
-  rows.push(['','','','','','','','','','','','자재비 합계',d.mat,'','','']);photoRows.push([]);
-  rows.push(['','','','','','','','','','','','공수 합계(MD)','',d.mdTotal,'','']);photoRows.push([]);
-  rows.push(['','','','','','','','','','','','1MD 단가',d.rate,'','','']);photoRows.push([]);
-  rows.push(['','','','','','','','','','','','인건비(공수×단가)',d.laborCost,'','','']);photoRows.push([]);
-  rows.push(['','','','','','','','','','','','총 정산액',d.total,'','','']);photoRows.push([]);
-  settleXlsx('월정산 '+SITE+' ('+d.s+' ~ '+d.e+')',headers,rows,photoRows,'월정산_'+SITE.replace(/[\/]/g,'_')+'_'+d.s+'_'+d.e);
+  var totals=[{label:'자재비 합계',val:d.mat},{label:'인건비(공수×단가)',val:d.laborCost},{label:'총 정산액',val:d.total,grand:true}];
+  settleXlsx({title:'월 정 산 서',docNo:docNo,recipient:recipient,supplier:supplier,period:period,dateStr:todayStr(),count:d.list.length,headers:headers,rows:rows,photoRows:photoRows,totals:totals,matCol:11,numCols:[12,13],filename:fname});
  }
 }
 
@@ -1353,7 +1378,7 @@ function printSettle(){
  let body='<h1>월 정 산 서</h1><div class="sub">'+esc(SITE)+' · 원익피앤이(WONIK PNE) 충방전기</div>'+
   '<div class="meta"><span>정산기간 '+d.s+' ~ '+d.e+'</span><span>출력일 '+todayStr()+' · 완료건 '+d.list.length+'건</span></div>'+
   '<table><thead><tr><th>No</th><th>SEQ</th><th>접수일</th><th>수리완료일</th><th>신고자</th><th>장비명</th><th>접수내용</th><th>점검/수리내용</th><th>LV1</th><th>LV2</th><th>LV3</th><th>자재내역</th><th class="right">자재비</th></tr></thead><tbody>'+
-  d.list.map(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);return '<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td>'+esc(q.trouble||'')+'</td><td>'+esc(q.repair||q.inspect||'')+'</td><td>'+esc(_ad.에러코드||_lv.lv1)+'</td><td>'+esc(_ad.대분류||_lv.lv2)+'</td><td>'+esc(_ad.중분류||_lv.lv3)+'</td><td>'+esc(q.material||'')+'</td><td class="right">'+won(q.amount)+'</td></tr>';}).join('')+
+  d.list.map(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);return '<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td>'+esc(q.trouble||'')+'</td><td>'+esc(q.repair||q.inspect||'')+'</td><td>'+esc(_ad.에러코드||_lv.lv1)+'</td><td>'+esc(_ad.대분류||_lv.lv2)+'</td><td>'+esc(_ad.중분류||_lv.lv3)+'</td><td style="white-space:normal">'+stlMatHtml(q)+'</td><td class="right">'+won(q.amount)+'</td></tr>';}).join('')+
   '</tbody><tfoot>'+
   '<tr class="tot"><td colspan="12" class="right">자재비 합계</td><td class="right">'+won(d.mat)+'</td></tr>'+
   laborRows+
@@ -3025,7 +3050,7 @@ function doSettle(){
  let mat=0,mdJob=0;let rows='';var _allPh=stlPhotos();
  list.forEach((q,i)=>{mat+=Number(q.amount)||0;mdJob+=Number(q.md)||0;var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);var _pc=stlPhotoCount(q.id);
   var _phA=_allPh[q.id]||[];var _th=_phA.map(function(_d,_ii){return '<img src="'+_d+'" onclick="stlPhotoView(\''+q.id+'\')" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;margin:1px" title="클릭하여 사진 관리">';}).join('');
-  rows+='<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td style="max-width:200px">'+esc((q.trouble||'').slice(0,60))+'</td><td style="max-width:220px">'+esc((q.repair||q.inspect||'').slice(0,50))+'</td><td>'+esc(_ad.에러코드||_lv.lv1)+'</td><td>'+esc(_ad.대분류||_lv.lv2)+'</td><td>'+esc(_ad.중분류||_lv.lv3)+'</td><td>'+esc(q.material)+'</td><td class="right">'+won(q.amount)+'</td>'+(labor?'':'<td class="right">'+(Number(q.md)||0)+'</td>')+'<td>'+esc(q.engineer)+'</td><td style="white-space:normal;min-width:130px;max-width:190px">'+_th+'<button class="btn sm'+(_pc?'':' pri')+'" style="margin-left:2px;vertical-align:top" onclick="stlPhotoView(\''+q.id+'\')">'+(_pc?'관리':'추가')+'</button></td></tr>';
+  rows+='<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td style="max-width:200px">'+esc((q.trouble||'').slice(0,60))+'</td><td style="max-width:220px">'+esc((q.repair||q.inspect||'').slice(0,50))+'</td><td>'+esc(_ad.에러코드||_lv.lv1)+'</td><td>'+esc(_ad.대분류||_lv.lv2)+'</td><td>'+esc(_ad.중분류||_lv.lv3)+'</td><td style="white-space:normal">'+stlMatHtml(q)+'</td><td class="right">'+won(q.amount)+'</td>'+(labor?'':'<td class="right">'+(Number(q.md)||0)+'</td>')+'<td>'+esc(q.engineer)+'</td><td style="white-space:normal;min-width:130px;max-width:190px">'+_th+'<button class="btn sm'+(_pc?'':' pri')+'" style="margin-left:2px;vertical-align:top" onclick="stlPhotoView(\''+q.id+'\')">'+(_pc?'관리':'추가')+'</button></td></tr>';
  });
  var colspan=labor?15:16;
  if(!list.length)rows='<tr><td colspan="'+colspan+'" class="mut" style="text-align:center;padding:18px">해당 기간에 완료된 정산 대상 건이 없습니다.</td></tr>';
