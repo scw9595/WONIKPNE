@@ -234,6 +234,12 @@ button{font-family:inherit}
 .brand .sub{font-size:11px;color:var(--mut2);margin-top:8px;line-height:1.5}
 .nav-sec{padding:6px 14px;font-size:10.5px;font-weight:700;color:var(--mut2);letter-spacing:.6px;text-transform:uppercase;margin-top:10px}
 nav#nav{display:flex;flex-direction:column;gap:2px;padding:4px 10px 16px}
+.nav-grp{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:none;background:none;cursor:pointer;padding:9px 12px 5px;margin-top:8px;font-size:11px;font-weight:800;letter-spacing:.4px;color:#94a3b8;text-transform:uppercase;text-align:left;border-radius:8px;transition:.15s}
+.nav-grp:first-child{margin-top:0}
+.nav-grp:hover{background:#eceef4;color:#64748b}
+.nav-grp.open{color:#64748b}
+.nav-grp .nav-grp-r{font-size:11px;font-weight:700;color:#b6bdca;flex:0 0 auto}
+.mview .nav-grp{display:none}
 nav#nav button{display:flex;align-items:center;gap:10px;border:none;background:none;padding:10px 12px;font-size:13.5px;cursor:pointer;color:#3b4456;border-radius:10px;text-align:left;width:100%;font-weight:550;transition:.15s;position:relative}
 nav#nav button:hover{background:#eceef4;color:#1f2937}
 nav#nav button.on{background:var(--surface);color:var(--acc);font-weight:750;box-shadow:var(--shadow-md)}
@@ -1156,21 +1162,62 @@ const TABS=[
  {id:'log',   name:'변경 이력',      adm:true, sup:true},
  {id:'acclog',name:'접속 이력',      adm:true, sup:true},
 ];
+const NAVGRPS=[
+ ['현장 운영',   ['dash','req','cal','report','search','done']],
+ ['A/S · 자재',  ['aslist','tos','asfix']],
+ ['설비 관리',   ['match','eqhist','partlife']],
+ ['분석 · 리포트',['rptmon','sla','recur','engperf','kb','pareto']],
+ ['정산',       ['settle']],
+ ['설정 · 관리', ['eng','data','trash','admin','log','acclog']],
+ ['CS 통계',    ['dash2','csmon','cstyp','csops']]
+];
+var _navOpen=null, _navEff={};
+function _navLoad(){
+  if(_navOpen)return _navOpen;
+  _navOpen={};
+  try{var r=localStorage.getItem('nav_open_grp4');if(r)_navOpen=JSON.parse(r)||{};}catch(e){_navOpen={};}
+  return _navOpen;
+}
+function _navSave(){try{localStorage.setItem('nav_open_grp4',JSON.stringify(_navOpen||{}));}catch(e){}}
+function navToggleGrp(g){var o=_navLoad();o[g]=!_navEff[g];_navSave();renderNav();}
+function _tabVisible(t){
+  if(csMode){ if(!t.hub) return false; } else { if(t.hub) return false; }
+  if(custMode){ if(t.id!=='dash') return false; }
+  if(t.adm && !isAdmin && !t.usr) return false;
+  if(t.sup && !isSuper) return false;
+  return true;
+}
+function _mkTabBtn(t){
+  const b=document.createElement('button');
+  var nm=t.name;if(t.id==='tos'&&SITE==='대전SKON')nm='SKON 원본 업로드';
+  b.textContent=(csMode?'':(t.adm&&isAdmin?'✎ ':''))+nm;
+  b.className=(t.adm&&!csMode&&isAdmin?'adm ':'')+(curTab===t.id?'on':'');
+  b.onclick=()=>{curTab=t.id;dashFilter=null;render();};
+  return b;
+}
 function renderNav(){
- const n=document.getElementById('nav');n.innerHTML='';
- TABS.forEach(t=>{
-   if(csMode){ if(!t.hub) return; } // CS 모드: CS 통계 탭만 노출
-   else { if(t.hub) return; }       // 현장 모드: CS 통계 탭 숨김
-   if(custMode){ if(t.id!=='dash') return; } // 고객 모드: 진행현황만
-   if(t.adm && !isAdmin && !t.usr) return; // usr:true 메뉴는 일반 사용자도 노출
-   if(t.sup && !isSuper) return;
-   const b=document.createElement('button');
-   var nm=t.name;if(t.id==='tos'&&SITE==='대전SKON')nm='SKON 원본 업로드';
-   b.textContent=(csMode?'':(t.adm&&isAdmin?'✎ ':''))+nm;
-   b.className=(t.adm&&!csMode&&isAdmin?'adm ':'')+(curTab===t.id?'on':'');
-   b.onclick=()=>{curTab=t.id;dashFilter=null;render();};
-   n.appendChild(b);
- });
+  const n=document.getElementById('nav');n.innerHTML='';
+  var byId={};TABS.forEach(function(t){byId[t.id]=t;});
+  // 모바일 보기 / 고객 모드: 그룹 없이 평면 표시
+  if(document.body.classList.contains('mview')||custMode){
+    TABS.forEach(function(t){ if(_tabVisible(t)) n.appendChild(_mkTabBtn(t)); });
+    return;
+  }
+  var o=_navLoad(); _navEff={};
+  NAVGRPS.forEach(function(g){
+    var label=g[0], ids=g[1];
+    var tabs=ids.map(function(id){return byId[id];}).filter(function(t){return t&&_tabVisible(t);});
+    if(!tabs.length) return;
+    var hasCur=tabs.some(function(t){return t.id===curTab;});
+    var open = (label in o) ? !!o[label] : hasCur; // 저장된 선택 우선, 없으면 현재 탭 그룹만 펼침
+    _navEff[label]=open;
+    var h=document.createElement('button');
+    h.className='nav-grp'+(open?' open':'');
+    h.innerHTML='<span>'+esc(label)+'</span><span class="nav-grp-r">'+(open?'▾':('▸ '+tabs.length))+'</span>';
+    h.onclick=function(){ navToggleGrp(label); };
+    n.appendChild(h);
+    if(open){ tabs.forEach(function(t){ n.appendChild(_mkTabBtn(t)); }); }
+  });
 }
 function csErrBox(e){return '<div class="panel"><h2>CS 통계</h2><div class="note">집계 중 일부 데이터를 처리하지 못했습니다. 다른 화면은 정상이며, 데이터관리에서 백업/복구로 해결할 수 있습니다.<br><span style="color:#94a3b8;font-size:11px">'+esc(String(e&&e.message||e))+'</span></div></div>';}
 
