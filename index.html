@@ -1137,6 +1137,14 @@ const TABS=[
  {id:'asfix', name:'공통정보',      adm:true, usr:true},
  {id:'eng',   name:'엔지니어설정',  adm:true, usr:true},
  {id:'match', name:'장비 매칭',     adm:true, usr:true},
+ {id:'eqhist',name:'장비 이력',     adm:true, usr:true},
+ {id:'rptmon',name:'월간 실적 리포트',adm:true, usr:true},
+ {id:'sla',   name:'SLA 관리',      adm:true, usr:true},
+ {id:'recur', name:'재발 고장 감지', adm:true, usr:true},
+ {id:'engperf',name:'엔지니어 실적', adm:true, usr:true},
+ {id:'kb',    name:'표준 조치 가이드',adm:true, usr:true},
+ {id:'pareto',name:'고장 파레토',    adm:true, usr:true},
+ {id:'partlife',name:'부품 수명 예측',adm:true, usr:true},
  {id:'data',  name:'데이터관리',    adm:true},
  {id:'settle',name:'월정산',        adm:true, usr:true},
  {id:'trash', name:'삭제함',        adm:true, usr:true},
@@ -1165,6 +1173,244 @@ function renderNav(){
  });
 }
 function csErrBox(e){return '<div class="panel"><h2>CS 통계</h2><div class="note">집계 중 일부 데이터를 처리하지 못했습니다. 다른 화면은 정상이며, 데이터관리에서 백업/복구로 해결할 수 있습니다.<br><span style="color:#94a3b8;font-size:11px">'+esc(String(e&&e.message||e))+'</span></div></div>';}
+
+// ===== 장비 이력 조회 (현장별) =====
+var _eqKw = '';
+function elapsedKo(dstr){
+  var d = new Date(String(dstr||'').replace(/\./g,'-'));
+  if(isNaN(d.getTime())) return '';
+  var now = new Date(); var ms = now - d;
+  if(ms < 0) return '예정';
+  var days = Math.floor(ms/86400000);
+  if(days===0) return '오늘';
+  if(days<30) return days+'일 전';
+  var months = Math.floor(days/30.4375);
+  if(months<12) return months+'개월 전';
+  var years = Math.floor(months/12); var rem = months - years*12;
+  return rem>0 ? (years+'년 '+rem+'개월 전') : (years+'년 전');
+}
+function eqStage(q){ return String((q&&q.stage)||''); }
+function eqDone(q){ return eqStage(q).indexOf('완료')>=0; }
+function _pmDate(s){ var d=new Date(String(s||'').replace(/\./g,'-').slice(0,10)); return isNaN(d.getTime())?null:d; }
+function _pmDiff(a,b){ return Math.round((b-a)/86400000); }
+function pmBlock(rows){
+  // 고장(접수)일 오름차순
+  var fs=[]; rows.forEach(function(q){ var d=_pmDate(q.date); if(d) fs.push(d); });
+  fs.sort(function(a,b){return a-b;});
+  var now=new Date();
+  var n=rows.length;
+  // MTBF: 연속 고장 간격 평균
+  var mtbf=null;
+  if(fs.length>=2){ var g=0; for(var i=0;i<fs.length-1;i++){ g+=_pmDiff(fs[i],fs[i+1]); } mtbf=g/(fs.length-1); }
+  // MTTR: 접수→완료 소요일 평균
+  var mt=[]; rows.forEach(function(q){ var a=_pmDate(q.date), b=_pmDate(q.repairDate); if(a&&b&&b>=a) mt.push(_pmDiff(a,b)); });
+  var mttr = mt.length? mt.reduce(function(s,x){return s+x;},0)/mt.length : null;
+  // 연간 고장빈도
+  var freq=null;
+  if(fs.length>=1){ var span=_pmDiff(fs[0],now); if(span<1)span=1; freq=n/(span/365); }
+  // 마지막 수리/고장 & 다음 예방점검 예상
+  var lastD=null; rows.forEach(function(q){ var d=_pmDate(q.repairDate)||_pmDate(q.date); if(d&&(!lastD||d>lastD)) lastD=d; });
+  var sinceLast = lastD? _pmDiff(lastD,now) : null;
+  var _eq = rows.length? rows[0].equip : '';
+  var _cyc = _pmCycleGet(_eq);
+  var eff = (_cyc!=null)? _cyc : mtbf;
+  var effSrc = (_cyc!=null)? '수동 지정' : 'MTBF 기반';
+  var nextIn = (eff!=null&&sinceLast!=null)? Math.round(eff-sinceLast) : null;
+  var nextDate=null;
+  if(eff!=null&&lastD){ nextDate=new Date(lastD.getTime()+Math.round(eff)*86400000); }
+  // 위험도
+  var risk='정상', rc='#16a34a', rbg='#dcfce7';
+  if(eff!=null&&sinceLast!=null){
+    if(sinceLast>eff){ risk='주기 초과'; rc='#b91c1c'; rbg='#fee2e2'; }
+    else if(sinceLast>eff*0.8){ risk='점검 임박'; rc='#b45309'; rbg='#fef3c7'; }
+  } else { risk='데이터 부족'; rc='#6b7280'; rbg='#f3f4f6'; }
+  // 여유율(다음 고장까지)
+  var remPct = (eff!=null&&sinceLast!=null)? Math.max(0,Math.min(100,Math.round((eff-sinceLast)/eff*100))) : null;
+  var barCol = remPct==null?'#9ca3af':(remPct<20?'#dc2626':(remPct<40?'#f59e0b':'#16a34a'));
+  function fmtD(d){ if(!d)return '-'; var m=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2); return d.getFullYear()+'-'+m+'-'+dd; }
+  function pcard(lbl,val,sub){ return '<div style="flex:1;min-width:140px;border:1px solid #d1d5db;border-radius:8px;padding:10px 12px"><div style="font-size:12px;color:#6b7280">'+esc(lbl)+'</div><div style="font-size:20px;font-weight:800;margin-top:2px">'+val+'</div>'+(sub?'<div style="font-size:11px;color:#9ca3af;margin-top:2px">'+esc(sub)+'</div>':'')+'</div>'; }
+  var mtbfTxt = mtbf!=null? Math.round(mtbf)+'일' : '-';
+  var mttrTxt = mttr!=null? (Math.round(mttr*10)/10)+'일' : '-';
+  var freqTxt = freq!=null? (Math.round(freq*10)/10)+'회/년' : '-';
+  var cards='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'+
+    pcard('MTBF (평균 고장간격)', mtbfTxt, fs.length<2?'고장 2건 이상 필요':'연속 고장 '+ (fs.length-1) +'구간 평균') +
+    pcard('MTTR (평균 수리소요)', mttrTxt, mt.length?('완료 '+mt.length+'건 기준'):'완료건 없음') +
+    pcard('고장 빈도', freqTxt, '접수 '+n+'건 기준 연환산') +
+    pcard('마지막 조치 경과', sinceLast!=null? sinceLast+'일 전':'-', lastD?fmtD(lastD):'') + '</div>';
+  // 예방점검 예측 패널
+  var predSub = nextIn!=null? (effSrc+' · '+(nextIn>=0? ('예상일까지 약 '+nextIn+'일 남음') : ('권장 점검일 '+(-nextIn)+'일 초과'))) : '점검주기 미산출(고장 2건 이상 또는 주기 수동지정 필요)';
+  var gauge = remPct!=null? ('<div style="margin-top:8px"><div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280"><span>다음 고장까지 여유</span><span>'+remPct+'%</span></div><div style="height:10px;background:#eef2f7;border-radius:999px;overflow:hidden;margin-top:3px"><div style="height:100%;width:'+remPct+'%;background:'+barCol+'"></div></div></div>') : '';
+  var pred='<div style="margin-top:12px;border:1px solid #d1d5db;border-radius:8px;padding:12px 14px">'+
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+    '<b style="font-size:14px">예방보전 예측</b>'+
+    '<span style="font-size:12px;font-weight:700;color:'+rc+';background:'+rbg+';border-radius:6px;padding:2px 8px">'+esc(risk)+'</span></div>'+
+    '<div style="margin-top:8px;font-size:13px">다음 예방점검 권장일 &nbsp;<b style="font-size:15px;color:#111827">'+fmtD(nextDate)+'</b> &nbsp;<span style="color:#6b7280;font-size:12px">('+esc(predSub)+')</span></div>'+
+    gauge+
+    '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #e5e7eb;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+    '<span style="font-size:12px;color:#374151;font-weight:700">점검주기 수동지정</span>'+
+    '<input id="eqCycIn" type="number" min="1" placeholder="일수" value="'+(_cyc!=null?_cyc:'')+'" style="width:90px">'+
+    '<span style="font-size:12px;color:#6b7280">일</span>'+
+    '<button class="btn" onclick="eqCycleSave(\''+_pmJs(_eq)+'\')">저장</button>'+
+    (_cyc!=null?'<button class="btn" onclick="eqCycleClear(\''+_pmJs(_eq)+'\')">해제</button><span style="font-size:11px;color:#2563eb;margin-left:4px">수동주기 '+_cyc+'일 적용중</span>':'<span style="font-size:11px;color:#9ca3af">미지정 시 MTBF로 예측</span>')+
+    '</div>'+
+    '</div>';
+  // 자재별 교체주기
+  var mp={};
+  rows.forEach(function(q){ var d=_pmDate(q.date); matItems(q).forEach(function(it){ if(!it.m)return; (mp[it.m]=mp[it.m]||[]).push({d:d,q:Number(it.q)||1}); }); });
+  var mkeys=Object.keys(mp);
+  var matTbl='';
+  if(mkeys.length){
+    var trs=mkeys.map(function(k){
+      var arr=mp[k].filter(function(x){return x.d;}).sort(function(a,b){return a.d-b.d;});
+      var cnt=mp[k].length, qty=mp[k].reduce(function(s,x){return s+x.q;},0);
+      var cyc='-', lastEl='-';
+      if(arr.length>=2){ var gg=0; for(var i=0;i<arr.length-1;i++){gg+=_pmDiff(arr[i].d,arr[i+1].d);} cyc=Math.round(gg/(arr.length-1))+'일'; }
+      if(arr.length){ lastEl=_pmDiff(arr[arr.length-1].d,now)+'일 전'; }
+      var due='';
+      if(arr.length>=2){ var avg=gg/(arr.length-1); var since=_pmDiff(arr[arr.length-1].d,now); if(since>avg) due='<span style="color:#b91c1c;font-weight:700">주기초과</span>'; else if(since>avg*0.8) due='<span style="color:#b45309;font-weight:700">임박</span>'; else due='<span style="color:#16a34a">정상</span>'; }
+      return '<tr><td>'+esc(k)+'</td><td style="text-align:center">'+cnt+'회</td><td style="text-align:center">'+qty+'EA</td><td style="text-align:center">'+cyc+'</td><td style="text-align:center">'+lastEl+'</td><td style="text-align:center">'+due+'</td></tr>';
+    }).join('');
+    matTbl='<div style="margin-top:12px"><b>자재별 교체주기 분석</b><div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>자재</th><th>교체횟수</th><th>누적수량</th><th>평균 교체주기</th><th>최근 교체</th><th>상태</th></tr></thead><tbody>'+trs+'</tbody></table></div><div class="note" style="margin-top:6px">평균 교체주기는 동일 자재가 2회 이상 교체된 경우에만 산출됩니다.</div></div>';
+  }
+  return '<div style="margin-top:16px"><h3 style="margin:0 0 2px">예방보전(PM) 지표 <span style="font-size:12px;color:#9ca3af;font-weight:400">· 이력 기반 자동 산출</span></h3>'+cards+pred+matTbl+'</div>';
+}
+
+/* ===== 예방보전(PM) 확장: 현장 랭킹 · 알림 · 점검주기 수동지정 ===== */
+function _pmJs(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function _pmCycleKey(){ return 'pmcycle_'+SITE; }
+function _pmCycleMap(){ try{ return JSON.parse(localStorage.getItem(_pmCycleKey())||'{}')||{}; }catch(e){ return {}; } }
+function _pmCycleGet(equip){ var m=_pmCycleMap(); var v=m[normKey(equip)]; v=Number(v); return (v&&v>0)? v : null; }
+function _pmCycleSet(equip,days){ var m=_pmCycleMap(); var k=normKey(equip); if(!k) return; days=Number(days); if(days&&days>0) m[k]=Math.round(days); else delete m[k]; try{ localStorage.setItem(_pmCycleKey(), JSON.stringify(m)); }catch(e){} }
+function eqCycleSave(equip){ var el=document.getElementById('eqCycIn'); if(!el) return; _pmCycleSet(equip, el.value); eqRun(); }
+function eqCycleClear(equip){ _pmCycleSet(equip, 0); eqRun(); }
+function eqPick(equip){ _eqKw=equip; var el=document.getElementById('eqKw'); if(el) el.value=equip; eqRun(); var r=document.getElementById('eqResult'); if(r&&r.scrollIntoView) r.scrollIntoView({behavior:'smooth',block:'start'}); }
+/* 장비 단위 PM 요약(대시보드용) */
+function _pmStats(rows){
+  var fs=[]; rows.forEach(function(q){ var d=_pmDate(q.date); if(d) fs.push(d); });
+  fs.sort(function(a,b){return a-b;});
+  var now=new Date(), n=rows.length;
+  var mtbf=null; if(fs.length>=2){ var g=0; for(var i=0;i<fs.length-1;i++){ g+=_pmDiff(fs[i],fs[i+1]); } mtbf=g/(fs.length-1); }
+  var lastD=null; rows.forEach(function(q){ var d=_pmDate(q.repairDate)||_pmDate(q.date); if(d&&(!lastD||d>lastD)) lastD=d; });
+  var sinceLast=lastD? _pmDiff(lastD,now):null;
+  var freq=null; if(fs.length>=1){ var span=_pmDiff(fs[0],now); if(span<1)span=1; freq=n/(span/365); }
+  var equip=rows.length? rows[0].equip : '';
+  var cyc=_pmCycleGet(equip); var eff=(cyc!=null)?cyc:mtbf; var src=(cyc!=null)?'수동':'MTBF';
+  var risk='데이터 부족', sev=0, rc='#6b7280', rbg='#f3f4f6';
+  if(eff!=null&&sinceLast!=null){
+    if(sinceLast>eff){ risk='주기 초과'; sev=3; rc='#b91c1c'; rbg='#fee2e2'; }
+    else if(sinceLast>eff*0.8){ risk='점검 임박'; sev=2; rc='#b45309'; rbg='#fef3c7'; }
+    else { risk='정상'; sev=1; rc='#16a34a'; rbg='#dcfce7'; }
+  }
+  var nextDate=null; if(eff!=null&&lastD){ nextDate=new Date(lastD.getTime()+Math.round(eff)*86400000); }
+  return {equip:equip,n:n,mtbf:mtbf,freq:freq,sinceLast:sinceLast,lastD:lastD,eff:eff,src:src,cyc:cyc,risk:risk,sev:sev,rc:rc,rbg:rbg,nextDate:nextDate};
+}
+/* 현장 전체 장비별 통계 */
+function _pmAllEquip(){
+  var all=asAll(); var g={};
+  all.forEach(function(q){ var k=normKey(q.equip); if(!k) return; (g[k]=g[k]||[]).push(q); });
+  var out=[]; Object.keys(g).forEach(function(k){ out.push(_pmStats(g[k])); });
+  out.sort(function(a,b){ if(b.sev!==a.sev) return b.sev-a.sev; return (b.freq||0)-(a.freq||0); });
+  return out;
+}
+function _pmFmtD(d){ if(!d)return '-'; var m=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2); return d.getFullYear()+'-'+m+'-'+dd; }
+/* 현장 PM 대시보드(알림 배너 + 랭킹) */
+function renderEqDash(){
+  var st=_pmAllEquip();
+  var over=st.filter(function(x){return x.risk==='주기 초과';});
+  var soon=st.filter(function(x){return x.risk==='점검 임박';});
+  var chip=function(x){ return '<span onclick="eqPick(\''+_pmJs(x.equip)+'\')" style="cursor:pointer;display:inline-block;font-size:12px;font-weight:700;color:'+x.rc+';background:'+x.rbg+';border-radius:6px;padding:3px 9px;margin:3px 5px 0 0">'+esc(x.equip)+' · '+(x.sinceLast!=null?x.sinceLast+'일 경과':'')+'</span>'; };
+  var alert='';
+  if(over.length||soon.length){
+    alert='<div style="border:1px solid #fca5a5;background:#fff7f7;border-radius:8px;padding:12px 14px;margin-top:10px">'+
+      '<div style="font-size:14px;font-weight:800;color:#b91c1c">예방점검 알림 · 주기초과 '+over.length+'대 / 임박 '+soon.length+'대</div>'+
+      (over.length?'<div style="margin-top:6px"><span style="font-size:12px;color:#6b7280">주기초과</span><br>'+over.map(chip).join('')+'</div>':'')+
+      (soon.length?'<div style="margin-top:6px"><span style="font-size:12px;color:#6b7280">점검임박</span><br>'+soon.map(chip).join('')+'</div>':'')+
+      '</div>';
+  } else {
+    alert='<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px;color:#166534">현재 주기초과·임박 장비가 없습니다. (예측은 고장 2건 이상 또는 점검주기 지정 시 산출)</div>';
+  }
+  var top=st.slice(0,12);
+  var badge=function(x){ return '<span style="font-size:11px;font-weight:700;color:'+x.rc+';background:'+x.rbg+';border-radius:5px;padding:1px 7px">'+esc(x.risk)+'</span>'; };
+  var trs=top.map(function(x){
+    return '<tr style="cursor:pointer" onclick="eqPick(\''+_pmJs(x.equip)+'\')">'+
+      '<td>'+esc(x.equip)+'</td>'+
+      '<td style="text-align:center">'+x.n+'건</td>'+
+      '<td style="text-align:center">'+(x.mtbf!=null?Math.round(x.mtbf)+'일':'-')+'</td>'+
+      '<td style="text-align:center">'+(x.freq!=null?(Math.round(x.freq*10)/10)+'회/년':'-')+'</td>'+
+      '<td style="text-align:center">'+(x.sinceLast!=null?x.sinceLast+'일 전':'-')+'</td>'+
+      '<td style="text-align:center">'+(x.nextDate?_pmFmtD(x.nextDate):'-')+(x.cyc!=null?' <span style="color:#2563eb;font-size:10px">(수동)</span>':'')+'</td>'+
+      '<td style="text-align:center">'+badge(x)+'</td></tr>';
+  }).join('');
+  var tbl='<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>현장 장비 예방보전 랭킹</b><span style="font-size:11px;color:#9ca3af">위험도·고장빈도순 · 상위 '+top.length+'/'+st.length+'대 · 행 클릭 시 상세</span></div>'+
+    '<div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>장비번호</th><th>이력</th><th>MTBF</th><th>고장빈도</th><th>최근조치</th><th>다음점검 권장</th><th>상태</th></tr></thead><tbody>'+trs+'</tbody></table></div></div>';
+  return '<div class="panel"><h2>현장 예방보전 현황</h2><div class="note">현재 현장(<b>'+esc(SITE)+'</b>)의 전체 장비를 이력 기반으로 자동 분석합니다. 점검주기를 지정한 장비는 해당 주기로 예측합니다.</div>'+alert+tbl+'</div>';
+}
+
+function renderEqHist(v){
+  v.innerHTML = renderEqDash() +
+   '<div class="panel"><h2>장비 이력 조회</h2>'+
+   '<div class="note">현재 현장(<b>'+esc(SITE)+'</b>) 데이터에서 <b>장비번호</b> 또는 <b>시리얼(S/N)</b>로 조회합니다. 해당 장비의 전체 접수·수리 이력, 교체 자재, 최근 교체 경과기간을 확인할 수 있습니다. (A/S 보관 건 포함)</div>'+
+   '<div class="tools"><input type="search" id="eqKw" placeholder="장비번호(예: PNE-400-5-SOX-002) 또는 시리얼(S/N) 입력" style="min-width:320px" value="'+esc(_eqKw)+'" oninput="_eqKw=this.value" onkeydown="if(event.key===\'Enter\')eqRun()"><button class="btn pri" onclick="eqRun()">조회</button></div>'+
+   '<div id="eqResult"></div></div>';
+  if(_eqKw) eqRun();
+}
+function eqRun(){
+  var box = document.getElementById('eqResult'); if(!box) return;
+  var kw = (document.getElementById('eqKw')||{}).value; if(kw==null) kw=_eqKw||'';
+  kw = String(kw).trim(); _eqKw = kw;
+  if(!kw){ box.innerHTML=''; return; }
+  var equipNo = kw, matched = null;
+  var bySN = (typeof findMatchBySN==='function') ? findMatchBySN(kw) : null;
+  if(bySN){ matched = bySN; equipNo = bySN.equip; }
+  else {
+    var bk = normKey(kw);
+    for(var i=0;i<MATCHES.length;i++){ if(normKey(MATCHES[i].equip)===bk){ matched=MATCHES[i]; equipNo=MATCHES[i].equip; break; } }
+  }
+  var tk = normKey(equipNo);
+  var all = asAll();
+  var rows = all.filter(function(q){ return normKey(q.equip)===tk; });
+  if(!rows.length && tk){ rows = all.filter(function(q){ var k=normKey(q.equip); return k && (k.indexOf(tk)>=0 || tk.indexOf(k)>=0); }); }
+  if(!rows.length){
+    box.innerHTML = '<div class="note" style="margin-top:12px;color:#b91c1c">「'+esc(kw)+'」에 해당하는 이력이 현재 현장('+esc(SITE)+') 데이터에 없습니다. 장비번호/시리얼을 확인하거나, 좌측 상단에서 현장을 전환한 뒤 다시 조회해 주세요.</div>';
+    return;
+  }
+  function dkey(q){ return String(q.repairDate||q.date||''); }
+  rows.sort(function(a,b){ return dkey(b).localeCompare(dkey(a)); });
+  var doneN=0, ingN=0, matMap={}, lastRepair='';
+  rows.forEach(function(q){
+    if(eqDone(q)) doneN++; else ingN++;
+    matItems(q).forEach(function(it){ if(!it.m) return; matMap[it.m]=(matMap[it.m]||0)+(Number(it.q)||1); });
+    if(eqDone(q)){ var rd=String(q.repairDate||q.date||''); if(rd>lastRepair) lastRepair=rd; }
+  });
+  var matNames = Object.keys(matMap);
+  var totQty = matNames.reduce(function(s,k){ return s+matMap[k]; },0);
+  var info = matched || {};
+  var infoRows = [['장비번호',equipNo],['시리얼(S/N)',info.sn||'-'],['사양',info.spec||'-'],['수주번호',info.order||'-'],['위치',info.loc||(rows[0]&&rows[0].loc)||'-']];
+  var infoHtml = '<table style="margin-top:12px;width:100%;border-collapse:collapse"><tbody>'+
+    infoRows.map(function(r){ return '<tr><th style="width:130px;background:#f1f5f9;text-align:left;padding:6px 10px;border:1px solid #e5e7eb">'+esc(r[0])+'</th><td style="padding:6px 10px;border:1px solid #e5e7eb">'+esc(String(r[1]))+'</td></tr>'; }).join('')+'</tbody></table>';
+  function card(lbl,val,sub){ return '<div style="flex:1;min-width:150px;border:1px solid #d1d5db;border-radius:8px;padding:10px 12px"><div style="font-size:12px;color:#6b7280">'+esc(lbl)+'</div><div style="font-size:22px;font-weight:800;margin-top:2px">'+val+'</div>'+(sub?'<div style="font-size:11px;color:#9ca3af;margin-top:2px">'+esc(sub)+'</div>':'')+'</div>'; }
+  var cards = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">'+
+    card('총 이력', rows.length+'건') + card('완료 / 진행중', doneN+' / '+ingN) +
+    card('교체 자재', matNames.length+'종 '+totQty+'EA') + card('최근 교체', lastRepair? elapsedKo(lastRepair):'-', lastRepair||'') + '</div>';
+  var matSummary = matNames.length ? '<div style="margin-top:14px"><b>누적 교체 자재</b><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+matNames.map(function(k){ return '<span style="border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;font-size:13px">'+esc(k)+' <b>'+matMap[k]+'EA</b></span>'; }).join('')+'</div></div>' : '';
+  var head = '<tr><th>접수일</th><th>완료일</th><th>경과</th><th>단계</th><th>고장내용</th><th>조치결과</th><th>교체자재</th></tr>';
+  var body = rows.map(function(q){
+    var items=matItems(q);
+    var matTxt = items.length? items.map(function(it){ return esc(it.m)+(it.q?(' '+it.q+'EA'):''); }).join('<br>') : '-';
+    var elapsed = (eqDone(q)&&(q.repairDate||q.date))? elapsedKo(q.repairDate||q.date) : '';
+    return '<tr style="cursor:pointer" onclick="detail(\''+esc(q.id)+'\')">'+
+      '<td style="white-space:nowrap">'+esc(q.date||'-')+'</td>'+
+      '<td style="white-space:nowrap">'+esc(q.repairDate||'-')+'</td>'+
+      '<td style="white-space:nowrap;color:#2563eb;font-weight:600">'+esc(elapsed)+'</td>'+
+      '<td style="white-space:nowrap"><span class="tag '+stageCls(q.stage)+'">'+esc(eqStage(q))+'</span></td>'+
+      '<td class="mut" style="max-width:260px">'+esc(String(q.trouble||'').replace(/_x000D_/g,' ').slice(0,80))+'</td>'+
+      '<td style="max-width:220px">'+esc(String(q.repair||q.inspect||'').slice(0,60))+'</td>'+
+      '<td>'+matTxt+'</td></tr>';
+  }).join('');
+  var tbl = '<div style="margin-top:14px"><b>이력 타임라인</b> <span style="color:#9ca3af;font-size:12px">(최신순 · 행 클릭 시 상세보기)</span><div style="overflow-x:auto"><table style="margin-top:6px"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></div>';
+  box.innerHTML = infoHtml + cards + pmBlock(rows) + matSummary + tbl;
+}
+
 function render(){
  try{applyBrandLogo();}catch(e){}
  if(custMode){curTab='dash';dashFilter=null;}
@@ -1185,6 +1431,14 @@ function render(){
   else if(curTab==='cstyp'){try{renderCsType(v);}catch(e){v.innerHTML=csErrBox(e);}}
   else if(curTab==='csops'){try{renderCsOps(v);}catch(e){v.innerHTML=csErrBox(e);}}
  else if(curTab==='match')renderMatch(v);
+ else if(curTab==='eqhist')renderEqHist(v);
+ else if(curTab==='rptmon'){try{renderRptMon(v);}catch(e){v.innerHTML=csErrBox?csErrBox(e):'<div class="panel">오류: '+e+'</div>';}}
+ else if(curTab==='sla'){try{renderSla(v);}catch(e){v.innerHTML='<div class="panel">오류: '+e+'</div>';}}
+ else if(curTab==='recur'){try{renderRecur(v);}catch(e){v.innerHTML='<div class="panel">오류: '+e+'</div>';}}
+ else if(curTab==='engperf'){try{renderEngPerf(v);}catch(e){v.innerHTML='<div class="panel">오류: '+e+'</div>';}}
+ else if(curTab==='kb'){try{renderKB(v);}catch(e){v.innerHTML='<div class="panel">오류: '+e+'</div>';}}
+ else if(curTab==='pareto'){try{renderPareto(v);}catch(e){v.innerHTML='<div class="panel">오류: '+e+'</div>';}}
+ else if(curTab==='partlife'){try{renderPartLife(v);}catch(e){v.innerHTML='<div class="panel">오류: '+e+'</div>';}}
  else if(curTab==='search')renderSearch(v);
  else if(curTab==='asfix')renderFix(v);
  else if(curTab==='eng')renderEng(v);
@@ -3698,6 +3952,340 @@ function __bootApp(){
 }
 if(window.FBSync&&typeof FBSync.boot==='function'){ FBSync.boot(__bootApp); }
 else { __bootApp(); }
+
+/* ============================================================
+   운영 고도화 7종 (월간실적/SLA/재발/엔지니어/조치가이드/파레토/부품수명)
+   ============================================================ */
+var _rptMonth=null, _kbKw='', _paretoMode='part';
+function _anAll(){ try{return asAll();}catch(e){return (typeof DB!=='undefined'?DB:[]);} }
+function _num(x){ x=Number(x); return isFinite(x)?x:0; }
+function _pd(a,b){ var d1=_pmDate(a),d2=_pmDate(b); return (d1&&d2)? _pmDiff(d1,d2):null; }
+function _monthOf(d){ d=_pmDate(d); if(!d)return ''; return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
+function _partSet(q){ var out=[]; try{matItems(q).forEach(function(it){ if(it.m) out.push(it.m); });}catch(e){} return out; }
+function _topEntries(map,n){ return Object.keys(map).map(function(k){return {k:k,v:map[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,n||9999); }
+function _fmtD(d){ d=_pmDate(d); if(!d)return '-'; return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function _copyTxt(txt){
+  try{
+    var ta=document.createElement('textarea'); ta.value=txt;
+    ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta);
+    ta.focus(); ta.select(); var ok=document.execCommand('copy'); document.body.removeChild(ta);
+    alert(ok?'보고서 내용을 복사했습니다. 메일/문서에 붙여넣기(Ctrl+V) 하세요.':'복사에 실패했습니다. 직접 선택해 복사해 주세요.');
+  }catch(e){ alert('복사에 실패했습니다: '+e); }
+}
+/* ---- SLA / 재발 설정 ---- */
+function _slaCfg(){ var o={}; try{o=JSON.parse(localStorage.getItem('sla_cfg_'+SITE)||'{}');}catch(e){} return {resp:(_num(o.resp)>0?_num(o.resp):1), done:(_num(o.done)>0?_num(o.done):3)}; }
+function slaSave(){ var r=_num((document.getElementById('slaResp')||{}).value), d=_num((document.getElementById('slaDone')||{}).value); var o={resp:(r>0?r:1),done:(d>0?d:3)}; try{localStorage.setItem('sla_cfg_'+SITE,JSON.stringify(o));}catch(e){} render(); }
+function _recurDays(){ var v=_num(localStorage.getItem('recur_days_'+SITE)); return (v>0)?v:30; }
+function recurSave(){ var v=_num((document.getElementById('recurWin')||{}).value); try{localStorage.setItem('recur_days_'+SITE,String(v>0?v:30));}catch(e){} render(); }
+
+/* ---- 재발 이벤트 ---- */
+function _recurEvents(){
+  var win=_recurDays(); var all=_anAll().filter(function(q){return q&&q.equip;}); var g={};
+  all.forEach(function(q){ var k=normKey(q.equip); if(!k)return; (g[k]=g[k]||[]).push(q); });
+  var ev=[];
+  Object.keys(g).forEach(function(k){
+    var arr=g[k].filter(function(q){return _pmDate(q.date);});
+    arr.sort(function(a,b){ return _pmDate(a.date)-_pmDate(b.date); });
+    for(var i=1;i<arr.length;i++){
+      var gap=_pmDiff(_pmDate(arr[i-1].date), _pmDate(arr[i].date));
+      if(gap>=0 && gap<=win){
+        var p0=_partSet(arr[i-1]), p1=_partSet(arr[i]); var same=false;
+        p1.forEach(function(x){ if(p0.indexOf(x)>=0) same=true; });
+        ev.push({equip:arr[i].equip, prevDate:arr[i-1].date, curDate:arr[i].date, gap:gap, samePart:same, cur:arr[i], prev:arr[i-1]});
+      }
+    }
+  });
+  ev.sort(function(a,b){ return String(b.curDate).localeCompare(String(a.curDate)); });
+  return ev;
+}
+
+/* ========== 1. 월간 실적 리포트 ========== */
+function _rptMonths(){ var set={}; _anAll().forEach(function(q){ var a=_monthOf(q.date); if(a)set[a]=1; var b=_monthOf(q.repairDate); if(b)set[b]=1; }); return Object.keys(set).sort().reverse(); }
+function _rptData(month){
+  var all=_anAll(), cfg=_slaCfg(), win=_recurDays();
+  var recv=all.filter(function(q){ return _monthOf(q.date)===month; });
+  var done=all.filter(function(q){ return eqDone(q) && _monthOf(q.repairDate)===month; });
+  var ing=recv.filter(function(q){ return !eqDone(q); });
+  var mSum=0,mN=0; done.forEach(function(q){ var pd=_pd(q.date,q.repairDate); if(pd!=null&&pd>=0){mSum+=pd;mN++;} });
+  var mttr=mN?mSum/mN:null;
+  var matMap={},matQty=0; done.forEach(function(q){ matItems(q).forEach(function(it){ if(!it.m)return; matMap[it.m]=(matMap[it.m]||0)+(_num(it.q)||1); matQty+=(_num(it.q)||1); }); });
+  var slaOk=0; done.forEach(function(q){ var pd=_pd(q.date,q.repairDate); if(pd!=null&&pd<=cfg.done) slaOk++; });
+  var byEq={}; all.forEach(function(q){var k=normKey(q.equip);if(k)(byEq[k]=byEq[k]||[]).push(q);});
+  var recurN=0; done.forEach(function(q){ var k=normKey(q.equip); var base=_pmDate(q.repairDate)||_pmDate(q.date); if(!k||!base)return; var arr=byEq[k]; for(var i=0;i<arr.length;i++){ var d2=_pmDate(arr[i].date); if(d2&&d2>base){ var gp=_pmDiff(base,d2); if(gp>0&&gp<=win){recurN++;} break; } } });
+  return {month:month,recv:recv,done:done,ing:ing,recvN:recv.length,doneN:done.length,ingN:ing.length,mttr:mttr,matMap:matMap,matQty:matQty,matKinds:Object.keys(matMap).length,slaRate:done.length?slaOk/done.length:null,recurN:recurN,cfg:cfg};
+}
+function rptPick(m){ _rptMonth=m; render(); }
+function renderRptMon(v){
+  var months=_rptMonths();
+  if(!months.length){ v.innerHTML='<div class="panel"><h2>월간 실적 리포트</h2><div class="note">현재 현장('+esc(SITE)+')에 집계할 데이터가 없습니다.</div></div>'; return; }
+  if(!_rptMonth||months.indexOf(_rptMonth)<0) _rptMonth=months[0];
+  var d=_rptData(_rptMonth);
+  var sel='<select onchange="rptPick(this.value)" style="min-width:150px">'+months.map(function(m){return '<option value="'+m+'"'+(m===_rptMonth?' selected':'')+'>'+m+'</option>';}).join('')+'</select>';
+  var cards='<div class="cards">'+
+    csMetric('완료 건수',d.doneN+'건','<span class="mut" style="font-size:12px">'+_rptMonth+' 완료 기준</span>')+
+    csMetric('접수 건수',d.recvN+'건','<span class="mut" style="font-size:12px">진행중 '+d.ingN+'건</span>')+
+    csMetric('평균 처리일',(d.mttr!=null?(Math.round(d.mttr*10)/10)+'일':'-'),'<span class="mut" style="font-size:12px">접수→완료</span>')+
+    csMetric('SLA 준수율',(d.slaRate!=null?Math.round(d.slaRate*100)+'%':'-'),'<span class="mut" style="font-size:12px">목표 '+d.cfg.done+'일 이내</span>')+
+    csMetric('교체 자재',d.matQty+'EA','<span class="mut" style="font-size:12px">'+d.matKinds+'종</span>')+
+    csMetric('재발 건수',d.recurN+'건','<span class="mut" style="font-size:12px">'+_recurDays()+'일 내 재접수</span>')+
+    '</div>';
+  var parts=_topEntries(d.matMap,10);
+  var ptbl=parts.length? '<div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>교체 부품</th><th style="text-align:center">수량</th></tr></thead><tbody>'+parts.map(function(p){return '<tr><td>'+esc(p.k)+'</td><td style="text-align:center">'+p.v+'EA</td></tr>';}).join('')+'</tbody></table></div>' : '<div class="mut" style="padding:8px 2px">교체 부품 없음</div>';
+  var cases=d.done.slice().sort(function(a,b){return String(b.repairDate).localeCompare(String(a.repairDate));});
+  var crows=cases.slice(0,30).map(function(q){
+    var parts=_partSet(q).join(', ');
+    return '<tr style="cursor:pointer" onclick="detail(\''+_pmJs(q.id)+'\')"><td>'+esc(_fmtD(q.repairDate))+'</td><td>'+esc(q.equip||'-')+'</td><td>'+esc(q.trouble||q.material||'-')+'</td><td>'+esc(q.repair||q.inspect||'-')+'</td><td>'+esc(parts||'-')+'</td><td>'+esc(q.engineer||'-')+'</td></tr>';
+  }).join('');
+  var ctbl='<div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>완료일</th><th>장비</th><th>고장(접수)내용</th><th>조치내용</th><th>교체부품</th><th>담당</th></tr></thead><tbody>'+(crows||'<tr><td colspan="6" class="mut">완료 건 없음</td></tr>')+'</tbody></table></div>';
+  v.innerHTML='<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0">월간 실적 리포트</h2><div class="tools" style="margin:0">'+sel+'<button class="btn" onclick="rptCopy()">텍스트 복사</button><button class="btn pri" onclick="rptPrint()">인쇄 / PDF</button></div></div>'+
+    '<div class="note">현장(<b>'+esc(SITE)+'</b>)의 선택한 달 유지보수 실적을 자동 집계합니다. 고객 제출용 인쇄/PDF와 텍스트 복사를 지원합니다.</div>'+
+    cards+
+    '<h3 style="margin:14px 0 4px">주요 조치 내역 (최근순, 최대 30건)</h3>'+ctbl+
+    '<h3 style="margin:14px 0 4px">교체 부품 요약</h3>'+ptbl+'</div>';
+}
+function _rptText(d){
+  var L=[]; L.push('['+esc(SITE)+'] 월간 유지보수 실적 리포트 — '+d.month);
+  L.push('────────────────────────────');
+  L.push('· 완료 건수: '+d.doneN+'건 / 접수 '+d.recvN+'건 (진행중 '+d.ingN+'건)');
+  L.push('· 평균 처리일(접수→완료): '+(d.mttr!=null?(Math.round(d.mttr*10)/10)+'일':'-'));
+  L.push('· SLA 준수율(목표 '+d.cfg.done+'일): '+(d.slaRate!=null?Math.round(d.slaRate*100)+'%':'-'));
+  L.push('· 교체 자재: 총 '+d.matQty+'EA / '+d.matKinds+'종');
+  L.push('· 재발 건수('+_recurDays()+'일 내 재접수): '+d.recurN+'건');
+  L.push(''); L.push('[주요 조치 내역]');
+  d.done.slice().sort(function(a,b){return String(b.repairDate).localeCompare(String(a.repairDate));}).forEach(function(q){
+    var p=_partSet(q).join(', '); L.push('- '+_fmtD(q.repairDate)+' / '+(q.equip||'-')+' : '+(q.trouble||'-')+' → '+(q.repair||q.inspect||'-')+(p?(' (교체: '+p+')'):''));
+  });
+  return L.join('\n');
+}
+function rptCopy(){ if(!_rptMonth)return; _copyTxt(_rptText(_rptData(_rptMonth))); }
+function rptPrint(){
+  if(!_rptMonth)return; var d=_rptData(_rptMonth);
+  var head='<h1>월간 유지보수 실적 보고서</h1><div class="sub">'+esc(SITE)+' · '+d.month+'</div>';
+  var meta='<div class="meta"><span>공급자 : 원익피앤이(주)</span><span>작성일 : '+_fmtD(new Date())+'</span></div>';
+  var sum='<table style="margin-bottom:10px"><tbody>'+
+    '<tr><th style="width:16%">완료 건수</th><td>'+d.doneN+'건</td><th style="width:16%">접수 건수</th><td>'+d.recvN+'건 (진행중 '+d.ingN+')</td></tr>'+
+    '<tr><th>평균 처리일</th><td>'+(d.mttr!=null?(Math.round(d.mttr*10)/10)+'일':'-')+'</td><th>SLA 준수율</th><td>'+(d.slaRate!=null?Math.round(d.slaRate*100)+'% (목표 '+d.cfg.done+'일)':'-')+'</td></tr>'+
+    '<tr><th>교체 자재</th><td>'+d.matQty+'EA / '+d.matKinds+'종</td><th>재발 건수</th><td>'+d.recurN+'건</td></tr></tbody></table>';
+  var crows=d.done.slice().sort(function(a,b){return String(b.repairDate).localeCompare(String(a.repairDate));}).map(function(q){
+    return '<tr><td>'+esc(_fmtD(q.repairDate))+'</td><td>'+esc(q.equip||'-')+'</td><td>'+esc(q.trouble||'-')+'</td><td>'+esc(q.repair||q.inspect||'-')+'</td><td>'+esc(_partSet(q).join(', ')||'-')+'</td><td>'+esc(q.engineer||'-')+'</td></tr>';
+  }).join('');
+  var body=head+meta+sum+'<h3 style="font-size:12px;margin:10px 0 3px">주요 조치 내역</h3>'+
+    '<table><thead><tr><th style="width:9%">완료일</th><th style="width:15%">장비</th><th>고장내용</th><th>조치내용</th><th style="width:15%">교체부품</th><th style="width:8%">담당</th></tr></thead><tbody>'+(crows||'<tr><td colspan="6">완료 건 없음</td></tr>')+'</tbody></table>'+
+    '<div style="margin-top:14px;font-size:10px;color:#555">※ 본 보고서는 접수시스템 데이터를 기반으로 자동 생성되었습니다.</div>';
+  printArea(body,'월간 유지보수 실적 보고서 '+d.month,'portrait');
+}
+
+/* ========== 2. SLA 관리 ========== */
+function renderSla(v){
+  var cfg=_slaCfg(), all=_anAll(), now=new Date();
+  var done=all.filter(function(q){return eqDone(q);});
+  var okD=0,delSum=0,delN=0,breach=[];
+  done.forEach(function(q){ var pd=_pd(q.date,q.repairDate); if(pd==null)return; delN++; delSum+=pd; if(pd<=cfg.done)okD++; else breach.push({q:q,pd:pd,over:pd-cfg.done}); });
+  var rate=delN?okD/delN:null; var avg=delN?delSum/delN:null;
+  breach.sort(function(a,b){return b.over-a.over;});
+  var risk=all.filter(function(q){ if(eqDone(q))return false; var el=_pd(q.date,_fmtD(now)); return el!=null&&el>cfg.done; }).map(function(q){return {q:q,el:_pd(q.date,_fmtD(now))};}).sort(function(a,b){return b.el-a.el;});
+  var cfgBox='<div class="tools"><span style="font-size:13px">응답(착수) 목표</span><input id="slaResp" type="number" min="1" value="'+cfg.resp+'" style="width:70px"><span style="font-size:13px">일 · 처리(완료) 목표</span><input id="slaDone" type="number" min="1" value="'+cfg.done+'" style="width:70px"><span style="font-size:13px">일</span><button class="btn pri" onclick="slaSave()">저장</button></div>';
+  var cards='<div class="cards">'+
+    csMetric('완료 건(집계)',delN+'건','')+
+    csMetric('처리 SLA 준수율',(rate!=null?Math.round(rate*100)+'%':'-'),'<span class="mut" style="font-size:12px">목표 '+cfg.done+'일 이내</span>')+
+    csMetric('평균 처리일',(avg!=null?(Math.round(avg*10)/10)+'일':'-'),'')+
+    csMetric('SLA 위반',breach.length+'건','<span class="mut" style="font-size:12px">완료건 중</span>')+
+    csMetric('진행중 초과위험',risk.length+'건','<span class="mut" style="font-size:12px">미완료 경과>'+cfg.done+'일</span>')+
+    '</div>';
+  var btrs=breach.slice(0,40).map(function(b){return '<tr style="cursor:pointer" onclick="detail(\''+_pmJs(b.q.id)+'\')"><td>'+esc(_fmtD(b.q.date))+'</td><td>'+esc(_fmtD(b.q.repairDate))+'</td><td>'+esc(b.q.equip||'-')+'</td><td style="text-align:center">'+b.pd+'일</td><td style="text-align:center;color:#b91c1c;font-weight:700">+'+b.over+'일</td><td>'+esc(b.q.engineer||'-')+'</td></tr>';}).join('');
+  var btbl='<div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>접수일</th><th>완료일</th><th>장비</th><th style="text-align:center">처리일</th><th style="text-align:center">초과</th><th>담당</th></tr></thead><tbody>'+(btrs||'<tr><td colspan="6" class="mut">SLA 위반 완료건 없음</td></tr>')+'</tbody></table></div>';
+  var rtrs=risk.slice(0,40).map(function(b){return '<tr style="cursor:pointer" onclick="detail(\''+_pmJs(b.q.id)+'\')"><td>'+esc(_fmtD(b.q.date))+'</td><td>'+esc(b.q.equip||'-')+'</td><td>'+esc(eqStage(b.q)||'-')+'</td><td style="text-align:center;color:#b45309;font-weight:700">'+b.el+'일 경과</td><td>'+esc(b.q.engineer||'-')+'</td></tr>';}).join('');
+  var rtbl='<div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>접수일</th><th>장비</th><th>단계</th><th style="text-align:center">경과</th><th>담당</th></tr></thead><tbody>'+(rtrs||'<tr><td colspan="5" class="mut">초과 위험 진행건 없음</td></tr>')+'</tbody></table></div>';
+  v.innerHTML='<div class="panel"><h2>SLA 관리 (응답·처리 시한)</h2><div class="note">접수→완료 소요일을 기준으로 SLA 준수 여부를 자동 집계합니다. 목표 시한은 현장별로 저장됩니다. (날짜 단위)</div>'+cfgBox+cards+
+    '<h3 style="margin:14px 0 4px">SLA 위반 완료건 (초과일 큰 순)</h3>'+btbl+
+    '<h3 style="margin:14px 0 4px">진행중 · 처리기한 초과 위험</h3>'+rtbl+'</div>';
+}
+
+/* ========== 3. 재발·반복 고장 감지 ========== */
+function renderRecur(v){
+  var win=_recurDays(); var ev=_recurEvents();
+  var eqMap={}; ev.forEach(function(e){ var k=normKey(e.equip); eqMap[k]=(eqMap[k]||0)+1; });
+  var eqN=Object.keys(eqMap).length; var sameP=ev.filter(function(e){return e.samePart;}).length;
+  var cfgBox='<div class="tools"><span style="font-size:13px">재발 판정 기간</span><input id="recurWin" type="number" min="1" value="'+win+'" style="width:80px"><span style="font-size:13px">일 이내 재접수</span><button class="btn pri" onclick="recurSave()">적용</button></div>';
+  var cards='<div class="cards">'+
+    csMetric('재발 이벤트',ev.length+'건','<span class="mut" style="font-size:12px">'+win+'일 내 재접수</span>')+
+    csMetric('재발 장비',eqN+'대','')+
+    csMetric('동일 부품 재발',sameP+'건','<span class="mut" style="font-size:12px">근본수리 필요 의심</span>')+
+    '</div>';
+  var trs=ev.slice(0,80).map(function(e){
+    return '<tr style="cursor:pointer" onclick="detail(\''+_pmJs(e.cur.id)+'\')"><td>'+esc(e.equip||'-')+'</td><td>'+esc(_fmtD(e.prevDate))+'</td><td>'+esc(_fmtD(e.curDate))+'</td><td style="text-align:center;font-weight:700;color:'+(e.gap<=7?'#b91c1c':'#b45309')+'">'+e.gap+'일</td><td style="text-align:center">'+(e.samePart?'<span style="color:#b91c1c;font-weight:700">동일부품</span>':'-')+'</td><td>'+esc(e.cur.trouble||'-')+'</td></tr>';
+  }).join('');
+  var tbl='<div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>장비</th><th>이전 접수</th><th>재접수</th><th style="text-align:center">간격</th><th style="text-align:center">부품</th><th>재접수 증상</th></tr></thead><tbody>'+(trs||'<tr><td colspan="6" class="mut">재발 이벤트 없음</td></tr>')+'</tbody></table></div>';
+  v.innerHTML='<div class="panel"><h2>재발·반복 고장 감지</h2><div class="note">같은 장비가 설정 기간 이내에 다시 접수되면 <b>재발</b>로 자동 감지합니다. 동일 부품 재발은 임시 조치 반복(근본원인 미해결) 신호일 수 있습니다.</div>'+cfgBox+cards+
+    '<h3 style="margin:14px 0 4px">재발 내역 (최근순, 최대 80건)</h3>'+tbl+'</div>';
+}
+
+/* ========== 4. 엔지니어별 실적·숙련도 ========== */
+function _engStats(){
+  var all=_anAll(), win=_recurDays(), cfg=_slaCfg();
+  var byEq={}; all.forEach(function(q){var k=normKey(q.equip);if(k)(byEq[k]=byEq[k]||[]).push(q);});
+  var g={};
+  all.forEach(function(q){
+    var e=String(q.engineer||'').trim(); if(!e)return;
+    var o=g[e]||(g[e]={eng:e,total:0,done:0,mSum:0,mN:0,recur:0,mats:{}});
+    o.total++;
+    if(eqDone(q)){
+      o.done++; var pd=_pd(q.date,q.repairDate); if(pd!=null&&pd>=0){o.mSum+=pd;o.mN++;}
+      var k=normKey(q.equip); var base=_pmDate(q.repairDate)||_pmDate(q.date);
+      if(k&&base){ var arr=byEq[k]; for(var i=0;i<arr.length;i++){ var d2=_pmDate(arr[i].date); if(d2&&d2>base){ var gp=_pmDiff(base,d2); if(gp>0&&gp<=win){o.recur++;} break; } } }
+    }
+    matItems(q).forEach(function(it){ if(it.m) o.mats[it.m]=(o.mats[it.m]||0)+(_num(it.q)||1); });
+  });
+  var out=Object.keys(g).map(function(e){
+    var o=g[e]; o.rate=o.total?o.done/o.total:0; o.mttr=o.mN?o.mSum/o.mN:null; o.recurRate=o.done?o.recur/o.done:0; o.matKinds=Object.keys(o.mats).length;
+    var speed=(o.mttr==null)?0.6:Math.max(0,Math.min(1,cfg.done/Math.max(o.mttr,0.5)));
+    o.score=Math.round(100*(0.4*o.rate+0.3*speed+0.3*(1-o.recurRate)));
+    if(o.done<3){o.grade='데이터 부족';o.gc='#6b7280';o.gbg='#f3f4f6';}
+    else if(o.score>=80){o.grade='숙련';o.gc='#166534';o.gbg='#dcfce7';}
+    else if(o.score>=60){o.grade='중급';o.gc='#b45309';o.gbg='#fef3c7';}
+    else {o.grade='육성 필요';o.gc='#b91c1c';o.gbg='#fee2e2';}
+    return o;
+  });
+  out.sort(function(a,b){return b.done-a.done||b.score-a.score;});
+  return out;
+}
+function renderEngPerf(v){
+  var st=_engStats();
+  if(!st.length){ v.innerHTML='<div class="panel"><h2>엔지니어별 실적·숙련도</h2><div class="note">담당(engineer) 정보가 있는 데이터가 없습니다.</div></div>'; return; }
+  var trs=st.map(function(o){
+    var bar='<div style="background:#eef0f4;border-radius:5px;height:8px;width:80px;display:inline-block;vertical-align:middle;overflow:hidden"><div style="height:8px;width:'+o.score+'%;background:'+o.gc+'"></div></div>';
+    return '<tr><td><b>'+esc(o.eng)+'</b></td>'+
+      '<td style="text-align:center">'+o.total+'</td>'+
+      '<td style="text-align:center">'+o.done+'</td>'+
+      '<td style="text-align:center">'+Math.round(o.rate*100)+'%</td>'+
+      '<td style="text-align:center">'+(o.mttr!=null?(Math.round(o.mttr*10)/10)+'일':'-')+'</td>'+
+      '<td style="text-align:center">'+Math.round(o.recurRate*100)+'%</td>'+
+      '<td style="text-align:center">'+o.matKinds+'종</td>'+
+      '<td style="text-align:center">'+bar+' <b>'+o.score+'</b></td>'+
+      '<td style="text-align:center"><span style="font-size:11px;font-weight:700;color:'+o.gc+';background:'+o.gbg+';border-radius:5px;padding:1px 7px">'+o.grade+'</span></td></tr>';
+  }).join('');
+  v.innerHTML='<div class="panel"><h2>엔지니어별 실적·숙련도</h2><div class="note">담당자별 처리 실적을 집계하고, 완료율·처리속도·재발률을 종합해 숙련도 점수(0~100)를 산출합니다. (완료 3건 미만은 데이터 부족)</div>'+
+    '<div style="overflow-x:auto"><table style="margin-top:8px"><thead><tr><th>담당자</th><th style="text-align:center">담당</th><th style="text-align:center">완료</th><th style="text-align:center">완료율</th><th style="text-align:center">평균처리</th><th style="text-align:center">재발률</th><th style="text-align:center">자재</th><th style="text-align:center">숙련도</th><th style="text-align:center">등급</th></tr></thead><tbody>'+trs+'</tbody></table></div>'+
+    '<div class="mut" style="font-size:11px;margin-top:8px">숙련도 = 완료율 40% + 처리속도 30%(목표 '+_slaCfg().done+'일 대비) + 재발 억제 30%</div></div>';
+}
+
+/* ========== 5. 표준 조치 가이드 (지식베이스) ========== */
+function _kbCat(q){ var ft=String(q.ft||'').trim(); if(ft)return ft; var ps=_partSet(q); if(ps.length)return ps[0]; var t=String(q.trouble||'').trim(); return t? t.slice(0,14):'기타'; }
+function kbSearch(){ _kbKw=(document.getElementById('kbKw')||{}).value||''; renderKB(document.getElementById('view')); }
+function renderKB(v){
+  if(!v)return; var kw=String(_kbKw||'').trim().toLowerCase();
+  var all=_anAll().filter(function(q){ return eqDone(q) && String(q.repair||q.inspect||'').trim(); });
+  var g={};
+  all.forEach(function(q){
+    var hay=((q.trouble||'')+' '+(q.inspect||'')+' '+(q.repair||'')+' '+_partSet(q).join(' ')+' '+(q.ft||'')).toLowerCase();
+    if(kw && hay.indexOf(kw)<0) return;
+    var c=_kbCat(q); var o=g[c]||(g[c]={cat:c,n:0,rep:{},parts:{},cases:[]});
+    o.n++; var r=String(q.repair||q.inspect||'').trim(); if(r)o.rep[r]=(o.rep[r]||0)+1;
+    _partSet(q).forEach(function(p){o.parts[p]=(o.parts[p]||0)+1;});
+    if(o.cases.length<5)o.cases.push(q);
+  });
+  var cats=Object.keys(g).map(function(k){return g[k];}).sort(function(a,b){return b.n-a.n;});
+  var box='<div class="tools"><input type="search" id="kbKw" placeholder="증상·부품·조치 키워드 검색 (예: 통신, FUSE, 리셋)" style="min-width:300px" value="'+esc(_kbKw)+'" oninput="_kbKw=this.value" onkeydown="if(event.key===\'Enter\')kbSearch()"><button class="btn pri" onclick="kbSearch()">검색</button></div>';
+  var cards=cats.slice(0,40).map(function(o){
+    var reps=_topEntries(o.rep,3).map(function(e){return '<li>'+esc(e.k)+' <span class="mut">('+e.v+')</span></li>';}).join('');
+    var parts=_topEntries(o.parts,5).map(function(e){return '<span style="display:inline-block;font-size:11px;background:#eef2ff;color:#3730a3;border-radius:5px;padding:1px 7px;margin:2px 4px 0 0">'+esc(e.k)+' ×'+e.v+'</span>';}).join('');
+    var cs=o.cases.map(function(q){return '<div style="font-size:11px;color:#6b7280;cursor:pointer;margin-top:2px" onclick="detail(\''+_pmJs(q.id)+'\')">· '+esc(_fmtD(q.repairDate||q.date))+' '+esc(q.equip||'')+' — '+esc((q.repair||q.inspect||'').slice(0,40))+'</div>';}).join('');
+    return '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-top:10px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:14px">'+esc(o.cat)+'</b><span class="mut" style="font-size:12px">사례 '+o.n+'건</span></div>'+
+      (reps?'<div style="margin-top:6px;font-size:12px"><b style="color:#374151">권장 조치(빈도순)</b><ul style="margin:3px 0 0 16px;padding:0">'+reps+'</ul></div>':'')+
+      (parts?'<div style="margin-top:6px"><span class="mut" style="font-size:11px">자주 교체된 부품</span><br>'+parts+'</div>':'')+
+      (cs?'<div style="margin-top:6px"><span class="mut" style="font-size:11px">사례</span>'+cs+'</div>':'')+
+      '</div>';
+  }).join('');
+  v.innerHTML='<div class="panel"><h2>표준 조치 가이드</h2><div class="note">과거 완료 이력을 <b>증상·부품 유형별</b>로 모아, 어떤 조치를 주로 했는지 자동 정리합니다. 신규 엔지니어 온보딩·야간 대응 참고용입니다.</div>'+box+(cards||'<div class="mut" style="padding:12px 2px">해당 키워드에 맞는 조치 이력이 없습니다.</div>')+'</div>';
+}
+
+/* ========== 6. 고장 유형 파레토 분석 ========== */
+function paretoMode(m){ _paretoMode=m; render(); }
+function _paretoData(mode){
+  var all=_anAll(), map={};
+  all.forEach(function(q){
+    if(mode==='ft'){ var f=String(q.ft||'').trim()||'미분류'; map[f]=(map[f]||0)+1; }
+    else { matItems(q).forEach(function(it){ if(it.m) map[it.m]=(map[it.m]||0)+(_num(it.q)||1); }); }
+  });
+  var arr=_topEntries(map,9999); var tot=arr.reduce(function(s,e){return s+e.v;},0);
+  var cum=0; arr.forEach(function(e){ cum+=e.v; e.cum=cum; e.pct=tot?e.v/tot:0; e.cumPct=tot?cum/tot:0; });
+  return {arr:arr,tot:tot};
+}
+function _paretoSvg(arr){
+  var top=arr.slice(0,12); if(!top.length)return '';
+  var W=680,H=260,padL=38,padR=40,padB=64,padT=16; var n=top.length;
+  var max=top[0].v||1; var gw=(W-padL-padR)/n;
+  var sv='<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'" font-family="Pretendard,sans-serif">';
+  for(var g=0;g<=4;g++){ var yy=padT+(H-padT-padB)*g/4; sv+='<line x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'" stroke="#eef0f4"/>'; sv+='<text x="'+(padL-5)+'" y="'+(yy+3)+'" text-anchor="end" font-size="9" fill="#9aa3b2">'+Math.round(max*(4-g)/4)+'</text>'; }
+  var pts=[];
+  top.forEach(function(e,i){
+    var bh=(H-padT-padB)*e.v/max; var x=padL+gw*i+gw*0.18; var bw=gw*0.64; var y=H-padB-bh;
+    var col=e.cumPct<=0.8?'#2563eb':'#93c5fd';
+    sv+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2" fill="'+col+'"><title>'+esc(e.k)+': '+e.v+' ('+Math.round(e.pct*100)+'%)</title></rect>';
+    sv+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">'+e.v+'</text>';
+    var lbl=e.k.length>7?e.k.slice(0,7):e.k;
+    sv+='<text x="'+(padL+gw*i+gw/2).toFixed(1)+'" y="'+(H-padB+12)+'" text-anchor="end" font-size="8.5" fill="#64748b" transform="rotate(-35 '+(padL+gw*i+gw/2).toFixed(1)+' '+(H-padB+12)+')">'+esc(lbl)+'</text>';
+    var cy=padT+(H-padT-padB)*(1-e.cumPct); pts.push([(padL+gw*i+gw/2),cy]);
+  });
+  var poly=pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ');
+  sv+='<polyline points="'+poly+'" fill="none" stroke="#b45309" stroke-width="1.8"/>';
+  pts.forEach(function(p){ sv+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="2.5" fill="#b45309"/>'; });
+  var y80=padT+(H-padT-padB)*(1-0.8); sv+='<line x1="'+padL+'" y1="'+y80+'" x2="'+(W-padR)+'" y2="'+y80+'" stroke="#f59e0b" stroke-dasharray="4 3" stroke-width="1"/><text x="'+(W-padR)+'" y="'+(y80-3)+'" text-anchor="end" font-size="9" fill="#b45309">80%</text>';
+  sv+='</svg>';
+  return sv;
+}
+function renderPareto(v){
+  var mode=_paretoMode==='ft'?'ft':'part'; var d=_paretoData(mode);
+  var tabs='<div class="tools"><button class="btn'+(mode==='part'?' pri':'')+'" onclick="paretoMode(\'part\')">부품(자재)별</button><button class="btn'+(mode==='ft'?' pri':'')+'" onclick="paretoMode(\'ft\')">고장유형별</button></div>';
+  if(!d.arr.length){ v.innerHTML='<div class="panel"><h2>고장 유형 파레토 분석</h2>'+tabs+'<div class="note">집계할 '+(mode==='ft'?'고장유형':'부품 교체')+' 데이터가 없습니다.</div></div>'; return; }
+  var vital=d.arr.filter(function(e){return e.cumPct<=0.8;}).length; if(vital<1)vital=1;
+  var trs=d.arr.slice(0,30).map(function(e,i){
+    return '<tr'+(e.cumPct<=0.8?' style="background:#f0f6ff"':'')+'><td style="text-align:center">'+(i+1)+'</td><td>'+esc(e.k)+'</td><td style="text-align:center">'+e.v+'</td><td style="text-align:center">'+Math.round(e.pct*100)+'%</td><td style="text-align:center">'+Math.round(e.cumPct*100)+'%</td><td style="text-align:center">'+(e.cumPct<=0.8?'<span style="color:#2563eb;font-weight:700">중점관리</span>':'-')+'</td></tr>';
+  }).join('');
+  v.innerHTML='<div class="panel"><h2>고장 유형 파레토 분석</h2><div class="note">'+(mode==='part'?'교체 부품':'고장유형')+' 발생 빈도를 많은 순으로 정렬하고 누적 비율을 표시합니다. 누적 80% 이내 항목(<b>중점관리 '+vital+'종</b>)이 전체 고장의 대부분을 차지합니다.</div>'+tabs+
+    '<div style="border:1px solid var(--bd);border-radius:8px;padding:10px;margin-top:8px">'+_paretoSvg(d.arr)+'</div>'+
+    '<div style="overflow-x:auto"><table style="margin-top:10px"><thead><tr><th style="text-align:center">순위</th><th>'+(mode==='part'?'부품':'고장유형')+'</th><th style="text-align:center">건수</th><th style="text-align:center">비율</th><th style="text-align:center">누적</th><th style="text-align:center">구분</th></tr></thead><tbody>'+trs+'</tbody></table></div></div>';
+}
+
+/* ========== 7. 부품 수명 예측·교체 알림 ========== */
+function _partLife(){
+  var all=_anAll(), now=new Date();
+  var pairs={}; var partAll={};
+  all.forEach(function(q){
+    var k=normKey(q.equip); if(!k)return; var d=_pmDate(q.repairDate)||_pmDate(q.date); if(!d)return;
+    matItems(q).forEach(function(it){ if(!it.m)return; var pk=k+'||'+it.m; (pairs[pk]=pairs[pk]||{equip:q.equip,part:it.m,dates:[]}).dates.push(d); (partAll[it.m]=partAll[it.m]||[]).push(pk); });
+  });
+  var partCyc={};
+  Object.keys(pairs).forEach(function(pk){ var o=pairs[pk]; o.dates.sort(function(a,b){return a-b;}); if(o.dates.length>=2){ var g=0; for(var i=0;i<o.dates.length-1;i++)g+=_pmDiff(o.dates[i],o.dates[i+1]); o.cyc=g/(o.dates.length-1); var p=o.part; (partCyc[p]=partCyc[p]||[]).push(o.cyc); } });
+  var partAvg={}; Object.keys(partCyc).forEach(function(p){ var a=partCyc[p]; partAvg[p]=a.reduce(function(s,x){return s+x;},0)/a.length; });
+  var out=[];
+  Object.keys(pairs).forEach(function(pk){
+    var o=pairs[pk]; var last=o.dates[o.dates.length-1]; var cnt=o.dates.length;
+    var cyc=o.cyc||null, est=false; if(cyc==null && partAvg[o.part]!=null){ cyc=partAvg[o.part]; est=true; }
+    var next=null,since=_pmDiff(last,now),risk='데이터 부족',rc='#6b7280',rbg='#f3f4f6',sev=0;
+    if(cyc!=null){ next=new Date(last.getTime()+Math.round(cyc)*86400000); var left=_pmDiff(now,next);
+      if(left<0){risk='교체 시기 초과';rc='#b91c1c';rbg='#fee2e2';sev=3;}
+      else if(left<=30){risk='교체 임박';rc='#b45309';rbg='#fef3c7';sev=2;}
+      else {risk='정상';rc='#16a34a';rbg='#dcfce7';sev=1;}
+    }
+    out.push({equip:o.equip,part:o.part,cnt:cnt,cyc:cyc,est:est,last:last,since:since,next:next,risk:risk,rc:rc,rbg:rbg,sev:sev});
+  });
+  out.sort(function(a,b){ return b.sev-a.sev || (a.next&&b.next? a.next-b.next : 0); });
+  return out;
+}
+function renderPartLife(v){
+  var st=_partLife();
+  var over=st.filter(function(x){return x.sev===3;}), soon=st.filter(function(x){return x.sev===2;});
+  var alert; if(over.length||soon.length){ alert='<div style="border:1px solid #fca5a5;background:#fff7f7;border-radius:8px;padding:12px 14px;margin-top:10px"><div style="font-size:14px;font-weight:800;color:#b91c1c">부품 교체 알림 · 시기초과 '+over.length+'건 / 임박 '+soon.length+'건</div><div class="mut" style="font-size:12px;margin-top:4px">아래 표에서 상세를 확인하세요.</div></div>'; }
+  else { alert='<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px;color:#166534">현재 교체 임박·초과 부품이 없습니다. (예측은 동일 부품 2회 이상 교체 시 산출, 1회는 부품 평균주기로 추정)</div>'; }
+  var trs=st.slice(0,80).map(function(x){
+    return '<tr><td>'+esc(x.equip||'-')+'</td><td>'+esc(x.part)+'</td><td style="text-align:center">'+x.cnt+'회</td><td style="text-align:center">'+(x.cyc!=null?Math.round(x.cyc)+'일'+(x.est?' <span class="mut" style="font-size:10px">(추정)</span>':''):'-')+'</td><td style="text-align:center">'+esc(_fmtD(x.last))+' <span class="mut" style="font-size:10px">('+(x.since!=null?x.since+'일 전':'')+')</span></td><td style="text-align:center">'+(x.next?esc(_fmtD(x.next)):'-')+'</td><td style="text-align:center"><span style="font-size:11px;font-weight:700;color:'+x.rc+';background:'+x.rbg+';border-radius:5px;padding:1px 7px">'+x.risk+'</span></td></tr>';
+  }).join('');
+  var tbl='<div style="overflow-x:auto"><table style="margin-top:8px"><thead><tr><th>장비</th><th>부품</th><th style="text-align:center">교체횟수</th><th style="text-align:center">평균주기</th><th style="text-align:center">마지막 교체</th><th style="text-align:center">다음 예상</th><th style="text-align:center">상태</th></tr></thead><tbody>'+(trs||'<tr><td colspan="7" class="mut">부품 교체 이력이 없습니다.</td></tr>')+'</tbody></table></div>';
+  v.innerHTML='<div class="panel"><h2>부품 수명 예측·교체 알림</h2><div class="note">장비별 소모성 부품의 교체 이력으로 <b>평균 교체주기</b>를 학습해 <b>다음 교체 예상일</b>을 산출합니다. 계획 정비(선제 교체)로 결품·긴급출동을 줄이는 데 활용합니다.</div>'+alert+tbl+'</div>';
+}
+
 </script>
 
 
