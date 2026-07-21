@@ -1657,13 +1657,13 @@ function exportSettleExcel(){
  if(d.labor){
   const headers=['No','SEQ','접수일','수리완료일','신고자','장비명','접수내용','점검/수리내용','LV1','LV2','LV3','자재내역','자재비','담당엔지니어','사진(장)'];
   const rows=[];const photoRows=[];
-  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(q.repair||q.inspect||''),_ad.slv1||_lv.lv1,_ad.slv2||_lv.lv2,_ad.slv3||_lv.lv3,stlMatXl(q),Number(q.amount)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
+  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(RPT(q)),_ad.slv1||_lv.lv1,_ad.slv2||_lv.lv2,_ad.slv3||_lv.lv3,stlMatXl(q),Number(q.amount)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
   var totals=[{label:'자재비 합계',val:d.mat},{label:'인건비(상주 3인)',val:LABOR},{label:'총 정산액',val:d.total,grand:true}];
   settleXlsx({title:'월 정 산 서',docNo:docNo,recipient:recipient,supplier:supplier,period:period,dateStr:todayStr(),count:d.list.length,headers:headers,rows:rows,photoRows:photoRows,totals:totals,matCol:11,numCols:[12],filename:fname});
  }else{
   const headers=['No','SEQ','접수일','수리완료일','신고자','장비명','접수내용','점검/수리내용','LV1','LV2','LV3','자재내역','자재비','공수(MD)','담당엔지니어','사진(장)'];
   const rows=[];const photoRows=[];
-  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(q.repair||q.inspect||''),_ad.slv1||_lv.lv1,_ad.slv2||_lv.lv2,_ad.slv3||_lv.lv3,stlMatXl(q),Number(q.amount)||0,Number(q.md)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
+  d.list.forEach(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);rows.push([i+1,q.seq,q.date,q.repairDate||q.date,q.reporter,q.equip,(q.trouble||''),(RPT(q)),_ad.slv1||_lv.lv1,_ad.slv2||_lv.lv2,_ad.slv3||_lv.lv3,stlMatXl(q),Number(q.amount)||0,Number(q.md)||0,q.engineer,stlPhotoCount(q.id)]);photoRows.push(_ph[q.id]||[]);});
   mdExtra().filter(function(x){return x.date>=d.s&&x.date<=d.e;}).forEach(function(x){rows.push(['(별도공수)','',x.date,'',x.person||'','','',x.desc||'','','','','',0,Number(x.md)||0,'','']);photoRows.push([]);});
   var totals=[{label:'자재비 합계',val:d.mat},{label:'인건비(공수×단가)',val:d.laborCost},{label:'총 정산액',val:d.total,grand:true}];
   settleXlsx({title:'월 정 산 서',docNo:docNo,recipient:recipient,supplier:supplier,period:period,dateStr:todayStr(),count:d.list.length,headers:headers,rows:rows,photoRows:photoRows,totals:totals,matCol:11,numCols:[12,13],filename:fname});
@@ -1679,7 +1679,7 @@ function printSettle(){
  let body='<h1>월 정 산 서</h1><div class="sub">'+esc(SITE)+' · 원익피앤이(WONIK PNE) 충방전기</div>'+
   '<div class="meta"><span>정산기간 '+d.s+' ~ '+d.e+'</span><span>출력일 '+todayStr()+' · 완료건 '+d.list.length+'건</span></div>'+
   '<table><thead><tr><th>No</th><th>SEQ</th><th>접수일</th><th>수리완료일</th><th>신고자</th><th>장비명</th><th>접수내용</th><th>점검/수리내용</th><th>LV1</th><th>LV2</th><th>LV3</th><th>자재내역</th><th class="right">자재비</th></tr></thead><tbody>'+
-  d.list.map(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);return '<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td>'+esc(q.trouble||'')+'</td><td>'+esc(q.repair||q.inspect||'')+'</td><td>'+esc(_ad.slv1||_lv.lv1)+'</td><td>'+esc(_ad.slv2||_lv.lv2)+'</td><td>'+esc(_ad.slv3||_lv.lv3)+'</td><td style="white-space:normal">'+stlMatHtml(q)+'</td><td class="right">'+won(q.amount)+'</td></tr>';}).join('')+
+  d.list.map(function(q,i){var _ad=asGet(q.id,q);var _lv=autoLV(q,_ad);return '<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td>'+esc(q.trouble||'')+'</td><td>'+esc(RPT(q))+'</td><td>'+esc(_ad.slv1||_lv.lv1)+'</td><td>'+esc(_ad.slv2||_lv.lv2)+'</td><td>'+esc(_ad.slv3||_lv.lv3)+'</td><td style="white-space:normal">'+stlMatHtml(q)+'</td><td class="right">'+won(q.amount)+'</td></tr>';}).join('')+
   '</tbody><tfoot>'+
   '<tr class="tot"><td colspan="12" class="right">자재비 합계</td><td class="right">'+won(d.mat)+'</td></tr>'+
   laborRows+
@@ -1865,7 +1865,7 @@ function asFormHtml(q){
   '<div class="asgrid">'+
    asAuto('접수일',q.date)+asAuto('최초 점검일',q.inspectDate||'-')+asAuto('완료일',comp||'(미완료)')+
    asAuto('접수주차',weekStr(q.date))+asAuto('완료주차',weekStr(comp))+asAuto('대응중',done?'완료':'대응중')+asAuto('L/T(일)',String(dayDiff(q.date,comp)))+
-   asAuto('접수내용(TOS 고장내용)',q.trouble)+asAuto('n차 점검·조치(수리결과)',q.repair||'(미입력)')+
+   asAuto('접수내용(TOS 고장내용)',q.trouble)+asAuto('n차 점검·조치(수리결과)',RPT(q)||'(미입력)')+
   '</div>'+
   '<div class="assec">공통정보 (저장된 프리셋에서 선택) <button class="btn sm" type="button" onclick="asFixEditInline(\''+q.id+'\')" style="margin-left:8px">이 공통정보 수정</button> <span class="mut" style="font-weight:500;font-size:11px">· 수정 시 이 공통정보를 쓰는 전체 A/S에 반영</span></div>'+
   '<div class="asgrid"><div class="asf" style="grid-column:1/-1"><label>공통정보 프리셋 선택</label><select id="as_fx" onchange="asFixPick(\''+q.id+'\')">'+
@@ -3190,7 +3190,9 @@ function renderSettle(v){
   '<button class="btn pri" onclick="doSettle()">정산 조회</button>'+
   '<button class="btn" onclick="exportSettleExcel()">엑셀 다운로드</button>'+
   '<button class="btn" onclick="printSettle()">인쇄 / PDF</button>'+
-  '<button class="btn" onclick="lvRefreshAll()" style="background:#fff7ed;border-color:#fcd9a8;color:#b45309" title="현재 정산기간 완료 건 전체의 LV를 접수내용 기반 자동추천값으로 일괄 적용">LV 최신화</button></div>'+
+  '<button class="btn" onclick="lvRefreshAll()" style="background:#fff7ed;border-color:#fcd9a8;color:#b45309" title="현재 정산기간 완료 건 전체의 LV를 접수내용 기반 자동추천값으로 일괄 적용">LV 최신화</button>'+
+  '<button class="btn" onclick="custReport()" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8" title="현재 정산기간 완료 건의 수리결과를 고객 보고형식 문장으로 변환하여 월정산·A/S n차 조치내역·리포트에 반영">고객보고</button>'+
+  '<button class="btn" onclick="custReportRevert()" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c" title="현재 정산기간의 고객보고 변환본을 원문(수리결과)으로 되돌림">고객보고 원복</button></div>'+
   '<div id="smOut"></div></div>'+
   laborBox+
   (isLaborSite()?'':'<div id="mdExtraPanel"></div>');
@@ -3360,6 +3362,69 @@ function stlReco(q){
   var lv3 = (lv2==='제어부') ? 'PCB' : 'BLOCK';
   return {lv1:lv1,lv2:lv2,lv3:lv3};
 }
+/* ===== [월정산] 고객 보고형식(고객보고) 변환 ===== */
+function stlJosa(w,a,b){ if(!w) return ''; var c=w.charCodeAt(w.length-1); var j=(c>=0xAC00&&c<=0xD7A3)?(((c-0xAC00)%28)!==0):false; return w+(j?b:a); }
+var STL_ACT=[
+ {re:/교체|교환|신품|갈아|replace/i, f:function(o){return (o?stlJosa(o,'를','을'):'해당 부품을')+' 신품으로 교체 조치를 완료하였습니다.';}},
+ {re:/재체결|체결|조임|조여|풀림|헐거/i, f:function(o){return (o?stlJosa(o,'를','을'):'체결부를')+' 재체결하여 고정 상태를 확인하였습니다.';}},
+ {re:/청소|클리닝|세척|이물|먼지/i, f:function(o){return (o?stlJosa(o,'를','을'):'해당 부위를')+' 청소(클리닝) 후 정상 상태를 확인하였습니다.';}},
+ {re:/펌웨어|f\/?w|업데이트|업그레이드|업뎃|버전/i, f:function(o){return (o?stlJosa(o,'를','을'):'제어부 펌웨어를')+' 최신 버전으로 업데이트하였습니다.';}},
+ {re:/재기동|재부팅|리부팅|리셋|reset|초기화/i, f:function(o){return (o?stlJosa(o,'를','을'):'설비를')+' 재기동하여 정상 동작을 확인하였습니다.';}},
+ {re:/재연결|연결|접촉|커넥터|단자|배선|케이블/i, f:function(o){return (o?stlJosa(o,'를','을'):'배선(커넥터)을')+' 재연결하여 접촉 상태를 확인하였습니다.';}},
+ {re:/조정|세팅|설정|캘리|보정|calibr|파라미터|튜닝/i, f:function(o){return (o?stlJosa(o,'를','을'):'설정값을')+' 재조정하여 정상 동작을 확인하였습니다.';}},
+ {re:/수리|보수|납땜|땜|리페어|repair/i, f:function(o){return (o?stlJosa(o,'를','을'):'해당 부품을')+' 수리 조치를 완료하였습니다.';}},
+ {re:/정상|이상\s*없|이상무|양호|문제\s*없|특이사항\s*없/i, f:function(o){return '점검 결과 이상 없이 정상 동작함을 확인하였습니다.';}},
+ {re:/점검|확인|검사|측정|test/i, f:function(o){return (o?stlJosa(o,'를','을'):'해당 항목을')+' 점검한 결과 정상 동작을 확인하였습니다.';}}
+];
+var STL_STRIP=/교체|교환|신품으?로?|갈아끼움|재체결|체결|조임|조여|풀림|헐거움|청소|클리닝|세척|이물질?|먼지|펌웨어|f\/?w|업데이트|업그레이드|업뎃|버전업?|재기동|재부팅|리부팅|리셋|reset|초기화|재연결|연결|접촉불량|재설정|재조정|조정|세팅|설정|캘리|보정|calibr\w*|파라미터|튜닝|정리|정돈|수리|보수|납땜|땜|점검|확인|검사|측정|test|완료|조치|실시|진행|하였음|했음|하였습니다|했습니다|정상|이상\s*없음?|이상무|양호|불량|고장|발생/gi;
+var STL_FILL={'후':1,'뒤':1,'이후':1,'하여':1,'상태':1,'동작':1,'작동':1,'현재':1,'모두':1,'및':1,'그리고':1,'재':1,'함':1,'됨':1,'한':1,'된':1};
+function stlReport(raw){
+ raw=(raw||'').replace(/\r/g,'').trim();
+ if(!raw) return '';
+ var parts=raw.split(/[\n\.。;·]+|,\s*|\s+및\s+|\s+그리고\s+|\s*\/\s*/);
+ var out=[],seen={},res=[];
+ for(var i=0;i<parts.length;i++){
+  var p=(parts[i]||'').trim(); if(!p) continue;
+  var o=p.replace(STL_STRIP,' ');
+  var toks=o.split(/[\s,\-]+/),ob=[];
+  for(var t=0;t<toks.length;t++){ var w=toks[t]; if(w&&!STL_FILL[w]) ob.push(w); }
+  var obj=ob.join(' ').trim();
+  var hit=null;
+  for(var k=0;k<STL_ACT.length;k++){ if(STL_ACT[k].re.test(p)){hit=STL_ACT[k];break;} }
+  var s = hit ? hit.f(obj) : ((obj?obj+' 관련':'해당 사항 관련')+' 조치를 완료하였습니다.');
+  out.push(s);
+ }
+ for(var j=0;j<out.length;j++){ if(!seen[out[j]]){seen[out[j]]=1;res.push(out[j]);} }
+ return res.join(' ');
+}
+/* 점검/수리내용 표시값: 고객보고 변환본(repairRpt) 우선, 없으면 원문 */
+function RPT(q){ return (q&&(q.repairRpt||q.repair||q.inspect))||''; }
+/* 고객보고 버튼: 현재 정산기간 완료 건의 수리결과를 보고형식으로 변환 */
+function custReport(){
+ var sEl=document.getElementById('smStart'), eEl=document.getElementById('smEnd');
+ var s=sEl?sEl.value:'', e=eEl?eEl.value:'';
+ var tgt=DB.filter(function(q){return q.stage==='⑥완료';}).filter(function(q){var d=q.repairDate||q.date; if(!d)return false; return (!s||d>=s)&&(!e||d<=e);}).filter(function(q){return String(q.repair||'').trim();});
+ if(!tgt.length){ alert('현재 정산기간에 수리결과가 입력된 완료 건이 없습니다.'); return; }
+ if(!confirm('현재 정산기간('+s+' ~ '+e+')의 완료 건 '+tgt.length+'건의 수리결과를\n고객 보고형식 문장으로 변환합니다.\n\n원문(수리결과)은 그대로 보존되며,\n월정산 · A/S n차 조치내역 · 리포트에 함께 반영됩니다.\n계속할까요?')) return;
+ var cnt=0;
+ tgt.forEach(function(q){ q.repairRpt=stlReport(q.repair); cnt++; });
+ persist();
+ doSettle();
+ alert('고객보고 변환 완료: '+cnt+'건이 보고형식 문장으로 반영되었습니다.');
+}
+/* 고객보고 원복: 현재 정산기간 완료 건의 보고형식 변환본(repairRpt)을 제거하여 원문(수리결과)으로 되돌림 */
+function custReportRevert(){
+ var sEl=document.getElementById('smStart'), eEl=document.getElementById('smEnd');
+ var s=sEl?sEl.value:'', e=eEl?eEl.value:'';
+ var tgt=DB.filter(function(q){return q.stage==='⑥완료';}).filter(function(q){var d=q.repairDate||q.date; if(!d)return false; return (!s||d>=s)&&(!e||d<=e);}).filter(function(q){return String(q.repairRpt||'').trim();});
+ if(!tgt.length){ alert('현재 정산기간에 고객보고 변환본이 있는 완료 건이 없습니다.'); return; }
+ if(!confirm('현재 정산기간('+s+' ~ '+e+')의 고객보고 변환본 '+tgt.length+'건을\n원문(수리결과)으로 되돌립니다.\n\n월정산 · A/S n차 조치내역 · 리포트에서 모두 원문으로 표시됩니다.\n계속할까요?')) return;
+ var cnt=0;
+ tgt.forEach(function(q){ delete q.repairRpt; cnt++; });
+ persist();
+ doSettle();
+ alert('고객보고 원복 완료: '+cnt+'건이 원문(수리결과)으로 되돌려졌습니다.');
+}
 /* ===== [월정산 전용] LV 최신화: 현재 정산기간의 완료 건 전체 LV를 자동추천값으로 일괄 적용 ===== */
 function lvRefreshAll(){
   var sEl=document.getElementById('smStart'), eEl=document.getElementById('smEnd');
@@ -3389,7 +3454,7 @@ function doSettle(){
  let mat=0,mdJob=0;let rows='';var _allPh=stlPhotos();
  list.forEach((q,i)=>{mat+=Number(q.amount)||0;mdJob+=Number(q.md)||0;var _ad=asGet(q.id,q);var _lv=stlReco(q);var _pc=stlPhotoCount(q.id);
   var _phA=_allPh[q.id]||[];var _th=_phA.map(function(_d,_ii){return '<img src="'+_d+'" onclick="stlPhotoView(\''+q.id+'\')" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;margin:1px" title="클릭하여 사진 관리">';}).join('');
-  rows+='<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td style="max-width:200px">'+esc((q.trouble||'').slice(0,60))+'</td><td style="max-width:220px">'+esc((q.repair||q.inspect||'').slice(0,50))+'</td>'+stlLVcell(q.id,1,(_ad.slv1||_lv.lv1))+stlLVcell(q.id,2,(_ad.slv2||_lv.lv2))+stlLVcell(q.id,3,(_ad.slv3||_lv.lv3),(_ad.slv2||_lv.lv2))+'<td style="white-space:normal">'+stlMatHtml(q)+'</td><td class="right">'+won(q.amount)+'</td>'+(labor?'':'<td class="right">'+(Number(q.md)||0)+'</td>')+'<td>'+esc(q.engineer)+'</td><td style="white-space:normal;min-width:130px;max-width:190px">'+_th+'<button class="btn sm'+(_pc?'':' pri')+'" style="margin-left:2px;vertical-align:top" onclick="stlPhotoView(\''+q.id+'\')">'+(_pc?'관리':'추가')+'</button></td></tr>';
+  rows+='<tr><td>'+(i+1)+'</td><td>'+esc(q.seq)+'</td><td>'+esc(q.date)+'</td><td>'+esc(q.repairDate||q.date)+'</td><td>'+esc(q.reporter)+'</td><td>'+esc(q.equip)+'</td><td style="max-width:200px">'+esc((q.trouble||'').slice(0,60))+'</td><td style="max-width:220px">'+esc(RPT(q).slice(0,50))+'</td>'+stlLVcell(q.id,1,(_ad.slv1||_lv.lv1))+stlLVcell(q.id,2,(_ad.slv2||_lv.lv2))+stlLVcell(q.id,3,(_ad.slv3||_lv.lv3),(_ad.slv2||_lv.lv2))+'<td style="white-space:normal">'+stlMatHtml(q)+'</td><td class="right">'+won(q.amount)+'</td>'+(labor?'':'<td class="right">'+(Number(q.md)||0)+'</td>')+'<td>'+esc(q.engineer)+'</td><td style="white-space:normal;min-width:130px;max-width:190px">'+_th+'<button class="btn sm'+(_pc?'':' pri')+'" style="margin-left:2px;vertical-align:top" onclick="stlPhotoView(\''+q.id+'\')">'+(_pc?'관리':'추가')+'</button></td></tr>';
  });
  var colspan=labor?15:16;
  if(!list.length)rows='<tr><td colspan="'+colspan+'" class="mut" style="text-align:center;padding:18px">해당 기간에 완료된 정산 대상 건이 없습니다.</td></tr>';
@@ -4165,7 +4230,7 @@ function renderRptMon(v){
   var cases=d.done.slice().sort(function(a,b){return String(b.repairDate).localeCompare(String(a.repairDate));});
   var crows=cases.slice(0,30).map(function(q){
     var parts=_partSet(q).join(', ');
-    return '<tr style="cursor:pointer" onclick="detail(\''+_pmJs(q.id)+'\')"><td>'+esc(_fmtD(q.repairDate))+'</td><td>'+esc(q.equip||'-')+'</td><td>'+esc(q.trouble||q.material||'-')+'</td><td>'+esc(q.repair||q.inspect||'-')+'</td><td>'+esc(parts||'-')+'</td><td>'+esc(q.engineer||'-')+'</td></tr>';
+    return '<tr style="cursor:pointer" onclick="detail(\''+_pmJs(q.id)+'\')"><td>'+esc(_fmtD(q.repairDate))+'</td><td>'+esc(q.equip||'-')+'</td><td>'+esc(q.trouble||q.material||'-')+'</td><td>'+esc(RPT(q)||'-')+'</td><td>'+esc(parts||'-')+'</td><td>'+esc(q.engineer||'-')+'</td></tr>';
   }).join('');
   var ctbl='<div style="overflow-x:auto"><table style="margin-top:6px"><thead><tr><th>완료일</th><th>장비</th><th>고장(접수)내용</th><th>조치내용</th><th>교체부품</th><th>담당</th></tr></thead><tbody>'+(crows||'<tr><td colspan="6" class="mut">완료 건 없음</td></tr>')+'</tbody></table></div>';
   v.innerHTML='<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0">월간 실적 리포트</h2><div class="tools" style="margin:0">'+sel+'<button class="btn" onclick="rptCopy()">텍스트 복사</button><button class="btn" onclick="rptExcel()">엑셀 다운로드</button><button class="btn pri" onclick="rptPrint()">인쇄 / PDF</button></div></div>'+
@@ -4384,7 +4449,7 @@ function rptPrint(){
     '</div></div>';
   // ---- 4. 주요 조치 내역 ----
   var crows=d.done.slice().sort(function(a,b){return String(b.repairDate).localeCompare(String(a.repairDate));}).map(function(q,i){
-    return '<tr><td style="text-align:center">'+(i+1)+'</td><td>'+esc(_fmtD(q.repairDate))+'</td><td>'+esc(q.equip||'-')+'</td><td>'+esc(q.trouble||'-')+'</td><td>'+esc(q.repair||q.inspect||'-')+'</td><td>'+esc(_partSet(q).join(', ')||'-')+'</td><td style="text-align:center">'+esc(q.engineer||'-')+'</td></tr>';
+    return '<tr><td style="text-align:center">'+(i+1)+'</td><td>'+esc(_fmtD(q.repairDate))+'</td><td>'+esc(q.equip||'-')+'</td><td>'+esc(q.trouble||'-')+'</td><td>'+esc(RPT(q)||'-')+'</td><td>'+esc(_partSet(q).join(', ')||'-')+'</td><td style="text-align:center">'+esc(q.engineer||'-')+'</td></tr>';
   }).join('');
   var s4='<div class="rp-sec"><div class="rp-h">4. 주요 조치 내역</div>'+
     '<table class="rp-t"><thead><tr><th style="width:5%">No</th><th style="width:10%">완료일</th><th style="width:16%">장비</th><th>고장(접수) 내용</th><th>조치 내용</th><th style="width:16%">교체부품</th><th style="width:9%">담당</th></tr></thead>'+
@@ -4420,7 +4485,7 @@ function rptPrint(){
       '<td style="text-align:center">'+esc(q.reporter||'-')+'</td>'+
       '<td>'+esc(q.equip||'-')+'</td>'+
       '<td style="white-space:normal">'+esc(q.trouble||'-')+'</td>'+
-      '<td style="white-space:normal">'+esc(q.repair||q.inspect||'-')+'</td>'+
+      '<td style="white-space:normal">'+esc(RPT(q)||'-')+'</td>'+
       '<td style="text-align:center">'+esc(_ad.slv1||_lv.lv1||'-')+'</td>'+
       '<td style="text-align:center">'+esc(_ad.slv2||_lv.lv2||'-')+'</td>'+
       '<td style="text-align:center">'+esc(_ad.slv3||_lv.lv3||'-')+'</td>'+
@@ -4522,7 +4587,7 @@ function rptExcel(){
         '<td>'+esc(q.reporter||'-')+'</td>'+
         '<td>'+esc(q.equip||'-')+'</td>'+
         '<td>'+esc(q.trouble||'-')+'</td>'+
-        '<td>'+esc(q.repair||q.inspect||'-')+'</td>'+
+        '<td>'+esc(RPT(q)||'-')+'</td>'+
         '<td style="text-align:center">'+esc(_ad.slv1||_lv.lv1||'-')+'</td>'+
         '<td style="text-align:center">'+esc(_ad.slv2||_lv.lv2||'-')+'</td>'+
         '<td style="text-align:center">'+esc(_ad.slv3||_lv.lv3||'-')+'</td>'+
