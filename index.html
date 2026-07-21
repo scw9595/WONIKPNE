@@ -3678,7 +3678,7 @@ function reqRow(q){
   '<td class="mat-cell">'+matCellHtml(q)+'</td>'+
   '<td><input type="number" class="f-amount num-r" style="width:90px" value="'+(Number(q.amount)||0)+'" title="자재금액(자재행 단가×수량 자동합계 · 직접수정 가능)" oninput="this.dataset.manual=\'1\'">'+(isLaborSite()?'':'<div style="margin-top:4px"><span style="font-size:10px;color:#94a3b8">공수(MD)</span><input type="number" step="0.5" class="f-md num-r" style="width:90px;display:block" value="'+(Number(q.md)||0)+'"></div>')+'</td>'+
   '<td><select class="f-eng">'+engopts+'</select></td>'+
-  '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn sm" onclick="schedFromReq(\''+q.id+'\')">일정</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
+  '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn sm" onclick="schedFromReq(\''+q.id+'\')">일정</button> <button class="btn sm" onclick="mailReqOpen(\''+q.id+'\')" style="background:#059669;color:#fff;border-color:#059669">메일</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
 }
 function saveReq(id,btn){
  const tr=btn.closest('tr');const q=DB.find(x=>x.id===id);if(!q)return;
@@ -3694,6 +3694,135 @@ function saveReq(id,btn){
  persist();render();
 }
 function delReq(id){if(!confirm('이 점검요청 건을 삭제할까요?\n(A/S 리스트 관리에는 그대로 보관됩니다.)'))return;var q=DB.find(x=>x.id===id);archiveToAS(q);DB=DB.filter(x=>x.id!==id);persist();render();}
+
+/* ============ [점검요청서] 고객 진행상황 메일 발송 ============ */
+/* 신고자 ID + @lgensol.com 자동 생성 (이미 @ 있으면 그대로) */
+function mailAddr(q){
+ var id=(q&&(q.reporterId||q.reporterID||''))+''; id=id.trim();
+ if(!id)return '';
+ if(id.indexOf('@')>=0)return id;
+ return id+'@lgensol.com';
+}
+/* 진행단계별 문구 정의 */
+var MAIL_STAGE={
+ '①접수':      {tag:'접수 완료', head:'A/S 접수가 정상적으로 완료되었습니다.', sec:'접수 내용', body:function(q){return q.trouble||'-';}},
+ '②엔지니어배정':{tag:'엔지니어 배정', head:'담당 엔지니어가 배정되었습니다. 곧 방문/점검 일정을 안내드리겠습니다.', sec:'배정 담당자', body:function(q){return (q.engineer||'담당 엔지니어')+' (원익피앤이)';}},
+ '③점검중':    {tag:'점검 진행중', head:'설비 점검을 진행하고 있습니다.', sec:'점검 내용', body:function(q){return q.inspect||'점검을 진행하고 있습니다.';}},
+ '④자재입고대기중':{tag:'자재 입고 대기', head:'수리에 필요한 자재 입고를 대기하고 있습니다. 입고 즉시 수리를 진행하겠습니다.', sec:'점검/자재 내용', body:function(q){return q.inspect||q.material||'자재 입고 대기중입니다.';}},
+ '⑤수리중':    {tag:'수리 진행중', head:'설비 수리를 진행하고 있습니다.', sec:'수리 내용', body:function(q){return q.repair||'수리를 진행하고 있습니다.';}},
+ '⑥완료':      {tag:'처리 완료', head:'요청하신 A/S가 정상적으로 완료되었습니다.', sec:'처리 결과', body:function(q){return (typeof RPT==='function'?RPT(q):(q.repair||q.inspect))||'정상 처리 완료되었습니다.';}}
+};
+/* 본문(plain text) 생성 - 등폭 정렬 박스 */
+function mailBodyText(q,stage){
+ var m=MAIL_STAGE[stage]||MAIL_STAGE['①접수'];
+ var line='━━━━━━━━━━━━━━━━━━━━━━━━━━';
+ var thin='──────────────────────────';
+ var loc=(q.loc||'').replace(/\s*\/\s*$/,'').trim();
+ var eng=q.engineer||'-';
+ var L=[];
+ L.push('안녕하세요, LG에너지솔루션 고객님.');
+ L.push('');
+ L.push('원익피앤이 A/S 진행상황을 안내드립니다.');
+ L.push('');
+ L.push(line);
+ L.push('   [ '+stage+' ]  '+m.head);
+ L.push(line);
+ L.push('');
+ L.push('  ● 접수번호 :  '+(q.no!=null?q.no:'-'));
+ L.push('  ● 설 비 명 :  '+(q.equip||'-'));
+ L.push('  ● 설치위치 :  '+(loc||'-'));
+ L.push('  ● 신 고 자 :  '+(q.reporter||'-'));
+ L.push('  ● 진행상태 :  '+stage);
+ L.push('');
+ L.push(thin);
+ L.push('  ▣ '+m.sec);
+ L.push(thin);
+ var bodytext=(m.body(q)||'-').split(/\r?\n/).map(function(t){return '    '+t;}).join('\n');
+ L.push(bodytext);
+ L.push('');
+ L.push(thin);
+ L.push('');
+ L.push('  담당 엔지니어 :  '+eng+' (원익피앤이)');
+ L.push('  문의 :  원익피앤이 A/S팀');
+ L.push('');
+ L.push('  진행상황에 대해 문의사항이 있으시면 언제든 회신 주시기 바랍니다.');
+ L.push('');
+ L.push('  감사합니다.');
+ L.push('  원익피앤이 A/S팀 드림');
+ return L.join('\n');
+}
+function mailSubject(q,stage){
+ var m=MAIL_STAGE[stage]||MAIL_STAGE['①접수'];
+ return '[원익피앤이 A/S] '+(q.equip||'설비')+' - '+m.tag+' 안내 (No.'+(q.no!=null?q.no:'')+')';
+}
+var MAILQ=null, MAILSTAGE=null;
+function mailReqOpen(id){
+ var q=DB.find(function(x){return x.id===id;}); if(!q){alert('대상을 찾을 수 없습니다.');return;}
+ MAILQ=q; MAILSTAGE=q.stage||'①접수';
+ var bg=document.getElementById('mailReqBg');
+ if(!bg){ bg=document.createElement('div'); bg.id='mailReqBg'; bg.className='modal-bg';
+  bg.onclick=function(e){ if(e.target===bg)bg.classList.remove('on'); }; document.body.appendChild(bg); }
+ var addr=mailAddr(q);
+ var stageBtns=STAGES.map(function(st){
+   return '<button type="button" class="mailStBtn" data-st="'+st+'" onclick="mailReqPick(this.getAttribute(\'data-st\'))" '+
+     'style="display:block;width:100%;text-align:left;margin-bottom:6px;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:13px;'+
+     'border:1px solid '+(st===MAILSTAGE?'#2563eb':'#e2e8f0')+';background:'+(st===MAILSTAGE?'#eff6ff':'#fff')+';color:'+(st===MAILSTAGE?'#1d4ed8':'#334155')+';font-weight:'+(st===MAILSTAGE?'700':'500')+'">'+st+'</button>';
+ }).join('');
+ bg.innerHTML='<div class="modal" style="max-width:860px">'+
+  '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
+   '<h2 style="margin:0;font-size:20px">고객 진행상황 메일 보내기</h2>'+
+   '<button class="btn" onclick="document.getElementById(\'mailReqBg\').classList.remove(\'on\')" style="font-size:13px">✕ 닫기</button></div>'+
+  '<div style="color:#64748b;font-size:12.5px;margin-bottom:16px">신고자 ID <b>'+esc((q.reporterId||q.reporterID||'-'))+'</b> 기준으로 <b>'+(addr||'(ID 없음)')+'</b> 주소가 자동 생성되었습니다. 진행단계를 선택하면 알림 문구가 자동 완성됩니다.</div>'+
+  '<div style="display:flex;gap:18px;flex-wrap:wrap">'+
+   '<div style="flex:0 0 180px"><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:8px;letter-spacing:.4px">진행단계 선택</div>'+stageBtns+'</div>'+
+   '<div style="flex:1;min-width:340px">'+
+     '<div style="margin-bottom:10px"><label style="font-size:11px;color:#94a3b8;font-weight:700">받는사람</label>'+
+       '<input id="mailTo" value="'+esc(addr)+'" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:9px;margin-top:4px;font-size:13px"></div>'+
+     '<div style="margin-bottom:10px"><label style="font-size:11px;color:#94a3b8;font-weight:700">제목</label>'+
+       '<input id="mailSubj" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:9px;margin-top:4px;font-size:13px"></div>'+
+     '<div><label style="font-size:11px;color:#94a3b8;font-weight:700">본문 (수정 가능)</label>'+
+       '<textarea id="mailBody" style="width:100%;height:300px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:9px;margin-top:4px;'+
+       'font-family:\'D2Coding\',\'Consolas\',\'Menlo\',monospace;font-size:12.5px;line-height:1.55;background:#f8fafc;color:#1e293b;white-space:pre;overflow:auto"></textarea></div>'+
+   '</div>'+
+  '</div>'+
+  '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">'+
+   '<button class="btn" onclick="mailReqCopy()">본문 복사</button>'+
+   '<button class="btn pri" onclick="mailReqSend()" style="font-size:14px">✉ 메일 앱으로 열기</button>'+
+  '</div>';
+ bg.classList.add('on');
+ mailReqRender();
+}
+function mailReqPick(st){ MAILSTAGE=st;
+ var bg=document.getElementById('mailReqBg'); if(!bg)return;
+ Array.prototype.forEach.call(bg.querySelectorAll('.mailStBtn'),function(b){
+   var on=b.getAttribute('data-st')===st;
+   b.style.border='1px solid '+(on?'#2563eb':'#e2e8f0'); b.style.background=on?'#eff6ff':'#fff';
+   b.style.color=on?'#1d4ed8':'#334155'; b.style.fontWeight=on?'700':'500';
+ });
+ mailReqRender();
+}
+function mailReqRender(){
+ if(!MAILQ)return;
+ var subj=document.getElementById('mailSubj'), body=document.getElementById('mailBody');
+ if(subj)subj.value=mailSubject(MAILQ,MAILSTAGE);
+ if(body)body.value=mailBodyText(MAILQ,MAILSTAGE);
+}
+function mailReqSend(){
+ var to=(document.getElementById('mailTo')||{}).value||'';
+ var subj=(document.getElementById('mailSubj')||{}).value||'';
+ var body=(document.getElementById('mailBody')||{}).value||'';
+ if(!to.trim()){alert('받는사람 이메일이 비어 있습니다.\n신고자 ID가 없으면 직접 입력해 주세요.');return;}
+ var uri='mailto:'+encodeURIComponent(to.trim())+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
+ window.location.href=uri;
+}
+function mailReqCopy(){
+ var body=(document.getElementById('mailBody')||{}).value||'';
+ if(navigator.clipboard&&navigator.clipboard.writeText){
+   navigator.clipboard.writeText(body).then(function(){alert('본문이 복사되었습니다.');},function(){mailReqCopyFallback(body);});
+ }else{mailReqCopyFallback(body);}
+}
+function mailReqCopyFallback(t){ var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');alert('본문이 복사되었습니다.');}catch(e){alert('복사에 실패했습니다.');}document.body.removeChild(ta);}
+
 function addReq(){
  const today=new Date().toISOString().slice(0,10);
  const engopts='<option value="">(미지정)</option>'+ENG.map(e=>'<option>'+esc(e.name)+'</option>').join('');
