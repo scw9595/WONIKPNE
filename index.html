@@ -3678,9 +3678,9 @@ function reqRow(q){
   '<td class="mat-cell">'+matCellHtml(q)+'</td>'+
   '<td><input type="number" class="f-amount num-r" style="width:90px" value="'+(Number(q.amount)||0)+'" title="자재금액(자재행 단가×수량 자동합계 · 직접수정 가능)" oninput="this.dataset.manual=\'1\'">'+(isLaborSite()?'':'<div style="margin-top:4px"><span style="font-size:10px;color:#94a3b8">공수(MD)</span><input type="number" step="0.5" class="f-md num-r" style="width:90px;display:block" value="'+(Number(q.md)||0)+'"></div>')+'</td>'+
   '<td><select class="f-eng">'+engopts+'</select></td>'+
-  '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn sm" onclick="schedFromReq(\''+q.id+'\')">일정</button> <button class="btn sm" onclick="mailReqOpen(\''+q.id+'\')" style="background:#059669;color:#fff;border-color:#059669">메일</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
+  '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn sm" onclick="schedFromReq(\''+q.id+'\')">일정</button> <button class="btn sm" onclick="mailReqOpen(\''+q.id+'\')" style="background:#059669;color:#fff;border-color:#059669">메일</button> <button class="btn sm" onclick="completeNoMail(this,\''+q.id+'\')" style="background:#0f766e;color:#fff;border-color:#0f766e" title="진행단계를 완료로 바꾸고 메일 없이 완료 처리">완료(메일X)</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
 }
-function saveReq(id,btn){
+function saveReq(id,btn,silent){
  const tr=btn.closest('tr');const q=DB.find(x=>x.id===id);if(!q)return;
  q.stage=tr.querySelector('.f-stage').value;
  q.inspect=tr.querySelector('.f-inspect').value;
@@ -3690,8 +3690,17 @@ function saveReq(id,btn){
  var mdEl=tr.querySelector('.f-md');if(mdEl)q.md=Number(mdEl.value)||0;
  q.engineer=tr.querySelector('.f-eng').value;
  const e=ENG.find(x=>x.name===q.engineer);q.engEmail=e?e.email:'';q.company=e?e.company:q.company;
- if(q.stage==='⑥완료' && !q.repairDate)q.repairDate=new Date().toISOString().slice(0,10);
+ var justDone=(q.stage==='⑥완료');
+ if(justDone && !q.repairDate)q.repairDate=new Date().toISOString().slice(0,10);
  persist();render();
+ if(justDone && !silent && typeof mailReqOpen==='function'){ mailReqOpen(id,true); }
+}
+/* 메일 없이 완료 처리 (별도 버튼) */
+function completeNoMail(btn,id){
+ var tr=btn.closest('tr'); if(!tr)return;
+ var sel=tr.querySelector('.f-stage'); if(sel)sel.value='⑥완료';
+ if(!confirm('메일 없이 이 건을 완료 처리할까요?'))return;
+ saveReq(id,btn,true);
 }
 function delReq(id){if(!confirm('이 점검요청 건을 삭제할까요?\n(A/S 리스트 관리에는 그대로 보관됩니다.)'))return;var q=DB.find(x=>x.id===id);archiveToAS(q);DB=DB.filter(x=>x.id!==id);persist();render();}
 
@@ -3703,6 +3712,19 @@ function mailAddr(q){
  if(id.indexOf('@')>=0)return id;
  return id+'@lgensol.com';
 }
+/* 시스템 접속 링크/비밀번호 (설정 저장) */
+function sysLink(){ return (localStorage.getItem('tos_syslink')||'').trim(); }
+function sysPw(){ return (localStorage.getItem('tos_syspw')||'').trim(); }
+function sysLinkSet(){
+ var u=prompt('접수시스템 접속 주소(URL / QR 링크)를 입력하세요.\n고객이 이 주소로 접속해 실시간 진행상황을 확인합니다.', sysLink());
+ if(u===null)return;
+ var p=prompt('접속 비밀번호를 입력하세요. (없으면 비워두세요)', sysPw());
+ if(p===null)return;
+ localStorage.setItem('tos_syslink',(u||'').trim());
+ localStorage.setItem('tos_syspw',(p||'').trim());
+ alert('시스템 링크/비밀번호가 저장되었습니다.');
+ if(typeof mailReqRender==='function')mailReqRender();
+}
 /* 진행단계별 문구 정의 */
 var MAIL_STAGE={
  '①접수':      {tag:'접수 완료', head:'A/S 접수가 정상적으로 완료되었습니다.', sec:'접수 내용', body:function(q){return q.trouble||'-';}},
@@ -3710,8 +3732,12 @@ var MAIL_STAGE={
  '③점검중':    {tag:'점검 진행중', head:'설비 점검을 진행하고 있습니다.', sec:'점검 내용', body:function(q){return q.inspect||'점검을 진행하고 있습니다.';}},
  '④자재입고대기중':{tag:'자재 입고 대기', head:'수리에 필요한 자재 입고를 대기하고 있습니다. 입고 즉시 수리를 진행하겠습니다.', sec:'점검/자재 내용', body:function(q){return q.inspect||q.material||'자재 입고 대기중입니다.';}},
  '⑤수리중':    {tag:'수리 진행중', head:'설비 수리를 진행하고 있습니다.', sec:'수리 내용', body:function(q){return q.repair||'수리를 진행하고 있습니다.';}},
- '⑥완료':      {tag:'처리 완료', head:'요청하신 A/S가 정상적으로 완료되었습니다.', sec:'처리 결과', body:function(q){return (typeof RPT==='function'?RPT(q):(q.repair||q.inspect))||'정상 처리 완료되었습니다.';}}
+ '⑥완료':      {tag:'처리 완료', head:'요청하신 A/S가 정상적으로 완료되었습니다.', sec:'처리 결과', body:function(q){return (typeof RPT==='function'?RPT(q):(q.repair||q.inspect))||'정상 처리 완료되었습니다.';}},
+ '점검지연중':  {tag:'점검 지연 안내', head:'점검이 다소 지연되고 있어 안내 및 양해 말씀 드립니다.', sec:'점검 지연 사유', body:function(q){return '최근 접수 건 증가로 인해 점검이 지연되고 있습니다.\n최대한 빠른 시일 내에 점검을 진행할 수 있도록 하겠습니다. 양해 부탁드립니다.';}},
+ '수리지연중':  {tag:'수리 지연 안내', head:'수리가 다소 지연되고 있어 안내 및 양해 말씀 드립니다.', sec:'수리 지연 사유', body:function(q){return '수리에 필요한 자재 입고가 늦어져 수리가 지연되고 있습니다.\n자재 입고 즉시 신속하게 수리를 진행하겠습니다. 양해 부탁드립니다.';}}
 };
+/* 모달에 노출할 단계 순서 (지연 단계 포함) */
+var MAIL_STAGE_ORDER=['①접수','②엔지니어배정','③점검중','④자재입고대기중','⑤수리중','⑥완료','점검지연중','수리지연중'];
 /* 본문(plain text) 생성 - 등폭 정렬 박스 */
 function mailBodyText(q,stage){
  var m=MAIL_STAGE[stage]||MAIL_STAGE['①접수'];
@@ -3722,7 +3748,7 @@ function mailBodyText(q,stage){
  var L=[];
  L.push('안녕하세요, LG에너지솔루션 고객님.');
  L.push('');
- L.push('원익피앤이 A/S 진행상황을 안내드립니다.');
+ L.push('원익피앤이 CS팀입니다. A/S 진행상황을 안내드립니다.');
  L.push('');
  L.push(line);
  L.push('   [ '+stage+' ]  '+m.head);
@@ -3741,63 +3767,91 @@ function mailBodyText(q,stage){
  L.push(bodytext);
  L.push('');
  L.push(thin);
+ L.push('  ▣ 실시간 진행상황 조회 안내');
+ L.push(thin);
+ L.push('    LGES 안내메일 접수시스템에서 현재 진행사항을');
+ L.push('    실시간으로 확인하실 수 있습니다.');
+ var lk=sysLink(), pw=sysPw();
+ L.push('    ▸ 접속주소(QR/링크) :  '+(lk||'(시스템에서 링크를 설정해 주세요)'));
+ L.push('    ▸ 접속 비밀번호     :  '+(pw||'(비밀번호를 설정해 주세요)'));
+ L.push('');
+ L.push(line);
  L.push('');
  L.push('  담당 엔지니어 :  '+eng+' (원익피앤이)');
- L.push('  문의 :  원익피앤이 A/S팀');
+ L.push('  문의 :  원익피앤이 CS팀');
  L.push('');
  L.push('  진행상황에 대해 문의사항이 있으시면 언제든 회신 주시기 바랍니다.');
  L.push('');
  L.push('  감사합니다.');
- L.push('  원익피앤이 A/S팀 드림');
+ L.push('  원익피앤이 CS팀 드림');
  return L.join('\n');
 }
 function mailSubject(q,stage){
  var m=MAIL_STAGE[stage]||MAIL_STAGE['①접수'];
- return '[원익피앤이 A/S] '+(q.equip||'설비')+' - '+m.tag+' 안내 (No.'+(q.no!=null?q.no:'')+')';
+ return '[원익피앤이 CS] '+(q.equip||'설비')+' - '+m.tag+' 안내 (No.'+(q.no!=null?q.no:'')+')';
 }
-var MAILQ=null, MAILSTAGE=null;
-function mailReqOpen(id){
+var MAILQ=null, MAILSTAGE=null, MAIL_FROM_COMPLETE=false;
+function mailReqOpen(id,fromComplete){
  var q=DB.find(function(x){return x.id===id;}); if(!q){alert('대상을 찾을 수 없습니다.');return;}
- MAILQ=q; MAILSTAGE=q.stage||'①접수';
+ MAILQ=q; MAIL_FROM_COMPLETE=!!fromComplete;
+ MAILSTAGE=(MAIL_STAGE[q.stage]?q.stage:'①접수');
  var bg=document.getElementById('mailReqBg');
  if(!bg){ bg=document.createElement('div'); bg.id='mailReqBg'; bg.className='modal-bg';
   bg.onclick=function(e){ if(e.target===bg)bg.classList.remove('on'); }; document.body.appendChild(bg); }
  var addr=mailAddr(q);
- var stageBtns=STAGES.map(function(st){
+ var stageBtns=MAIL_STAGE_ORDER.map(function(st){
+   var delay=(st==='점검지연중'||st==='수리지연중');
+   var on=(st===MAILSTAGE);
+   var bc=on?(delay?'#d97706':'#2563eb'):'#e2e8f0';
+   var bgc=on?(delay?'#fffbeb':'#eff6ff'):'#fff';
+   var fc=on?(delay?'#b45309':'#1d4ed8'):(delay?'#b45309':'#334155');
    return '<button type="button" class="mailStBtn" data-st="'+st+'" onclick="mailReqPick(this.getAttribute(\'data-st\'))" '+
      'style="display:block;width:100%;text-align:left;margin-bottom:6px;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:13px;'+
-     'border:1px solid '+(st===MAILSTAGE?'#2563eb':'#e2e8f0')+';background:'+(st===MAILSTAGE?'#eff6ff':'#fff')+';color:'+(st===MAILSTAGE?'#1d4ed8':'#334155')+';font-weight:'+(st===MAILSTAGE?'700':'500')+'">'+st+'</button>';
+     'border:1px solid '+bc+';background:'+bgc+';color:'+fc+';font-weight:'+(on?'700':'500')+'">'+(delay?'⚠ ':'')+st+'</button>';
  }).join('');
- bg.innerHTML='<div class="modal" style="max-width:860px">'+
+ var footer;
+ if(MAIL_FROM_COMPLETE){
+   footer='<button class="btn" onclick="mailReqImage()">보고서 이미지 저장</button>'+
+     '<button class="btn" onclick="mailReqCopy()">본문 복사</button>'+
+     '<button class="btn" onclick="document.getElementById(\'mailReqBg\').classList.remove(\'on\')">메일 없이 완료</button>'+
+     '<button class="btn pri" onclick="mailReqSend()" style="font-size:14px">✉ 메일 보내고 완료</button>';
+ }else{
+   footer='<button class="btn" onclick="mailReqImage()">보고서 이미지 저장</button>'+
+     '<button class="btn" onclick="mailReqCopy()">본문 복사</button>'+
+     '<button class="btn pri" onclick="mailReqSend()" style="font-size:14px">✉ 메일 앱으로 열기</button>';
+ }
+ var doneMsg=MAIL_FROM_COMPLETE?'<div style="background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:12.5px;padding:9px 12px;border-radius:9px;margin-bottom:12px">이 건은 <b>완료 처리</b>되었습니다. 고객에게 완료 메일을 보내거나, [메일 없이 완료]로 닫을 수 있습니다.</div>':'';
+ bg.innerHTML='<div class="modal" style="max-width:880px">'+
   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
    '<h2 style="margin:0;font-size:20px">고객 진행상황 메일 보내기</h2>'+
    '<button class="btn" onclick="document.getElementById(\'mailReqBg\').classList.remove(\'on\')" style="font-size:13px">✕ 닫기</button></div>'+
-  '<div style="color:#64748b;font-size:12.5px;margin-bottom:16px">신고자 ID <b>'+esc((q.reporterId||q.reporterID||'-'))+'</b> 기준으로 <b>'+(addr||'(ID 없음)')+'</b> 주소가 자동 생성되었습니다. 진행단계를 선택하면 알림 문구가 자동 완성됩니다.</div>'+
+  doneMsg+
+  '<div style="color:#64748b;font-size:12.5px;margin-bottom:14px">신고자 ID <b>'+esc((q.reporterId||q.reporterID||'-'))+'</b> 기준으로 <b>'+(addr||'(ID 없음)')+'</b> 주소가 자동 생성되었습니다. 진행단계를 선택하면 알림 문구가 자동 완성됩니다. '+
+   '<a href="javascript:void(0)" onclick="sysLinkSet()" style="color:#2563eb;font-weight:700;text-decoration:none">🔗 시스템 링크·비밀번호 설정</a></div>'+
   '<div style="display:flex;gap:18px;flex-wrap:wrap">'+
-   '<div style="flex:0 0 180px"><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:8px;letter-spacing:.4px">진행단계 선택</div>'+stageBtns+'</div>'+
+   '<div style="flex:0 0 190px"><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:8px;letter-spacing:.4px">진행단계 선택</div>'+stageBtns+'</div>'+
    '<div style="flex:1;min-width:340px">'+
      '<div style="margin-bottom:10px"><label style="font-size:11px;color:#94a3b8;font-weight:700">받는사람</label>'+
        '<input id="mailTo" value="'+esc(addr)+'" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:9px;margin-top:4px;font-size:13px"></div>'+
      '<div style="margin-bottom:10px"><label style="font-size:11px;color:#94a3b8;font-weight:700">제목</label>'+
        '<input id="mailSubj" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:9px;margin-top:4px;font-size:13px"></div>'+
      '<div><label style="font-size:11px;color:#94a3b8;font-weight:700">본문 (수정 가능)</label>'+
-       '<textarea id="mailBody" style="width:100%;height:300px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:9px;margin-top:4px;'+
+       '<textarea id="mailBody" style="width:100%;height:320px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:9px;margin-top:4px;'+
        'font-family:\'D2Coding\',\'Consolas\',\'Menlo\',monospace;font-size:12.5px;line-height:1.55;background:#f8fafc;color:#1e293b;white-space:pre;overflow:auto"></textarea></div>'+
    '</div>'+
   '</div>'+
-  '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">'+
-   '<button class="btn" onclick="mailReqCopy()">본문 복사</button>'+
-   '<button class="btn pri" onclick="mailReqSend()" style="font-size:14px">✉ 메일 앱으로 열기</button>'+
-  '</div>';
+  '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">'+footer+'</div>';
  bg.classList.add('on');
  mailReqRender();
 }
 function mailReqPick(st){ MAILSTAGE=st;
  var bg=document.getElementById('mailReqBg'); if(!bg)return;
  Array.prototype.forEach.call(bg.querySelectorAll('.mailStBtn'),function(b){
-   var on=b.getAttribute('data-st')===st;
-   b.style.border='1px solid '+(on?'#2563eb':'#e2e8f0'); b.style.background=on?'#eff6ff':'#fff';
-   b.style.color=on?'#1d4ed8':'#334155'; b.style.fontWeight=on?'700':'500';
+   var s2=b.getAttribute('data-st'); var on=s2===st; var delay=(s2==='점검지연중'||s2==='수리지연중');
+   b.style.border='1px solid '+(on?(delay?'#d97706':'#2563eb'):'#e2e8f0');
+   b.style.background=on?(delay?'#fffbeb':'#eff6ff'):'#fff';
+   b.style.color=on?(delay?'#b45309':'#1d4ed8'):(delay?'#b45309':'#334155');
+   b.style.fontWeight=on?'700':'500';
  });
  mailReqRender();
 }
@@ -3814,6 +3868,7 @@ function mailReqSend(){
  if(!to.trim()){alert('받는사람 이메일이 비어 있습니다.\n신고자 ID가 없으면 직접 입력해 주세요.');return;}
  var uri='mailto:'+encodeURIComponent(to.trim())+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
  window.location.href=uri;
+ var bg=document.getElementById('mailReqBg'); if(bg)setTimeout(function(){bg.classList.remove('on');},400);
 }
 function mailReqCopy(){
  var body=(document.getElementById('mailBody')||{}).value||'';
@@ -3822,6 +3877,79 @@ function mailReqCopy(){
  }else{mailReqCopyFallback(body);}
 }
 function mailReqCopyFallback(t){ var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');alert('본문이 복사되었습니다.');}catch(e){alert('복사에 실패했습니다.');}document.body.removeChild(ta);}
+/* ===== 결과보고서 이미지(PNG) 생성 - 캔버스 렌더 후 다운로드 ===== */
+function mailReqImage(){
+ var q=MAILQ; if(!q){alert('대상이 없습니다.');return;}
+ var stage=MAILSTAGE||'①접수'; var m=MAIL_STAGE[stage]||MAIL_STAGE['①접수'];
+ var delay=(stage==='점검지연중'||stage==='수리지연중');
+ var W=760, pad=40;
+ var cv=document.createElement('canvas');
+ var ratio=2; cv.width=W*ratio; var ctxH=1100; cv.height=ctxH*ratio;
+ var x=cv.getContext('2d'); x.scale(ratio,ratio);
+ function wrap(text,maxw,fnt){ x.font=fnt; var out=[]; (text||'').split(/\r?\n/).forEach(function(para){
+   var words=para.split(''); var cur='';
+   for(var i=0;i<words.length;i++){ var t=cur+words[i]; if(x.measureText(t).width>maxw){ out.push(cur); cur=words[i]; } else cur=t; }
+   out.push(cur); }); return out; }
+ // 배경
+ x.fillStyle='#ffffff'; x.fillRect(0,0,W,ctxH);
+ // 헤더바
+ var hc=delay?'#d97706':'#2563eb';
+ x.fillStyle=hc; x.fillRect(0,0,W,86);
+ x.fillStyle='#ffffff'; x.font='700 24px Pretendard, sans-serif';
+ x.fillText('원익피앤이 CS팀 · A/S 진행 안내', pad, 40);
+ x.font='500 14px Pretendard, sans-serif'; x.fillStyle='#dbeafe';
+ x.fillText('LG에너지솔루션 고객 안내 보고서', pad, 66);
+ var y=126;
+ // 단계 배지
+ x.fillStyle=delay?'#fffbeb':'#eff6ff'; roundRect(x,pad,y-22,W-pad*2,44,10,true,false);
+ x.fillStyle=hc; x.font='700 18px Pretendard, sans-serif';
+ x.fillText('[ '+stage+' ]  '+m.tag, pad+16, y+6);
+ y+=54;
+ // 헤드 문구
+ x.fillStyle='#111827'; x.font='500 15px Pretendard, sans-serif';
+ wrap(m.head,W-pad*2,'500 15px Pretendard, sans-serif').forEach(function(ln){ x.fillText(ln,pad,y); y+=24; });
+ y+=10;
+ // 정보 테이블
+ var loc=(q.loc||'').replace(/\s*\/\s*$/,'').trim();
+ var rows=[['접수번호',(q.no!=null?q.no:'-')+''],['설비명',q.equip||'-'],['설치위치',loc||'-'],['신고자',q.reporter||'-'],['진행상태',stage],['담당 엔지니어',(q.engineer||'-')+' (원익피앤이)']];
+ rows.forEach(function(r){
+   x.fillStyle='#f8fafc'; roundRect(x,pad,y-18,W-pad*2,32,7,true,false);
+   x.fillStyle='#64748b'; x.font='700 13px Pretendard, sans-serif'; x.fillText(r[0],pad+14,y+3);
+   x.fillStyle='#111827'; x.font='500 14px Pretendard, sans-serif'; x.fillText(r[1],pad+160,y+3);
+   y+=40;
+ });
+ y+=8;
+ // 섹션 제목
+ x.strokeStyle='#e2e8f0'; x.beginPath(); x.moveTo(pad,y); x.lineTo(W-pad,y); x.stroke(); y+=26;
+ x.fillStyle=hc; x.font='700 15px Pretendard, sans-serif'; x.fillText('▣ '+m.sec, pad, y); y+=26;
+ x.fillStyle='#1e293b'; x.font='400 14px Pretendard, sans-serif';
+ wrap(m.body(q)||'-',W-pad*2-6,'400 14px Pretendard, sans-serif').forEach(function(ln){ x.fillText(ln,pad+6,y); y+=23; });
+ y+=14;
+ // 조회 안내 박스
+ x.fillStyle='#f1f5f9'; roundRect(x,pad,y-14,W-pad*2,96,10,true,false);
+ x.fillStyle='#0f172a'; x.font='700 13px Pretendard, sans-serif'; x.fillText('▣ 실시간 진행상황 조회 (LGES 안내메일 접수시스템)',pad+14,y+8);
+ x.fillStyle='#334155'; x.font='400 13px Pretendard, sans-serif';
+ x.fillText('▸ 접속주소(QR/링크) :  '+(sysLink()||'(미설정)'),pad+14,y+34);
+ x.fillText('▸ 접속 비밀번호      :  '+(sysPw()||'(미설정)'),pad+14,y+56);
+ y+=110;
+ // 푸터
+ x.strokeStyle='#e2e8f0'; x.beginPath(); x.moveTo(pad,y); x.lineTo(W-pad,y); x.stroke(); y+=24;
+ x.fillStyle='#64748b'; x.font='400 12px Pretendard, sans-serif';
+ x.fillText('문의 : 원익피앤이 CS팀  ·  '+new Date().toLocaleDateString('ko-KR'),pad,y);
+ // crop & download
+ var out=document.createElement('canvas'); out.width=W*ratio; out.height=(y+30)*ratio;
+ out.getContext('2d').drawImage(cv,0,0);
+ var url=out.toDataURL('image/png');
+ var a=document.createElement('a'); a.href=url;
+ a.download='AS보고서_'+(q.equip||'설비')+'_No'+(q.no!=null?q.no:'')+'.png';
+ document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+function roundRect(ctx,x2,y2,w,h,r,fill,stroke){
+ ctx.beginPath(); ctx.moveTo(x2+r,y2);
+ ctx.arcTo(x2+w,y2,x2+w,y2+h,r); ctx.arcTo(x2+w,y2+h,x2,y2+h,r);
+ ctx.arcTo(x2,y2+h,x2,y2,r); ctx.arcTo(x2,y2,x2+w,y2,r);
+ ctx.closePath(); if(fill)ctx.fill(); if(stroke)ctx.stroke();
+}
 
 function addReq(){
  const today=new Date().toISOString().slice(0,10);
@@ -3866,7 +3994,7 @@ function renderDone(v){
  let rows='';
  list.forEach(q=>{
   const opts=STAGES.map(s=>'<option '+(q.stage===s?'selected':'')+'>'+s+'</option>').join('');
-  rows+='<tr data-id="'+q.id+'"><td>'+esc(q.no)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td><td>'+esc(q.repairDate||q.date)+'</td><td style="max-width:240px"><textarea class="done-rep" style="width:100%;min-width:170px;min-height:38px;font-size:12px;line-height:1.4;resize:vertical" placeholder="수리내용 입력">'+esc(q.repair||q.inspect||'')+'</textarea><div style="margin-top:3px"><button class="btn pri sm" onclick="doneSaveRepair(\''+q.id+'\',this)">저장</button></div></td><td class="right">'+won(q.amount)+'</td><td><select class="f-stage2">'+opts+'</select></td><td><button class="btn pri sm" onclick="revertDone(\''+q.id+'\',this)">단계 변경</button> <button class="btn dng sm" onclick="delDone(\''+q.id+'\')">삭제</button></td></tr>';
+  rows+='<tr data-id="'+q.id+'"><td>'+esc(q.no)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td><td>'+esc(q.repairDate||q.date)+'</td><td style="max-width:240px"><textarea class="done-rep" style="width:100%;min-width:170px;min-height:38px;font-size:12px;line-height:1.4;resize:vertical" placeholder="수리내용 입력">'+esc(q.repair||q.inspect||'')+'</textarea><div style="margin-top:3px"><button class="btn pri sm" onclick="doneSaveRepair(\''+q.id+'\',this)">저장</button></div></td><td class="right">'+won(q.amount)+'</td><td><select class="f-stage2">'+opts+'</select></td><td><button class="btn pri sm" onclick="revertDone(\''+q.id+'\',this)">단계 변경</button> <button class="btn sm" onclick="mailReqOpen(\''+q.id+'\')" style="background:#059669;color:#fff;border-color:#059669">메일</button> <button class="btn dng sm" onclick="delDone(\''+q.id+'\')">삭제</button></td></tr>';
  });
  if(!list.length)rows='<tr><td colspan="7" class="mut" style="text-align:center;padding:18px">완료된 건이 없습니다.</td></tr>';
  v.innerHTML='<div class="panel"><h2>완료함 · 완료 건 ('+list.length+')</h2>'+
