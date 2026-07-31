@@ -1800,7 +1800,7 @@ function renderAS(v){
  // 단계 필터 적용
  var list=asStageFilter?fullList.filter(function(q){return q.stage===asStageFilter;}):fullList.slice();
  // 검색 필터
- if(asQ)list=list.filter(function(q){var a=asGet(q.id,q);return matchQ([q.no,q.date,q.reporter,q.equip,q.trouble,q.repair,a.고장유형,a.에러코드,a.대분류,a.중분류,a.교체부품,a.sn,a.model,q.stage].join(' '),asQ);});
+ if(asQ)list=list.filter(function(q){return asMatch(q,asQ);});
  // 진행단계 순서대로(①→⑥) 정렬 → 완료는 맨 아래
  list.sort(function(a,b){
    var ia=STAGES.indexOf(a.stage);if(ia<0)ia=STAGES.length;
@@ -1843,7 +1843,7 @@ function renderAS(v){
   '<span id="asSelBar" style="font-size:12px;font-weight:700;color:#b91c1c">'+(asSelCount()?'선택 '+asSelCount()+'건':'')+'</span>'+
   '<span style="flex:1"></span>'+
   '<button class="btn pri" onclick="asImpToggle()">＋ 엑셀로 A/S 등록</button></div>'+
-  '<div class="srchbar no-print"><input type="text" id="asQ" value="'+esc(asQ)+'" placeholder="검색: 신고자, 장비, 접수내용, 고장유형, 에러코드, 대/중분류, 교체부품, S/N, 단계 (여러 단어=모두 포함)" oninput="asSearch(this.value)">'+(asQ?'<button class="btn sm" onclick="asQ=\'\';render()">검색 해제</button>':'')+'</div>'+
+  '<div class="srchbar no-print"><input type="text" id="asQ" value="'+esc(asQ)+'" placeholder="검색: 날짜(접수일·완료일), 신고자, 장비, 접수내용, 고장유형, 에러코드, 대/중분류, 교체부품, S/N, 단계 (여러 단어=모두 포함)" oninput="asSearch(this.value)">'+(asQ?'<button class="btn sm" onclick="asQ=\'\';render()">검색 해제</button>':'')+'</div>'+
   '<div id="asImpArea"></div>'+
   '<div id="crmPv"></div>'+
   fbar+
@@ -2298,6 +2298,8 @@ function delAS(id){var q=asAll().find(function(x){return x.id===id;});if(!q)retu
  persist();saveArch();save(siteKey('tos_as_v8'),ASD);render();}
 //============ 검색엔진 (점검요청서 · A/S 공용) ============
 function matchQ(hay,q){if(!q)return true;hay=String(hay==null?'':hay).toLowerCase();return String(q).toLowerCase().split(/\s+/).every(function(tok){return !tok||hay.indexOf(tok)>=0;});}
+function asDnorm(s){return String(s==null?'':s).replace(/[.\-\/\s]/g,'');}
+function asMatch(q,asQ){var a=asGet(q.id,q);var done=q.stage==='⑥완료';var comp=q.repairDate||(done?q.date:'');var base=[q.no,q.date,comp,q.inspectDate,q.reporter,q.equip,q.trouble,q.repair,a.고장유형,a.에러코드,a.대분류,a.중분류,a.교체부품,a.sn,a.model,q.stage].join(' ');var hay=String(base).toLowerCase();var hayD=asDnorm(base);return String(asQ).toLowerCase().split(/\s+/).every(function(tok){if(!tok)return true;if(hay.indexOf(tok)>=0)return true;var td=asDnorm(tok);if(td&&/[0-9]/.test(td)&&hayD.indexOf(td)>=0)return true;return false;});}
 function reqSearch(v){reqQ=v;clearTimeout(window._rqT);window._rqT=setTimeout(function(){render();var e=document.getElementById('reqQ');if(e){e.focus();try{e.setSelectionRange(e.value.length,e.value.length);}catch(x){}}},220);}
 function asSearch(v){asQ=v;clearTimeout(window._asT);window._asT=setTimeout(function(){render();var e=document.getElementById('asQ');if(e){e.focus();try{e.setSelectionRange(e.value.length,e.value.length);}catch(x){}}},220);}
 //============ A/S 다중 선택 삭제 (체크박스 · 전체선택) ============
