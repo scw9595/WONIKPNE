@@ -1816,17 +1816,18 @@ function renderAS(v){
  });
  fbar+='</div>';
  let rows='';
- list.forEach(function(q){const a=asGet(q.id,q);const done=q.stage==='⑥완료';const sel=(q.id===asEditId);
+ list.forEach(function(q){const a=asGet(q.id,q);const done=q.stage==='⑥완료';const sel=(q.id===asEditId);const comp=q.repairDate||(done?q.date:'');
   rows+='<tr class="'+(done?'rowdone':'')+'"'+(sel?' style="background:#eef2ff"':'')+'><td style="text-align:center"><input type="checkbox" class="as-chk" data-id="'+q.id+'"'+(asSel[q.id]?' checked':'')+' onclick="asSelToggle(\''+q.id+'\',this)"></td><td>'+esc(q.no)+'</td><td style="white-space:nowrap">'+esc(q.date)+overdueTag(q,done)+'</td><td><b>'+esc(q.reporter)+'</b><div class="mut" style="font-size:11px">'+esc(q.equip)+'</div></td>'+
    '<td style="max-width:200px" class="mut">'+esc((q.trouble||'').slice(0,46))+'</td>'+
    '<td>'+badge(a.고장유형)+'</td><td>'+badge(a.에러코드)+'</td><td>'+badge(a.대분류)+' / '+badge(a.중분류)+'</td>'+
    '<td style="max-width:150px">'+esc(asPartsText(a)||'-')+'</td>'+
    '<td><span class="tag '+stageCls(q.stage)+'">'+esc(q.stage)+'</span></td>'+
    '<td>'+(done?'완료':'대응중')+'</td>'+
+   '<td style="white-space:nowrap">'+esc(comp||'-')+'</td>'+
    '<td style="white-space:nowrap"><button class="btn '+(sel?'':'pri ')+'sm" onclick="asEdit(\''+q.id+'\')">'+(sel?'편집중':'편집')+'</button> <button class="btn sm" style="background:#fee2e2;color:#b91c1c;border-color:#fecaca" onclick="delAS(\''+q.id+'\')">삭제</button></td></tr>';
-  if(sel)rows+='<tr class="asEditRow"><td colspan="12" style="padding:0;background:#eef2ff">'+asFormHtml(q)+'</td></tr>';
+  if(sel)rows+='<tr class="asEditRow"><td colspan="13" style="padding:0;background:#eef2ff">'+asFormHtml(q)+'</td></tr>';
  });
- if(!list.length)rows='<tr><td colspan="12" class="mut" style="text-align:center;padding:18px">'+(asQ?('「'+esc(asQ)+'」 검색 결과가 없습니다.'):asStageFilter?('「'+esc(asStageFilter)+'」 단계에 해당하는 A/S 건이 없습니다.'):'A/S 대상 데이터가 없습니다.')+'</td></tr>';
+ if(!list.length)rows='<tr><td colspan="13" class="mut" style="text-align:center;padding:18px">'+(asQ?('「'+esc(asQ)+'」 검색 결과가 없습니다.'):asStageFilter?('「'+esc(asStageFilter)+'」 단계에 해당하는 A/S 건이 없습니다.'):'A/S 대상 데이터가 없습니다.')+'</td></tr>';
  if(asEditId && !DB.find(function(x){return x.id===asEditId;}))asEditId=null;
  v.innerHTML='<div class="panel"><h2>A/S 리스트 관리 ('+list.length+'건'+(asStageFilter?' · '+esc(asStageFilter):'')+')</h2>'+
   '<div class="note">회사 A/S 리스트(취합) 관리 화면입니다. <b>접수내용</b>=TOS 고장내용, <b>n차 점검·조치내용</b>=점검요청서 수리결과가 자동 반영됩니다. 표에서 <b>편집</b>을 누르면 해당 행 바로 아래에 입력란이 열리고, 저장하면 닫힙니다. 공통정보(담당자·고객명 등)는 수정 시 전체 A/S 건에 동일 반영됩니다.</div>'+
@@ -1846,7 +1847,7 @@ function renderAS(v){
   '<div id="asImpArea"></div>'+
   '<div id="crmPv"></div>'+
   fbar+
-  '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:center"><input type="checkbox" id="asAllChk" onclick="asSelAll(this)" title="전체 선택"></th><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:center"><input type="checkbox" id="asAllChk" onclick="asSelAll(this)" title="전체 선택"></th><th>No</th><th>접수일</th><th>신고자·장비</th><th>접수내용</th><th>고장유형</th><th>에러코드</th><th>대/중분류</th><th>교체부품</th><th>진행단계</th><th>대응중</th><th>완료일</th><th>편집</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
  if(asEditId){var f=document.getElementById('asForm');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});
   var _amt=document.getElementById('as_amt');if(_amt&&Number(_amt.value)>0)_amt.dataset.manual='1';asAmtCalc();}
  renderWeekInfo();asSelBarUpd();
