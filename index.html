@@ -722,6 +722,7 @@ body.mview .adb-grid{grid-template-columns:1fr}
       <div class="pageT" id="pageT">관리자 모드</div>
       <span id="siteBadge" style="margin-left: 14px; font-weight: 750; font-size: 13px; color: rgb(255, 255, 255); background: rgb(147, 51, 234); border: 1px solid rgb(147, 51, 234); border-radius: 8px; padding: 4px 12px;">대전LGES</span>
       <button class="btn sm" id="backBtn" onclick="gotoHub()" style="margin-left:8px">현장 변경</button>
+      <button class="btn sm" onclick="mccOpen()" style="margin-left:6px;background:#0b3b6f;color:#dbeafe;border-color:#1d4ed8">관제 대시보드</button>
       <div class="spacer"></div>
       <span class="mut" id="saveInfo" style="font-size:11.5px;margin-right:4px">A/S 500건</span>
       <span class="role adm" id="roleLab">메인관리자 · 전체권한</span>
@@ -5077,6 +5078,241 @@ function renderPartLife(v){
   var tbl='<div style="overflow-x:auto"><table style="margin-top:8px"><thead><tr><th>장비</th><th>부품</th><th style="text-align:center">교체횟수</th><th style="text-align:center">평균주기</th><th style="text-align:center">마지막 교체</th><th style="text-align:center">다음 예상</th><th style="text-align:center">상태</th></tr></thead><tbody>'+(trs||'<tr><td colspan="7" class="mut">부품 교체 이력이 없습니다.</td></tr>')+'</tbody></table></div>';
   v.innerHTML='<div class="panel"><h2>부품 수명 예측·교체 알림</h2><div class="note">장비별 소모성 부품의 교체 이력으로 <b>평균 교체주기</b>를 학습해 <b>다음 교체 예상일</b>을 산출합니다. 계획 정비(선제 교체)로 결품·긴급출동을 줄이는 데 활용합니다.</div>'+alert+tbl+'</div>';
 }
+
+
+/* ============ [방재실 통합 관제 대시보드] START ============ */
+(function(){
+function _q(sel,r){return (r||document).querySelector(sel);}
+function esc(s){return String(s==null?'':s).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}
+function curDB(){try{return Array.isArray(DB)?DB:[];}catch(e){return [];}}
+function siteName(){try{return SITE||'현장';}catch(e){return '현장';}}
+function done(q){return q && q.stage==='⑥완료';}
+function compDate(q){return q.repairDate || (done(q)?q.date:'');}
+function ddiff(a,b){try{return dayDiff(a,b);}catch(e){var A=new Date(a),B=new Date(b);return Math.round((B-A)/86400000);}}
+function tstr(){try{return todayStr();}catch(e){var d=new Date();return d.toISOString().slice(0,10);}}
+
+function mccStats(){
+  var db=curDB(), today=tstr();
+  var total=db.length;
+  var comp=db.filter(done);
+  var open=db.filter(function(q){return !done(q);});
+  var rate= total? Math.round(comp.length/total*1000)/10 : 0;
+  // lead times
+  var lts=[];
+  comp.forEach(function(q){var cd=compDate(q); if(cd&&q.date){var d=ddiff(q.date,cd); if(d>=0&&d<3650)lts.push(d);}});
+  var avg= lts.length? Math.round(lts.reduce(function(a,b){return a+b;},0)/lts.length*10)/10 : 0;
+  var todayIn=db.filter(function(q){return q.date===today;}).length;
+  var todayDone=comp.filter(function(q){return compDate(q)===today;}).length;
+  // week done (last 7 days)
+  var wk=comp.filter(function(q){var cd=compDate(q); return cd && ddiff(cd,today)<=7 && ddiff(cd,today)>=0;}).length;
+  // stage dist
+  var stg=STAGES.map(function(s){return {s:s,n:db.filter(function(q){return q.stage===s;}).length};});
+  var unassigned=db.filter(function(q){return q.stage==='①접수';}).length;
+  var waitMat=db.filter(function(q){return q.stage==='④자재입고대기중';}).length;
+  // aging open items
+  var aging=open.map(function(q){return {q:q,age:q.date?ddiff(q.date,today):0};}).sort(function(a,b){return b.age-a.age;});
+  var over7=aging.filter(function(x){return x.age>=7;}).length;
+  var maxAge= aging.length? aging[0].age : 0;
+  // monthly trend 6 months
+  var months=[]; var d=new Date(today+'T00:00:00');
+  for(var i=5;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1); months.push(m.getFullYear()+'-'+('0'+(m.getMonth()+1)).slice(-2));}
+  var mIn=months.map(function(mm){return db.filter(function(q){return (q.date||'').slice(0,7)===mm;}).length;});
+  var mDone=months.map(function(mm){return comp.filter(function(q){return (compDate(q)||'').slice(0,7)===mm;}).length;});
+  // rankings
+  function rank(field,arr){var m={}; (arr||db).forEach(function(q){var k=(q[field]||'미상').trim()||'미상'; m[k]=(m[k]||0)+1;}); return Object.keys(m).map(function(k){return {k:k,n:m[k]};}).sort(function(a,b){return b.n-a.n;});}
+  var equipTop=rank('equip').slice(0,7);
+  var engTop=rank('engineer',comp).slice(0,7);
+  // building from loc
+  var bld={}; db.forEach(function(q){var parts=(q.loc||'').split('/'); var b=(parts[1]||parts[0]||'미상').trim()||'미상'; bld[b]=(bld[b]||0)+1;});
+  var bldTop=Object.keys(bld).map(function(k){return {k:k,n:bld[k]};}).sort(function(a,b){return b.n-a.n;}).slice(0,7);
+  // recent completed feed
+  var feed=comp.slice().sort(function(a,b){return (compDate(b)||'').localeCompare(compDate(a)||'');}).slice(0,7);
+  return {total:total,comp:comp.length,open:open.length,rate:rate,avg:avg,todayIn:todayIn,todayDone:todayDone,wk:wk,
+    stg:stg,unassigned:unassigned,waitMat:waitMat,aging:aging,over7:over7,maxAge:maxAge,
+    months:months,mIn:mIn,mDone:mDone,equipTop:equipTop,engTop:engTop,bldTop:bldTop,feed:feed};
+}
+
+function bars(list,color){
+  var mx=Math.max.apply(null,list.map(function(x){return x.n;}).concat([1]));
+  return list.map(function(x){var w=Math.round(x.n/mx*100);
+    return '<div class="mccRow"><div class="mccRk">'+esc(x.k)+'</div><div class="mccBarWrap"><div class="mccBar" style="width:'+w+'%;background:'+color+'"></div></div><div class="mccNum">'+x.n+'</div></div>';}).join('');
+}
+
+function donut(rate){
+  var r=52, c=2*Math.PI*r, off=c*(1-rate/100);
+  return '<svg viewBox="0 0 140 140" width="150" height="150">'+
+    '<circle cx="70" cy="70" r="'+r+'" fill="none" stroke="#1e293b" stroke-width="16"/>'+
+    '<circle cx="70" cy="70" r="'+r+'" fill="none" stroke="#22d3ee" stroke-width="16" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+off+'" transform="rotate(-90 70 70)"/>'+
+    '<text x="70" y="66" text-anchor="middle" fill="#e2e8f0" font-size="26" font-weight="800">'+rate+'%</text>'+
+    '<text x="70" y="90" text-anchor="middle" fill="#64748b" font-size="12">완료율</text></svg>';
+}
+
+function trend(months,mIn,mDone){
+  var W=560,H=200,pad=34;
+  var all=mIn.concat(mDone); var mx=Math.max.apply(null,all.concat([1]));
+  function X(i){return pad+i*((W-pad*2)/(months.length-1||1));}
+  function Y(v){return H-pad-(v/mx)*(H-pad*2);}
+  function path(arr){return arr.map(function(v,i){return (i?'L':'M')+X(i)+' '+Y(v);}).join(' ');}
+  var area='M'+X(0)+' '+Y(mDone[0])+' '+mDone.map(function(v,i){return 'L'+X(i)+' '+Y(v);}).join(' ')+' L'+X(months.length-1)+' '+(H-pad)+' L'+X(0)+' '+(H-pad)+' Z';
+  var dots=mDone.map(function(v,i){return '<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="3.5" fill="#22d3ee"/><text x="'+X(i)+'" y="'+(Y(v)-8)+'" text-anchor="middle" fill="#94a3b8" font-size="11">'+v+'</text>';}).join('');
+  var xl=months.map(function(m,i){return '<text x="'+X(i)+'" y="'+(H-10)+'" text-anchor="middle" fill="#64748b" font-size="11">'+m.slice(2)+'</text>';}).join('');
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="100%" preserveAspectRatio="none">'+
+    '<path d="'+area+'" fill="rgba(34,211,238,0.12)"/>'+
+    '<path d="'+path(mIn)+'" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 4"/>'+
+    '<path d="'+path(mDone)+'" fill="none" stroke="#22d3ee" stroke-width="2.5"/>'+
+    dots+xl+'</svg>';
+}
+
+function agingTable(aging){
+  var rows=aging.slice(0,9).map(function(x){var q=x.q; var cls=x.age>=14?'crit':(x.age>=7?'warn':'');
+    return '<tr class="'+cls+'"><td>'+esc((q.equip||'').slice(0,18))+'</td><td>'+esc(q.stage||'')+'</td><td>'+esc(q.engineer||'-')+'</td><td class="r">'+x.age+'일</td></tr>';}).join('');
+  return '<table class="mccTbl"><thead><tr><th>장비</th><th>단계</th><th>담당</th><th class="r">경과</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4" style="text-align:center;color:#64748b">진행중 없음</td></tr>')+'</tbody></table>';
+}
+
+function feedCards(feed){
+  return feed.map(function(q){return '<div class="mccFeed"><div class="mccFd">'+esc(compDate(q)||'')+'</div><div class="mccFe">'+esc((q.equip||'').slice(0,20))+'</div><div class="mccFr">'+esc((q.repair||q.trouble||'').slice(0,40))+'</div></div>';}).join('');
+}
+
+function mccRender(){
+  var ov=_q('#mccOverlay'); if(!ov)return;
+  var st=mccStats();
+  var alarm= st.over7>0;
+  var now=new Date();
+  var days=['일','월','화','수','목','금','토'];
+  var clock=now.getFullYear()+'.'+('0'+(now.getMonth()+1)).slice(-2)+'.'+('0'+now.getDate()).slice(-2)+' ('+days[now.getDay()]+') '+('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
+  function kpi(label,val,unit,cls){return '<div class="mccKpi '+(cls||'')+'"><div class="mccKv">'+val+'<span class="mccKu">'+(unit||'')+'</span></div><div class="mccKl">'+label+'</div></div>';}
+  var kpis=[
+    kpi('총 접수',st.total,'건'),
+    kpi('완료',st.comp,'건','ok'),
+    kpi('진행중',st.open,'건'),
+    kpi('완료율',st.rate,'%','ok'),
+    kpi('평균 처리',st.avg,'일'),
+    kpi('최장 지연',st.maxAge,'일',st.maxAge>=14?'crit':(st.maxAge>=7?'warn':'')),
+    kpi('오늘 접수',st.todayIn,'건'),
+    kpi('오늘 완료',st.todayDone,'건','ok'),
+    kpi('주간 완료',st.wk,'건'),
+    kpi('미배정①',st.unassigned,'건',st.unassigned>0?'warn':''),
+    kpi('자재대기④',st.waitMat,'건',st.waitMat>0?'warn':''),
+    kpi('7일+ 지연',st.over7,'건',st.over7>0?'crit':'ok')
+  ].join('');
+  var stageBars=st.stg.map(function(x){var mx=Math.max.apply(null,st.stg.map(function(y){return y.n;}).concat([1])); var w=Math.round(x.n/mx*100);
+    return '<div class="mccRow"><div class="mccRk">'+esc(x.s)+'</div><div class="mccBarWrap"><div class="mccBar" style="width:'+w+'%;background:#3b82f6"></div></div><div class="mccNum">'+x.n+'</div></div>';}).join('');
+  var ticker=st.feed.map(function(q){return '● '+esc(compDate(q)||'')+' '+esc((q.equip||'').slice(0,16))+' 완료';}).join('   ·   ') || '완료 이력 없음';
+
+  var stage=_q('#mccStage');
+  stage.innerHTML=
+  '<div class="mccHdr '+(alarm?'alarm':'')+'">'+
+    '<div class="mccTitle"><span class="mccLive"><i></i>LIVE</span> SITUATION ROOM · '+esc(siteName())+' A/S 통합관제</div>'+
+    '<div class="mccClock">'+clock+(alarm?' <span class="mccAlarm">▲ 지연 경보 '+st.over7+'건</span>':'')+'</div>'+
+  '</div>'+
+  '<div class="mccKpis">'+kpis+'</div>'+
+  '<div class="mccGrid">'+
+    '<div class="mccCol">'+
+      '<div class="mccPanel"><div class="mccPh">진행 단계별 현황</div><div class="mccPb">'+stageBars+'</div></div>'+
+      '<div class="mccPanel"><div class="mccPh">완료율</div><div class="mccPb" style="display:flex;align-items:center;gap:14px;justify-content:center">'+donut(st.rate)+'<div class="mccSide"><div><b>'+st.comp+'</b> 완료</div><div><b>'+st.open+'</b> 진행중</div><div><b>'+st.avg+'</b>일 평균</div></div></div></div>'+
+    '</div>'+
+    '<div class="mccCol">'+
+      '<div class="mccPanel"><div class="mccPh">월별 접수·완료 추이 <span class="mccLg"><em style="color:#22d3ee">완료</em> <em style="color:#f59e0b">접수</em></span></div><div class="mccPb" style="height:210px">'+trend(st.months,st.mIn,st.mDone)+'</div></div>'+
+      '<div class="mccPanel '+(alarm?'alarm':'')+'"><div class="mccPh">진행중 지연 관제 (경과일순)</div><div class="mccPb">'+agingTable(st.aging)+'</div></div>'+
+    '</div>'+
+    '<div class="mccCol">'+
+      '<div class="mccPanel"><div class="mccPh">다빈도 장비 TOP</div><div class="mccPb">'+bars(st.equipTop,'#8b5cf6')+'</div></div>'+
+      '<div class="mccPanel"><div class="mccPh">엔지니어 완료 실적</div><div class="mccPb">'+bars(st.engTop,'#10b981')+'</div></div>'+
+      '<div class="mccPanel"><div class="mccPh">건물별 분포</div><div class="mccPb">'+bars(st.bldTop,'#f59e0b')+'</div></div>'+
+    '</div>'+
+  '</div>'+
+  '<div class="mccPanel" style="margin-top:8px"><div class="mccPh">최근 완료 피드</div><div class="mccPb mccFeeds">'+feedCards(st.feed)+'</div></div>'+
+  '<div class="mccTicker"><div class="mccTk">'+ticker+'   ·   '+ticker+'</div></div>';
+  mccScale();
+}
+
+function mccScale(){
+  var stage=_q('#mccStage'); if(!stage)return;
+  var bw=window.innerWidth, bh=window.innerHeight;
+  var s=Math.min(bw/1920, bh/1080);
+  stage.style.transform='scale('+s+')';
+  stage.style.left=Math.round((bw-1920*s)/2)+'px';
+  stage.style.top=Math.round((bh-1080*s)/2)+'px';
+}
+
+window.mccOpen=function(){
+  if(_q('#mccOverlay'))return;
+  var ov=document.createElement('div'); ov.id='mccOverlay';
+  ov.innerHTML='<div id="mccStage"></div><button id="mccClose" onclick="mccClose()">닫기 ✕</button>';
+  document.body.appendChild(ov);
+  mccRender();
+  ov._t=setInterval(mccRender,15000);
+  ov._clk=setInterval(function(){var c=_q('.mccClock'); if(c){var st=mccStats();/*light clock update handled by full render*/}},1000);
+  window.addEventListener('resize',mccScale);
+  document.addEventListener('keydown',mccKey);
+  try{ov.requestFullscreen&&ov.requestFullscreen();}catch(e){}
+  try{if('wakeLock' in navigator)navigator.wakeLock.request('screen').then(function(w){ov._wake=w;}).catch(function(){});}catch(e){}
+};
+function mccKey(e){if(e.key==='Escape')mccClose();}
+window.mccClose=function(){
+  var ov=_q('#mccOverlay'); if(!ov)return;
+  clearInterval(ov._t); clearInterval(ov._clk);
+  window.removeEventListener('resize',mccScale);
+  document.removeEventListener('keydown',mccKey);
+  try{ov._wake&&ov._wake.release();}catch(e){}
+  try{document.fullscreenElement&&document.exitFullscreen();}catch(e){}
+  ov.remove();
+};
+
+// live clock every second without full recompute
+setInterval(function(){var ov=_q('#mccOverlay'); if(!ov)return; var c=_q('.mccClock'); if(!c)return;
+  var now=new Date(); var days=['일','월','화','수','목','금','토'];
+  var base=now.getFullYear()+'.'+('0'+(now.getMonth()+1)).slice(-2)+'.'+('0'+now.getDate()).slice(-2)+' ('+days[now.getDay()]+') '+('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
+  var extra=c.querySelector('.mccAlarm'); c.firstChild&&(c.childNodes[0].nodeValue=base+(extra?' ':''));
+},1000);
+
+var css=document.createElement('style'); css.textContent=
+'#mccOverlay{position:fixed;inset:0;z-index:99999;background:#050b18;overflow:hidden;font-family:Pretendard,-apple-system,sans-serif}'+
+'#mccOverlay:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(30,64,111,0.15) 1px,transparent 1px),linear-gradient(90deg,rgba(30,64,111,0.15) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}'+
+'#mccStage{position:absolute;width:1920px;height:1080px;transform-origin:top left;background:#050b18;color:#e2e8f0;padding:22px 26px;box-sizing:border-box;display:flex;flex-direction:column}'+
+'#mccClose{position:fixed;top:16px;right:20px;z-index:100000;background:#7f1d1d;color:#fff;border:1px solid #ef4444;border-radius:6px;padding:8px 14px;font-size:14px;cursor:pointer}'+
+'.mccHdr{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1d4ed8;padding-bottom:12px;margin-bottom:12px}'+
+'.mccHdr.alarm{border-color:#ef4444}'+
+'.mccTitle{font-size:30px;font-weight:800;letter-spacing:0.5px;color:#f1f5f9}'+
+'.mccLive{background:#dc2626;color:#fff;font-size:16px;padding:3px 10px;border-radius:5px;margin-right:10px;vertical-align:middle}'+
+'.mccLive i{display:inline-block;width:8px;height:8px;background:#fff;border-radius:50%;margin-right:6px;animation:mccBlink 1s infinite}'+
+'@keyframes mccBlink{50%{opacity:0.2}}'+
+'.mccClock{font-size:20px;color:#93c5fd;font-variant-numeric:tabular-nums;font-weight:600}'+
+'.mccAlarm{color:#fca5a5;margin-left:12px;font-weight:800}'+
+'.mccKpis{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:12px}'+
+'.mccKpi{background:#0b1526;border:1px solid #1e293b;border-radius:8px;padding:12px 8px;text-align:center}'+
+'.mccKpi.ok{border-color:#065f46}.mccKpi.warn{border-color:#b45309;background:#1a1206}.mccKpi.crit{border-color:#b91c1c;background:#1f0808;animation:mccPulse 1.4s infinite}'+
+'@keyframes mccPulse{50%{background:#3f1010}}'+
+'.mccKv{font-size:30px;font-weight:800;color:#f8fafc;line-height:1}'+
+'.mccKu{font-size:13px;color:#64748b;margin-left:3px;font-weight:600}'+
+'.mccKl{font-size:13px;color:#94a3b8;margin-top:6px}'+
+'.mccGrid{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:12px;flex:1;min-height:0}'+
+'.mccCol{display:flex;flex-direction:column;gap:12px;min-height:0}'+
+'.mccPanel{background:#0b1526;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;min-height:0}'+
+'.mccPanel.alarm{border-color:#b91c1c}'+
+'.mccPh{font-size:16px;font-weight:700;color:#cbd5e1;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;border-left:3px solid #22d3ee;padding-left:8px}'+
+'.mccLg em{font-size:12px;margin-left:8px;font-style:normal}'+
+'.mccPb{flex:1;min-height:0;overflow:hidden}'+
+'.mccRow{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:14px}'+
+'.mccRk{width:120px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+'.mccBarWrap{flex:1;background:#0f1c30;border-radius:4px;height:16px;overflow:hidden}'+
+'.mccBar{height:100%;border-radius:4px;transition:width .8s}'+
+'.mccNum{width:40px;text-align:right;color:#e2e8f0;font-weight:700}'+
+'.mccSide{font-size:15px;color:#cbd5e1;line-height:1.9}.mccSide b{color:#22d3ee;font-size:20px}'+
+'.mccTbl{width:100%;border-collapse:collapse;font-size:13px}'+
+'.mccTbl th{color:#64748b;text-align:left;border-bottom:1px solid #1e293b;padding:5px 6px;font-weight:600}'+
+'.mccTbl td{padding:5px 6px;border-bottom:1px solid #111c2e;color:#cbd5e1}'+
+'.mccTbl td.r,.mccTbl th.r{text-align:right}'+
+'.mccTbl tr.warn td{color:#fbbf24}.mccTbl tr.crit td{color:#fca5a5;font-weight:700}'+
+'.mccFeeds{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}'+
+'.mccFeed{background:#0f1c30;border:1px solid #1e293b;border-radius:8px;padding:8px}'+
+'.mccFd{font-size:12px;color:#22d3ee;font-weight:700}.mccFe{font-size:13px;color:#e2e8f0;margin:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mccFr{font-size:12px;color:#94a3b8;line-height:1.3;height:31px;overflow:hidden}'+
+'.mccTicker{margin-top:8px;background:#dc2626;border-radius:6px;overflow:hidden;height:34px;display:flex;align-items:center}'+
+'.mccTk{white-space:nowrap;color:#fff;font-size:15px;font-weight:600;padding-left:100%;animation:mccScroll 40s linear infinite}'+
+'@keyframes mccScroll{to{transform:translateX(-100%)}}';
+document.head.appendChild(css);
+})();
+/* ============ [방재실 통합 관제 대시보드] END ============ */
 
 </script>
 
