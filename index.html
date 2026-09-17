@@ -34,20 +34,33 @@ window.FIREBASE_ROOT = "wonikpne_tos";
    ※ 앱(HTML) 코드는 거의 수정하지 않습니다(부팅 1곳 + head 스크립트만).
    ============================================================ */
 (function () {
+  /* ============================================================
+     firebase-sync v2  ·  모바일 동기화 안정화판
+     ────────────────────────────────────────────────────────────
+     [v1 문제점]
+      1) ready 플래그가 true 가 되기 전(초기 내려받기 완료 전)에 저장한 내용은
+         Firebase 로 올라가지 않고 그대로 유실됨 → 모바일(느린 회선)에서 빈번.
+      2) 초기 내려받기 루프에서 localStorage 저장이 1건이라도 실패하면(모바일 용량 초과 등)
+         예외가 밖으로 튀어 ready=false, applyingRemote=true 로 남아 동기화가 영구 중단됨.
+      3) 오프라인 상태에서 저장한 내용의 재전송 수단이 없음(새로고침하면 사라짐).
+     [v2 대응]
+      - 미전송함(outbox)에 보관 → 연결되면 자동 재전송(앱을 닫았다 열어도 유지)
+      - 내려받기 실패/저장 실패는 건별로 흡수, 동기화는 계속 진행
+      - .info/connected 로 실시간 연결상태 감시, 화면 복귀·네트워크 전환 시 자동 재연결
+     ============================================================ */
   var ROOT     = window.FIREBASE_ROOT || 'wonikpne_tos';
   var PREFIX   = 'tos_';
-  // 기기 로컬 전용(공유 제외): 현재 보고 있는 현장, 마지막 저장시각, 변경이력(고빈도)
   var EXCLUDE  = ['tos_site_v1', 'tos_lastsave_v1', 'tos_changelog_v1'];
+  var OUTBOX   = 'fb_outbox_v1';   /* tos_ 접두어가 아니므로 공유 대상 아님 */
 
   var origSet    = localStorage.setItem.bind(localStorage);
   var origRemove = localStorage.removeItem.bind(localStorage);
 
   var db = null, auth = null;
-  var ready = false;          // Firebase 동기화 준비 완료
-  var applyingRemote = false; // 원격 변경을 로컬에 적용하는 중(되돌림 방지)
-  var pending = {};           // 키별 디바운스 타이머
+  var inited = false, ready = false, connected = false, applyingRemote = false;
+  var pending = {}, queue = {}, lastRecv = 0, lastPush = 0;
+  var writeFail = 0, pullCount = null, lastErr = '', authState = '미시도';
 
-  /* RTDB 경로에 쓸 수 없는 문자( . # $ [ ] / )를 안전하게 인코딩 */
   function enc(k){ return k.replace(/[.#$\[\]\/]/g, function(c){ return '~' + c.charCodeAt(0).toString(16) + '~'; }); }
   function dec(k){ return k.replace(/~([0-9a-f]{2})~/gi, function(_, h){ return String.fromCharCode(parseInt(h, 16)); }); }
 
@@ -56,119 +69,300 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     if (EXCLUDE.indexOf(k) >= 0) return false;
     return true;
   }
+  function who(){
+    try { if (typeof curRoleName === 'function') return curRoleName(); } catch (e) {}
+    try { if (window.__ATT_WHO) return window.__ATT_WHO; } catch (e) {}
+    return '사용자';
+  }
+  function emit(){
+    try { window.dispatchEvent(new Event('fbstate')); } catch (e) {}
+  }
+
+  /* ── 미전송함(outbox) ─────────────────────────────────────── */
+  function loadQueue(){
+    try { return JSON.parse(localStorage.getItem(OUTBOX) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+  function saveQueue(){
+    try { origSet(OUTBOX, JSON.stringify(queue)); } catch (e) {}
+  }
+  function enqueue(k, v, isDel){
+    queue[k] = { v: (v == null ? '' : v), del: !!isDel, at: Date.now() };
+    saveQueue();
+    emit();
+  }
+  function dequeue(k){
+    if (queue.hasOwnProperty(k)) { delete queue[k]; saveQueue(); emit(); }
+  }
+  function qsize(){ return Object.keys(queue).length; }
+  queue = loadQueue();
+
+  /* 로컬 저장은 실패해도 전체 흐름을 멈추지 않는다(모바일 용량 초과 대비) */
+  function safeSet(k, v){
+    try { origSet(k, v); return true; }
+    catch (e) { writeFail++; console.warn('[FB] 로컬 저장 실패(용량?)', k, e && (e.name || e)); return false; }
+  }
 
   /* ── localStorage 쓰기 후킹 → Firebase 미러 ───────────────── */
   localStorage.setItem = function (k, v) {
-    origSet(k, v);
-    if (ready && !applyingRemote && shareable(k)) pushKey(k, v);
+    var ok = true;
+    try { origSet(k, v); } catch (e) { ok = false; writeFail++; console.warn('[FB] 로컬 저장 실패', k, e && (e.name || e)); }
+    if (!applyingRemote && shareable(k)) pushKey(k, v);   /* ready 여부와 무관하게 항상 전송 시도 */
+    if (!ok) emit();
   };
   localStorage.removeItem = function (k) {
     origRemove(k);
-    if (ready && !applyingRemote && shareable(k)) {
-      try { db.ref(ROOT + '/' + enc(k)).remove(); } catch (e) {}
+    if (!applyingRemote && shareable(k)) {
+      if (!db || !inited) { enqueue(k, '', true); return; }
+      try {
+        db.ref(ROOT + '/' + enc(k)).remove()
+          .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
+          .catch(function(e){ enqueue(k, '', true); });
+      } catch (e) { enqueue(k, '', true); }
     }
   };
 
-  function pushKey(k, v) {
+  function pushKey(k, v){
     clearTimeout(pending[k]);
-    pending[k] = setTimeout(function () {     // 연속 저장 200ms 디바운스
-      try {
-        db.ref(ROOT + '/' + enc(k)).set({
-          v:  v,                              // 이미 JSON 문자열
-          at: Date.now(),
-          by: (typeof curRoleName === 'function' ? curRoleName() : '사용자')
-        });
-      } catch (e) { console.warn('[FB] 업로드 실패:', k, e); }
-    }, 200);
+    pending[k] = setTimeout(function(){ sendNow(k, v); }, 150);
+  }
+  function sendNow(k, v){
+    if (v == null) v = localStorage.getItem(k);
+    if (v == null) return;
+    if (!db || !inited) { enqueue(k, v); return; }
+    if (!connected) enqueue(k, v);          /* 오프라인이면 먼저 큐에 기록(성공 시 제거) */
+    try {
+      db.ref(ROOT + '/' + enc(k)).set({ v: v, at: Date.now(), by: who() })
+        .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
+        .catch(function(e){ lastErr = (e && (e.code || e.message)) || '업로드 실패'; enqueue(k, v); console.warn('[FB] 업로드 실패:', k, lastErr); });
+    } catch (e) { enqueue(k, v); }
   }
 
-  /* ── 부팅: 초기 전체 내려받기 → localStorage 채움 → 콜백 ───── */
-  window.FBSync = {
-    enabled: function(){ return ready; },
-    /* 이 PC의 지정 키들을 클라우드에 즉시(디바운스 없이) 강제 업로드 → 복구용 */
-    forcePushAll: function(keys){
-      if(!ready||!db) return 0;
-      var n=0;
-      keys.forEach(function(k){
-        if(!shareable(k)) return;
-        var v=localStorage.getItem(k);
-        if(v==null) return;
-        try{ db.ref(ROOT+'/'+enc(k)).set({ v:v, at:Date.now(), by:(typeof curRoleName==='function'?curRoleName():'복구') }); n++; }catch(e){}
+  /* 미전송함 일괄 재전송 */
+  function flush(){
+    if (!db || !inited) return 0;
+    var ks = Object.keys(queue), n = 0;
+    ks.forEach(function(k){
+      var it = queue[k];
+      if (!it) return;
+      n++;
+      if (it.del) {
+        try {
+          db.ref(ROOT + '/' + enc(k)).remove()
+            .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
+            .catch(function(){});
+        } catch (e) {}
+      } else {
+        var v = localStorage.getItem(k);
+        if (v == null) v = it.v;
+        try {
+          db.ref(ROOT + '/' + enc(k)).set({ v: v, at: Date.now(), by: who() })
+            .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
+            .catch(function(e){ lastErr = (e && (e.code || e.message)) || '업로드 실패'; });
+        } catch (e) {}
+      }
+    });
+    return n;
+  }
+
+  /* ── 내려받은 레코드를 로컬에 반영 ────────────────────────── */
+  function applyAll(all){
+    var n = 0;
+    applyingRemote = true;
+    try {
+      Object.keys(all).forEach(function(ek){
+        if (ek.charAt(0) === '_') return;              /* _health 등 내부 노드 제외 */
+        var rec = all[ek];
+        if (!rec || typeof rec.v !== 'string') return;
+        if (safeSet(dec(ek), rec.v)) n++;
       });
+    } catch (e) { console.warn('[FB] 반영 중 오류', e); }
+    applyingRemote = false;                            /* 어떤 경우에도 반드시 해제 */
+    lastRecv = Date.now();
+    return n;
+  }
+
+  window.FBSync = {
+    enabled  : function(){ return ready; },
+    online   : function(){ return connected; },
+    queueSize: function(){ return qsize(); },
+    flush    : function(){ return flush(); },
+    state    : function(){
+      return {
+        inited: inited, ready: ready, connected: connected,
+        queue: qsize(), writeFail: writeFail, pullCount: pullCount,
+        lastRecv: lastRecv, lastPush: lastPush, err: lastErr,
+        auth: authState, root: ROOT,
+        dbUrl: (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL) || '',
+        uid: (auth && auth.currentUser) ? auth.currentUser.uid : ''
+      };
+    },
+    /* 연결 재시도(모바일 절전으로 소켓이 끊긴 경우) */
+    reconnect: function(){
+      if (!db) return false;
+      try { firebase.database().goOffline(); } catch (e) {}
+      setTimeout(function(){
+        try { firebase.database().goOnline(); } catch (e) {}
+        if (auth && auth.signInAnonymously && !(auth.currentUser)) {
+          auth.signInAnonymously().then(function(){ authState = '익명 로그인'; emit(); })
+            .catch(function(e){ authState = '로그인 실패(' + ((e && e.code) || '') + ')'; emit(); });
+        }
+        flush();
+      }, 400);
+      return true;
+    },
+    /* 쓰기/읽기 권한 자체 점검 → 네트워크 문제와 보안규칙 문제 구분 */
+    health: function(cb){
+      cb = cb || function(){};
+      if (!db || !inited) return cb('not-inited');
+      var t = Date.now();
+      var id = (auth && auth.currentUser) ? auth.currentUser.uid : ('anon' + Math.random().toString(36).slice(2, 7));
+      var ref = db.ref(ROOT + '/_health/' + id);
+      ref.set({ at: Date.now(), ua: String(navigator.userAgent || '').slice(0, 90) })
+        .then(function(){ return ref.once('value'); })
+        .then(function(s){ cb(s && s.val() ? null : 'read-empty', Date.now() - t); })
+        .catch(function(e){ cb((e && (e.code || e.message)) || 'error', Date.now() - t); });
+    },
+    forcePushAll: function(keys){
+      if (!db || !inited) return 0;
+      var n = 0;
+      keys.forEach(function(k){
+        if (!shareable(k)) return;
+        var v = localStorage.getItem(k);
+        if (v == null) return;
+        try { db.ref(ROOT + '/' + enc(k)).set({ v: v, at: Date.now(), by: who() }); n++; } catch (e) {}
+      });
+      lastPush = Date.now();
+      emit();
       return n;
     },
-    /* 클라우드의 전체 데이터를 이 PC로 다시 내려받기 */
     pull: function(cb){
-      cb=cb||function(){};
-      if(!ready||!db) return cb('offline');
+      cb = cb || function(){};
+      if (!db || !inited) return cb('offline');
       db.ref(ROOT).once('value').then(function(snap){
-        var all=snap.val()||{};
-        applyingRemote=true;
-        Object.keys(all).forEach(function(ek){ var rec=all[ek]; if(rec&&typeof rec.v==='string') origSet(dec(ek), rec.v); });
-        applyingRemote=false;
-        cb(null, Object.keys(all).length);
-      }).catch(function(e){ cb(e); });
+        var all = snap.val() || {};
+        var n = applyAll(all);
+        pullCount = n;
+        emit();
+        cb(null, n);
+      }).catch(function(e){ lastErr = (e && (e.code || e.message)) || 'pull 실패'; emit(); cb(e); });
     },
     boot: function (done) {
       done = done || function(){};
+      var finished = false;
+      function go(){ if (finished) return; finished = true; done(); }
+
       var cfg = window.FIREBASE_CONFIG;
       if (typeof firebase === 'undefined' || !cfg || !cfg.apiKey || cfg.apiKey.indexOf('여기에') === 0) {
+        lastErr = 'Firebase SDK/설정 없음';
         console.warn('[FB] Firebase 설정 없음 → 로컬(localStorage) 전용 모드로 동작합니다.');
-        return done();
+        emit();
+        return go();
       }
       try {
-        firebase.initializeApp(cfg);
+        if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(cfg);
         db = firebase.database();
         if (firebase.auth) auth = firebase.auth();
+        inited = true;
       } catch (e) {
+        lastErr = '초기화 실패';
         console.warn('[FB] 초기화 실패 → 로컬 모드', e);
-        return done();
+        emit();
+        return go();
       }
 
-      // (선택) 익명 로그인: 규칙을 "auth != null"로 둘 때 사용. 실패해도 계속 진행.
+      /* 연결상태 실시간 감시 → 연결되면 미전송함 자동 전송 */
+      try {
+        db.ref('.info/connected').on('value', function(s){
+          var was = connected;
+          connected = !!(s && s.val());
+          if (connected) { ready = true; flush(); }
+          if (was !== connected) console.log('[FB] 연결상태:', connected ? '온라인' : '오프라인');
+          emit();
+        });
+      } catch (e) {}
+
       var authStep = (auth && auth.signInAnonymously)
-        ? auth.signInAnonymously().catch(function(e){ console.warn('[FB] 익명로그인 생략', e && e.code); })
+        ? auth.signInAnonymously().then(function(){ authState = '익명 로그인'; })
+            .catch(function(e){ authState = '익명 로그인 실패(' + ((e && e.code) || '') + ')'; console.warn('[FB] 익명로그인 생략', e && e.code); })
         : Promise.resolve();
 
-      authStep.then(function () {
+      /* 모바일에서 첫 내려받기가 늦어도 화면은 먼저 띄운다(최대 6초 대기) */
+      var guard = setTimeout(function(){ ready = true; attachLive(); emit(); go(); }, 6000);
+
+      authStep.then(function(){
         return db.ref(ROOT).once('value');
-      }).then(function (snap) {
+      }).then(function(snap){
+        clearTimeout(guard);
         var all = snap.val() || {};
-        applyingRemote = true;
-        Object.keys(all).forEach(function (ek) {
-          var rec = all[ek];
-          if (rec && typeof rec.v === 'string') origSet(dec(ek), rec.v);
-        });
-        applyingRemote = false;
+        pullCount = applyAll(all);
         ready = true;
         attachLive();
-        console.log('[FB] 공유 DB 동기화 완료 — 내려받은 항목:', Object.keys(all).length);
-        done();
-      }).catch(function (e) {
-        console.warn('[FB] 초기 동기화 실패 → 로컬 모드', e);
-        done();
+        flush();
+        console.log('[FB] 공유 DB 동기화 완료 — 내려받은 항목:', pullCount, '· 로컬저장 실패:', writeFail);
+        emit();
+        go();
+      }).catch(function(e){
+        clearTimeout(guard);
+        lastErr = (e && (e.code || e.message)) || '초기 동기화 실패';
+        ready = true;                 /* 내려받기는 실패해도 업로드/실시간 수신은 계속 시도 */
+        attachLive();
+        flush();
+        console.warn('[FB] 초기 동기화 실패 → 업로드는 계속 시도합니다', e);
+        emit();
+        go();
       });
     }
   };
 
   /* ── 실시간 수신: 다른 사용자의 변경 반영 ─────────────────── */
+  var liveOn = false;
   function attachLive() {
+    if (liveOn || !db) return;
+    liveOn = true;
     db.ref(ROOT).on('child_added',   onRemote);
     db.ref(ROOT).on('child_changed', onRemote);
     db.ref(ROOT).on('child_removed', function (snap) {
+      if (String(snap.key).charAt(0) === '_') return;
       var key = dec(snap.key);
-      applyingRemote = true; origRemove(key); applyingRemote = false;
+      applyingRemote = true;
+      try { origRemove(key); } catch (e) {}
+      applyingRemote = false;
+      lastRecv = Date.now();
+      emit();
       rerenderIfCurrent(key);
     });
   }
   function onRemote(snap) {
+    if (String(snap.key).charAt(0) === '_') return;
     var rec = snap.val();
     if (!rec || typeof rec.v !== 'string') return;
     var key = dec(snap.key);
-    if (localStorage.getItem(key) === rec.v) return;   // 내가 쓴 것이면 무시
-    applyingRemote = true; origSet(key, rec.v); applyingRemote = false;
+    lastRecv = Date.now();
+    if (localStorage.getItem(key) === rec.v) { emit(); return; }   /* 내가 쓴 것이면 무시 */
+    applyingRemote = true;
+    safeSet(key, rec.v);
+    applyingRemote = false;
+    emit();
     rerenderIfCurrent(key);
   }
+
+  /* ── 모바일: 화면 복귀 / 네트워크 전환 시 자동 재연결 ─────── */
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible' && inited) {
+      try { firebase.database().goOnline(); } catch (e) {}
+      flush();
+      emit();
+    }
+  });
+  window.addEventListener('online', function(){
+    if (!inited) return;
+    try { firebase.database().goOnline(); } catch (e) {}
+    flush();
+    emit();
+  });
+  window.addEventListener('offline', function(){ connected = false; emit(); });
+  setInterval(function(){ if (inited && connected && qsize()) flush(); }, 15000);
 
   /* 사용자가 입력/편집 중이면 화면 새로고침을 미뤄 입력 내용 보호 */
   function userBusy() {
@@ -184,11 +378,12 @@ window.FIREBASE_ROOT = "wonikpne_tos";
   function rerenderIfCurrent(key) {
     var base    = key.split('__')[0];
     var keySite = key.indexOf('__') >= 0 ? key.split('__')[1] : '대전LGES';
-    var COMMON  = ['tos_eng_v4', 'tos_fixpresets_v1', 'tos_matches_v1', 'tos_logo_v1', 'tos_asdb_v1']; // 현장 공통
+    var COMMON  = ['tos_eng_v4', 'tos_fixpresets_v1', 'tos_matches_v1', 'tos_logo_v1', 'tos_asdb_v1'];
     var curSite = (typeof SITE !== 'undefined' ? SITE : '대전LGES');
+    if (base.indexOf('tos_att_') === 0 || base.indexOf('tos_chq_') === 0) return;   /* 출퇴근·점검확인서는 각 모듈이 자체 갱신 */
     var affects = (keySite === curSite) || COMMON.indexOf(base) >= 0;
-    if (!affects) return;                 // 다른 현장 데이터는 캐시만 갱신(다음 렌더 때 반영)
-    if (userBusy()) return;               // 편집 중이면 갱신 보류(캐시는 이미 최신)
+    if (!affects) return;
+    if (userBusy()) return;
 
     clearTimeout(rerenderTimer);
     rerenderTimer = setTimeout(function () {
@@ -196,7 +391,7 @@ window.FIREBASE_ROOT = "wonikpne_tos";
         var t = (typeof curTab !== 'undefined') ? curTab : null;
         var f = (typeof dashFilter !== 'undefined') ? dashFilter : null;
         if (typeof loadSiteData === 'function' && typeof SITE !== 'undefined') loadSiteData(SITE);
-        if (t !== null) curTab = t;       // 보던 화면 유지(loadSiteData가 dash로 초기화하는 것 복원)
+        if (t !== null) curTab = t;
         if (typeof dashFilter !== 'undefined' && f !== null) dashFilter = f;
         if (typeof render === 'function') render();
       } catch (e) { console.warn('[FB] 재렌더 실패', e); }
@@ -3704,7 +3899,7 @@ function reqRow(q){
   '<td class="mat-cell">'+matCellHtml(q)+'</td>'+
   '<td><input type="number" class="f-amount num-r" style="width:90px" value="'+(Number(q.amount)||0)+'" title="자재금액(자재행 단가×수량 자동합계 · 직접수정 가능)" oninput="this.dataset.manual=\'1\'">'+(isLaborSite()?'':'<div style="margin-top:4px"><span style="font-size:10px;color:#94a3b8">공수(MD)</span><input type="number" step="0.5" class="f-md num-r" style="width:90px;display:block" value="'+(Number(q.md)||0)+'"></div>')+'</td>'+
   '<td><select class="f-eng">'+engopts+'</select></td>'+
-  '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn sm" onclick="sendToChaeum(\''+q.id+'\')" style="background:#0f766e;color:#fff;border-color:#0f766e">외주인원 점검요청</button> <button class="btn sm" onclick="schedFromReq(\''+q.id+'\')">일정</button> <button class="btn sm" onclick="mailReqOpen(\''+q.id+'\')" style="background:#059669;color:#fff;border-color:#059669">메일</button> <button class="btn sm" onclick="completeNoMail(\''+q.id+'\')" style="background:#0f172a;color:#fff;border-color:#0f172a">완료(메일X)</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
+  '<td><button class="btn pri sm" onclick="saveReq(\''+q.id+'\',this)">저장</button> <button class="btn sm" onclick="sendToChaeum(\''+q.id+'\')" style="background:#0f766e;color:#fff;border-color:#0f766e">외주인원 점검요청</button>'+(q.chaeumAssign?'<div style="margin-top:3px;font-size:10px;color:#0f766e;font-weight:600;line-height:1.35">배정: '+q.chaeumAssign+(q.chaeumStatus==='점검완료'?' · 작성완료':'')+'</div>':'')+' <button class="btn sm" onclick="schedFromReq(\''+q.id+'\')">일정</button> <button class="btn sm" onclick="mailReqOpen(\''+q.id+'\')" style="background:#059669;color:#fff;border-color:#059669">메일</button> <button class="btn sm" onclick="completeNoMail(\''+q.id+'\')" style="background:#0f172a;color:#fff;border-color:#0f172a">완료(메일X)</button> <button class="btn dng sm" onclick="delReq(\''+q.id+'\')">삭제</button></td></tr>';
 }
 function saveReq(id,btn){
  const tr=btn.closest('tr');const q=DB.find(x=>x.id===id);if(!q)return;
@@ -5371,9 +5566,70 @@ document.head.appendChild(css);
 #chaeumApp .chq-modal textarea{min-height:82px}
 </style>
 <div id="chaeumApp"><div class="cw" id="chaeumRoot"></div><div id="chqModalWrap"></div></div>
+<style>
+#chqPickWrap .chqpk-mask{position:fixed;inset:0;background:rgba(15,23,42,.58);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px}
+#chqPickWrap .chqpk-box{background:#fff;border-radius:14px;width:100%;max-width:430px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;font-family:inherit;box-sizing:border-box}
+#chqPickWrap .chqpk-h{background:#0f766e;color:#fff;padding:13px 15px;font-size:14.5px;font-weight:700}
+#chqPickWrap .chqpk-s{padding:10px 15px;font-size:12.5px;color:#475569;background:#f8fafc;border-bottom:1px solid #e2e8f0;line-height:1.55}
+#chqPickWrap .chqpk-l{padding:12px 15px;overflow:auto;-webkit-overflow-scrolling:touch}
+#chqPickWrap .chqpk-it{display:flex;align-items:center;gap:11px;padding:12px 13px;border:1px solid #e2e8f0;border-radius:11px;margin-bottom:8px;font-size:15px;cursor:pointer;background:#fff}
+#chqPickWrap .chqpk-it input{width:19px;height:19px;margin:0;flex:none}
+#chqPickWrap .chqpk-it .tg{font-size:11px;color:#64748b;margin-left:auto}
+#chqPickWrap .chqpk-f{display:flex;flex-wrap:wrap;gap:6px;padding:11px 15px;border-top:1px solid #e2e8f0;background:#f8fafc}
+#chqPickWrap .chqpk-b{flex:1;min-width:92px;min-height:44px;border:0;border-radius:11px;background:#0f766e;color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit}
+#chqPickWrap .chqpk-b.gray{background:#fff;color:#334155;border:1px solid #cbd5e1;font-weight:500}
+@media(max-width:600px){
+ #chqPickWrap .chqpk-mask{align-items:flex-end;padding:0}
+ #chqPickWrap .chqpk-box{max-width:none;border-radius:16px 16px 0 0;max-height:92vh;max-height:92dvh}
+ #chqPickWrap .chqpk-f{padding-bottom:calc(11px + env(safe-area-inset-bottom))}
+}
+</style>
+<script>
+/* 점검 배정 인원 선택 시트 (접수시스템 / 점검확인서 공용) */
+window.CHQPICK=function(opt){
+  opt=opt||{};
+  var users=opt.users||[], sel={};
+  (opt.selected||[]).forEach(function(n){sel[n]=1;});
+  var admins=[];try{admins=(window.CHAEUM&&CHAEUM.admins)?CHAEUM.admins():[];}catch(e){}
+  var w=document.getElementById('chqPickWrap');
+  if(!w){w=document.createElement('div');w.id='chqPickWrap';document.body.appendChild(w);}
+  function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  var items=users.map(function(n){
+    return '<label class="chqpk-it"><input type="checkbox" value="'+esc(n)+'"'+(sel[n]?' checked':'')+'><b>'+esc(n)+'</b>'+(admins.indexOf(n)>=0?'<span class="tg">관리자</span>':'<span class="tg">채움</span>')+'</label>';
+  }).join('');
+  w.innerHTML='<div class="chqpk-mask"><div class="chqpk-box">'+
+    '<div class="chqpk-h">'+(opt.title||'점검 배정 인원 선택')+'</div>'+
+    (opt.sub?'<div class="chqpk-s">'+opt.sub+'</div>':'')+
+    '<div class="chqpk-l">'+items+'</div>'+
+    '<div class="chqpk-f">'+
+      '<button type="button" class="chqpk-b gray" data-a="all">전체 선택</button>'+
+      '<button type="button" class="chqpk-b gray" data-a="none">전체 해제</button>'+
+      '<button type="button" class="chqpk-b gray" data-a="cancel">취소</button>'+
+      '<button type="button" class="chqpk-b" data-a="ok">'+(opt.okText||'배정 · 전송')+'</button>'+
+    '</div></div></div>';
+  function close(){w.innerHTML='';}
+  var mask=w.querySelector('.chqpk-mask');
+  mask.addEventListener('click',function(e){if(e.target===mask)close();});
+  Array.prototype.forEach.call(w.querySelectorAll('.chqpk-b'),function(b){
+    b.addEventListener('click',function(){
+      var a=b.getAttribute('data-a');
+      var cbs=w.querySelectorAll('.chqpk-l input');
+      if(a==='all'){Array.prototype.forEach.call(cbs,function(c){c.checked=true;});return;}
+      if(a==='none'){Array.prototype.forEach.call(cbs,function(c){c.checked=false;});return;}
+      if(a==='cancel'){close();return;}
+      var out=[];
+      Array.prototype.forEach.call(cbs,function(c){if(c.checked)out.push(c.value);});
+      if(!out.length){alert('배정할 인원을 1명 이상 선택하세요.');return;}
+      close();
+      if(typeof opt.onOk==='function')opt.onOk(out);
+    });
+  });
+};
+</script>
 <script>
 window.CHAEUM=(function(){
  var P='tos_chq_',S='__CHQ',me='',tab='open',cur='';
+ var U=['신종엽','박경호','심우민','서정우'],ADM=['서정우'],mineOnly=true;
  function E(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
  function K(){var a=[],i,k;for(i=0;i<localStorage.length;i++){k=localStorage.key(i);if(k&&k.indexOf(P)===0&&k.slice(-S.length)===S)a.push(k);}return a;}
  function R(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
@@ -5385,12 +5641,30 @@ window.CHAEUM=(function(){
  function stamp(){var d=new Date();function z(n){return n<10?'0'+n:n;}return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());}
  function open(){document.getElementById('attPortal').style.display='none';document.getElementById('attApp').style.display='none';document.getElementById('chaeumApp').style.display='block';document.getElementById('attSysBtn').style.display='none';document.body.style.overflow='hidden';closeModal();renderLogin();}
  function close(){closeModal();document.getElementById('chaeumApp').style.display='none';document.body.style.overflow='';if(window.ATT)ATT.showPortal();}
- function login(){var v=document.getElementById('chName'),n=(v?v.value:'').trim();if(['신종엽','박경호'].indexOf(n)<0){alert('신종엽 또는 박경호만 로그인할 수 있습니다.');return;}me=n;tab='open';render();}
- function logout(){me='';tab='open';cur='';closeModal();renderLogin();}
- function renderLogin(){document.getElementById('chaeumRoot').innerHTML='<div class="ch"><b>채움 점검확인서</b><span class="sp"></span><button onclick="CHAEUM.close()">시스템 선택</button></div><div class="card" style="max-width:390px;margin:35px auto"><h3>채움 작업자 로그인</h3><div class="mut">신종엽 또는 박경호 이름을 입력하세요.</div><input id="chName" placeholder="성명" style="margin-top:12px" onkeydown="if(event.key===\'Enter\')CHAEUM.login()"><button class="cb" style="width:100%;margin-top:8px" onclick="CHAEUM.login()">로그인</button></div>';}
+ function isAdm(n){return ADM.indexOf(n==null?me:n)>=0;}
+ function asg(q){var a=q&&q.assign;if(Object.prototype.toString.call(a)==='[object Array]')return a.slice();if(typeof a==='string'&&a)return a.split(',').map(function(x){return x.trim();}).filter(function(x){return !!x;});return [];}
+ function forMe(q){var a=asg(q);return !a.length||a.indexOf(me)>=0;}
+ function nameHtml(arr,sep){return arr.length?arr.map(function(n){return n===me?'<b style="color:#0f766e">'+E(n)+'</b>':E(n);}).join(sep||', '):'<span class="mut">미지정(전원)</span>';}
+ function login(n){
+  if(n==null||typeof n==='object'){var v=document.getElementById('chName');n=v?v.value:'';}
+  n=String(n||'').trim();
+  if(U.indexOf(n)<0){alert('등록된 인원만 로그인할 수 있습니다.\n'+U.join(' · '));return;}
+  me=n;tab='open';cur='';mineOnly=!isAdm(n);render();
+ }
+ function setMine(v){mineOnly=!!(v==1||v===true);render();}
+ function logout(){me='';tab='open';cur='';mineOnly=true;closeModal();renderLogin();}
+ function renderLogin(){
+  var btns=U.map(function(n){
+   return '<button class="cb'+(isAdm(n)?' gray':'')+'" style="width:100%;margin-top:8px;min-height:46px;font-size:15px;font-weight:600" onclick="CHAEUM.login(\''+n+'\')">'+E(n)+(isAdm(n)?' <span style="font-size:11px;font-weight:400">· 관리자(전체 조회)</span>':'')+'</button>';
+  }).join('');
+  document.getElementById('chaeumRoot').innerHTML='<div class="ch"><b>채움 점검확인서</b><span class="sp"></span><button onclick="CHAEUM.close()">시스템 선택</button></div>'+
+   '<div class="card" style="max-width:390px;margin:35px auto"><h3>점검확인서 로그인</h3>'+
+   '<div class="mut">본인 이름을 선택하세요. 접수시스템에서 <b>본인에게 배정된 점검 건</b>이 표시됩니다.</div>'+
+   btns+'</div>';
+ }
  function setTab(t){tab=t;render();}
  function listHtml(arr,done){
-  if(!arr.length)return '<div class="card mut">'+(done?'점검완료 건이 없습니다.':'배정된 점검요청이 없습니다.')+'</div>';
+  if(!arr.length)return '<div class="card mut">'+(done?'점검완료 건이 없습니다.':(mineOnly?E(me)+' 님에게 배정된 점검요청이 없습니다. (전체 건은 상단 「전체 건」으로 확인)':'배정된 점검요청이 없습니다.'))+'</div>';
   var body=arr.map(function(q){
    var st=done?'<span class="tag">점검완료</span>':'<span class="tag" style="background:#e2e8f0;color:#475569">작성 대기</span>';
    var last=done?(E(q.updatedBy||'')+'<br><span class="mut">'+E(q.updatedAt||'')+'</span>'):('<span class="mut">'+E(q.sentAt||'')+'</span>');
@@ -5400,22 +5674,31 @@ window.CHAEUM=(function(){
     '<td>'+E(q.equip||'-')+'</td>'+
     '<td>'+E(q.loc||'-')+'</td>'+
     '<td>'+E((q.trouble||'-').slice(0,26))+'</td>'+
+    '<td>'+nameHtml(asg(q))+'</td>'+
     '<td>'+st+'</td>'+
     '<td>'+last+'</td></tr>';
   }).join('');
-  return '<div class="card" style="padding:4px 6px"><table><thead><tr><th>접수번호</th><th>접수일</th><th>장비명</th><th>위치</th><th>요청내용</th><th>상태</th><th>'+(done?'작성자/일시':'전송일시')+'</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+  return '<div class="card" style="padding:4px 6px"><table><thead><tr><th>접수번호</th><th>접수일</th><th>장비명</th><th>위치</th><th>요청내용</th><th>배정 인원</th><th>상태</th><th>'+(done?'작성자/일시':'전송일시')+'</th></tr></thead><tbody>'+body+'</tbody></table></div>';
  }
  function render(){
   if(!me){renderLogin();return;}
-  var list=all();
+  var all0=all();
+  var list=mineOnly?all0.filter(forMe):all0;
   var op=list.filter(function(q){return !isDone(q);});
   var dn=list.filter(function(q){return isDone(q);});
-  var head='<div class="ch"><b>채움 점검확인서</b><span class="sp"></span><span style="font-size:12px">'+E(me)+'</span><button onclick="CHAEUM.logout()">로그아웃</button><button onclick="CHAEUM.close()">시스템 선택</button></div>';
+  var mineN=all0.filter(function(q){return forMe(q)&&!isDone(q);}).length;
+  var allN=all0.filter(function(q){return !isDone(q);}).length;
+  var head='<div class="ch"><b>채움 점검확인서</b><span class="sp"></span><span style="font-size:12px">'+E(me)+(isAdm()?' · 관리자':'')+'</span><button onclick="CHAEUM.logout()">로그아웃</button><button onclick="CHAEUM.close()">시스템 선택</button></div>';
   var tabs='<div class="tabs"><button class="'+(tab==='open'?'on':'')+'" onclick="CHAEUM.setTab(\'open\')">점검요청 건 ('+op.length+')</button><button class="'+(tab==='done'?'on':'')+'" onclick="CHAEUM.setTab(\'done\')">점검완료 건 ('+dn.length+')</button></div>';
+  var filt='<div class="card" style="padding:9px 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
+   '<b style="font-size:12px;margin-right:2px">보기</b>'+
+   '<button class="cb'+(mineOnly?'':' gray')+'" style="padding:7px 12px" onclick="CHAEUM.setMine(1)">내 배정 건 ('+mineN+')</button>'+
+   '<button class="cb'+(mineOnly?' gray':'')+'" style="padding:7px 12px" onclick="CHAEUM.setMine(0)">전체 건 ('+allN+')</button>'+
+   '<span class="mut" style="font-size:11px">'+(mineOnly?E(me)+' 님에게 배정된 건만 표시':'배정과 무관하게 모든 건 표시')+'</span></div>';
   var warn=tab==='open'
-   ?'<div class="warn">접수시스템에서 「외주인원 점검요청」으로 보낸 건만 표시됩니다. <b>목록의 건을 클릭</b>하면 상세 창이 열리고, 점검내용·수리내용·자재·S/N을 입력해 저장하면 <b>점검완료 건</b>으로 이동하며 접수시스템 점검요청서와 A/S LIST에 자동 반영됩니다.</div>'
+   ?'<div class="warn">접수시스템에서 「외주인원 점검요청」으로 <b>본인에게 배정</b>한 건이 표시됩니다. <b>목록의 건을 클릭</b>하면 상세 창이 열리고, 점검내용·수리내용·자재·S/N을 입력해 저장하면 <b>점검완료 건</b>으로 이동하며 접수시스템 점검요청서와 A/S LIST에 자동 반영됩니다. 여러 명이 함께 배정된 건은 <b>한 명이 저장하면 모두에게 동일하게 반영</b>됩니다.</div>'
    :'<div class="warn">작성 저장이 완료된 건입니다. 건을 클릭하면 작성 내용을 다시 확인하거나 수정할 수 있습니다.</div>';
-  document.getElementById('chaeumRoot').innerHTML=head+tabs+warn+(tab==='open'?listHtml(op,false):listHtml(dn,true));
+  document.getElementById('chaeumRoot').innerHTML=head+tabs+filt+warn+(tab==='open'?listHtml(op,false):listHtml(dn,true));
  }
  function detail(id){
   var q=one(id);
@@ -5430,7 +5713,7 @@ window.CHAEUM=(function(){
    '<tr><th>신고자</th><td>'+E(q.reporter||'-')+'</td><th>장비명</th><td>'+E(q.equip||'-')+'</td></tr>'+
    '<tr><th>위치</th><td colspan="3">'+E(q.loc||'-')+'</td></tr>'+
    '<tr><th>점검요청<br>내용</th><td colspan="3">'+E(q.trouble||'-')+'</td></tr>'+
-   '<tr><th>전송</th><td colspan="3">'+E(q.sentAt||'-')+' · '+E(q.sentBy||'접수시스템')+'</td></tr>'+
+   '<tr><th>배정<br>인원</th><td colspan="3">'+nameHtml(asg(q),' · ')+(q.assignAt?' <span class="mut">· 배정 '+E(q.assignAt)+(q.assignBy?' ('+E(q.assignBy)+')':'')+'</span>':'')+'</td></tr>'+'<tr><th>전송</th><td colspan="3">'+E(q.sentAt||'-')+' · '+E(q.sentBy||'접수시스템')+'</td></tr>'+
    '</table>'+
    '<div class="grid" style="margin-top:12px">'+
    '<div><label class="mut">점검 내용</label><textarea id="ci_m" placeholder="점검한 내용을 입력하세요">'+E(q.inspect||'')+'</textarea></div>'+
@@ -5442,7 +5725,7 @@ window.CHAEUM=(function(){
    '</div>'+
    '<div class="chq-mf">'+
    (done?'<button class="cb red" onclick="CHAEUM.reopen(\''+q.id+'\')">진행 건으로 되돌리기</button>':'')+
-   '<button class="cb gray" onclick="CHAEUM.closeModal()">닫기</button>'+
+   '<button class="cb gray" onclick="CHAEUM.reassign(\''+q.id+'\')">배정 변경</button>'+'<button class="cb gray" onclick="CHAEUM.closeModal()">닫기</button>'+
    '<button class="cb" onclick="CHAEUM.save(\''+q.id+'\')">'+(done?'수정 저장 · 접수시스템 반영':'작성 내용 저장 · 점검완료 처리')+'</button>'+
    '</div></div></div>';
   document.getElementById('chqModalWrap').innerHTML=h;
@@ -5475,18 +5758,79 @@ window.CHAEUM=(function(){
   tab='open';
   render();
  }
- function receive(q){
+ function byReq(rid){var f=null;all().forEach(function(x){if(!f&&x.reqId===rid)f=x;});return f;}
+ function receive(q,names){
+  var nm=[];
+  if(names&&names.length)names.forEach(function(n){if(U.indexOf(n)>=0&&nm.indexOf(n)<0)nm.push(n);});
+  var ex=byReq(q.id);
+  if(ex){
+   ex.no=q.no;ex.date=q.date;ex.reporter=q.reporter;ex.equip=q.equip;ex.loc=q.loc;ex.trouble=q.trouble;
+   ex.assign=nm;ex.assignAt=stamp();ex.assignBy='접수시스템';ex.sentAt=ex.sentAt||stamp();
+   W(key(ex.id),ex);
+   try{render();}catch(e){}
+   return ex;
+  }
   var id='Q'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  var o={id:id,reqId:q.id,no:q.no,date:q.date,reporter:q.reporter,equip:q.equip,loc:q.loc,trouble:q.trouble,inspect:q.inspect||'',repair:q.repair||'',material:q.material||'',serial:q.serial||'',sentAt:stamp(),sentBy:'접수시스템',status:'작성대기',doneAt:''};
+  var o={id:id,reqId:q.id,no:q.no,date:q.date,reporter:q.reporter,equip:q.equip,loc:q.loc,trouble:q.trouble,inspect:q.inspect||'',repair:q.repair||'',material:q.material||'',serial:q.serial||'',assign:nm,assignAt:stamp(),assignBy:'접수시스템',sentAt:stamp(),sentBy:'접수시스템',status:'작성대기',doneAt:''};
   W(key(id),o);
+  try{render();}catch(e){}
   return o;
  }
- return {open:open,close:close,login:login,logout:logout,save:save,receive:receive,detail:detail,closeModal:closeModal,setTab:setTab,reopen:reopen};
+ function reassign(id){
+  var q=one(id);
+  if(!q){alert('점검 건을 찾을 수 없습니다.');return;}
+  if(typeof CHQPICK!=='function'){alert('인원 선택 창을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.');return;}
+  CHQPICK({
+   title:'배정 인원 변경 · No.'+(q.no||'-'),
+   sub:'선택한 인원 <b>모두에게</b> 이 점검 건이 배정됩니다. (여러 명 선택 가능)',
+   users:U,selected:asg(q),okText:'배정 저장',
+   onOk:function(names){
+    q.assign=names;q.assignAt=stamp();q.assignBy=me;
+    W(key(id),q);
+    try{if(typeof CHAEUM_ASSIGN==='function')CHAEUM_ASSIGN(q);}catch(e){}
+    closeModal();render();
+    alert('배정을 변경했습니다.\n배정 인원: '+names.join(', '));
+   }
+  });
+ }
+ return {open:open,close:close,login:login,logout:logout,save:save,receive:receive,detail:detail,closeModal:closeModal,setTab:setTab,reopen:reopen,reassign:reassign,setMine:setMine,users:function(){return U.slice();},admins:function(){return ADM.slice();},byReq:byReq,refresh:function(){if(me)render();}};
 })();
 </script>
 <script>
-function sendToChaeum(id){var q=DB.find(function(x){return x.id===id;});if(!q){alert('점검요청을 찾을 수 없습니다.');return;}if(!confirm('['+(q.no||'')+' / '+(q.equip||'')+'] 건을 채움 점검확인서로 보낼까요?'))return;var o=CHAEUM.receive(q);q.chaeumId=o.id;q.chaeumStatus='작성대기';q.chaeumSentAt=o.sentAt;persist();render();alert('채움 점검확인서로 전송했습니다. 신종엽 또는 박경호가 작성하면 이 화면에 자동 반영됩니다.');}
-function CHAEUM_SYNC(o){if(typeof DB==='undefined')return;var q=DB.find(function(x){return x.id===o.reqId;});if(!q)return;q.inspect=o.inspect||'';q.repair=o.repair||'';q.material=o.material||'';q.serial=o.serial||'';q.chaeumStatus='점검완료';q.chaeumUpdatedBy=o.updatedBy||'';q.chaeumUpdatedAt=o.updatedAt||'';if(q.stage==='①접수')q.stage='③점검중';try{if(typeof asGet==='function'){var a=asGet(q.id,q);if(o.serial)a.sn=o.serial;if(o.material&&!a['교체부품'])a['교체부품']=o.material;a._chaeum={inspect:o.inspect||'',repair:o.repair||'',material:o.material||'',sn:o.serial||'',by:o.updatedBy||'',at:o.updatedAt||''};if(typeof save==='function'&&typeof siteKey==='function')save(siteKey('tos_as_v8'),ASD);}}catch(e){}persist();try{if(typeof render==='function')render();}catch(e){}}
+function chqEsc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function chqAssignArr(q){return q&&q.chaeumAssign?String(q.chaeumAssign).split(',').map(function(x){return x.trim();}).filter(function(x){return !!x;}):[];}
+function sendToChaeum(id){
+  var q=DB.find(function(x){return x.id===id;});
+  if(!q){alert('점검요청을 찾을 수 없습니다.');return;}
+  if(typeof CHQPICK!=='function'||typeof CHAEUM==='undefined'){alert('점검확인서 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.');return;}
+  var pre=chqAssignArr(q);
+  CHQPICK({
+    title:'외주인원 점검 배정 · No.'+chqEsc(q.no||'-'),
+    sub:'<b>'+chqEsc(q.equip||'-')+'</b> · '+chqEsc(q.loc||'-')+'<br>'+chqEsc((q.trouble||'-').slice(0,60))+'<br><span style="color:#0f766e">선택한 인원 <b>모두에게</b> 이 점검 건이 함께 배정됩니다. (여러 명 선택 가능)</span>'+(pre.length?'<br>현재 배정: '+chqEsc(pre.join(', ')):''),
+    users:CHAEUM.users(),
+    selected:pre,
+    okText:(pre.length?'배정 변경 · 재전송':'배정 · 전송'),
+    onOk:function(names){
+      var o=CHAEUM.receive(q,names);
+      q.chaeumId=o.id;
+      q.chaeumStatus=(o.status==='점검완료'?'점검완료':'작성대기');
+      q.chaeumSentAt=o.sentAt;
+      q.chaeumAssign=names.join(', ');
+      persist();render();
+      alert('채움 점검확인서로 전송했습니다.\n배정 인원: '+names.join(', ')+'\n해당 인원이 로그인하면 본인 목록에 표시되며, 작성 결과는 이 화면과 A/S LIST에 자동 반영됩니다.');
+    }
+  });
+}
+function CHAEUM_ASSIGN(o){
+  if(typeof DB==='undefined')return;
+  var q=DB.find(function(x){return x.id===o.reqId;});
+  if(!q)return;
+  q.chaeumAssign=(o.assign&&o.assign.length)?o.assign.join(', '):'';
+  q.chaeumId=o.id;
+  persist();
+  try{if(typeof render==='function')render();}catch(e){}
+}
+function CHAEUM_SYNC(o){if(typeof DB==='undefined')return;var q=DB.find(function(x){return x.id===o.reqId;});if(!q)return;q.inspect=o.inspect||'';q.repair=o.repair||'';q.material=o.material||'';q.serial=o.serial||'';q.chaeumStatus='점검완료';if(o.assign&&o.assign.length)q.chaeumAssign=o.assign.join(', ');q.chaeumUpdatedBy=o.updatedBy||'';q.chaeumUpdatedAt=o.updatedAt||'';if(q.stage==='①접수')q.stage='③점검중';try{if(typeof asGet==='function'){var a=asGet(q.id,q);if(o.serial)a.sn=o.serial;if(o.material&&!a['교체부품'])a['교체부품']=o.material;a._chaeum={inspect:o.inspect||'',repair:o.repair||'',material:o.material||'',sn:o.serial||'',by:o.updatedBy||'',at:o.updatedAt||''};if(typeof save==='function'&&typeof siteKey==='function')save(siteKey('tos_as_v8'),ASD);}}catch(e){}persist();try{if(typeof render==='function')render();}catch(e){}}
 function CHAEUM_REOPEN(o){if(typeof DB==='undefined')return;var q=DB.find(function(x){return x.id===o.reqId;});if(!q)return;q.chaeumStatus='작성대기';persist();try{if(typeof render==='function')render();}catch(e){}}
 </script>
 <style id="att-style">
@@ -5572,7 +5916,7 @@ function CHAEUM_REOPEN(o){if(typeof DB==='undefined')return;var q=DB.find(functi
       <div class="pt-card" onclick="CHAEUM.open()">
         <div class="pt-ico" style="background:#0f766e">채움</div>
         <h3>채움 점검확인서</h3>
-        <p>신종엽 · 박경호 전용 로그인<br>외주 점검내용 · 수리내용 · 자재 · S/N 작성</p>
+        <p>신종엽 · 박경호 · 심우민 · 서정우 로그인<br>배정받은 점검건 · 수리내용 · 자재 · S/N 작성</p>
       </div>
     </div>
     <div class="pt-warn" id="attFbWarn">Firebase 연결이 확인되지 않습니다. 기록이 이 기기에만 저장될 수 있으니 새로고침 후 다시 시도하세요.</div>
@@ -5589,8 +5933,8 @@ function CHAEUM_REOPEN(o){if(typeof DB==='undefined')return;var q=DB.find(functi
    ============================================================ */
 window.ATT = (function(){
   var CFG = {
-    MEMBERS   : ['서정우','구민주','박경호','신종엽'],
-    ADMINS    : ['서정우'],
+    MEMBERS   : ['구민주','박경호','신종엽'],   /* 최초 1회 시드용 기본 작업자 */
+    ADMINS    : ['서정우'],                     /* 관리자 = 출퇴근 기록 대상 아님 */
     ADMIN_PIN : '2580',
     PROJECT   : '25PCYCSM012',
     SITE      : '대전LGES',
@@ -5627,12 +5971,53 @@ window.ATT = (function(){
   function allNotices(){var a=[];keys(PR+'n_').forEach(function(k){var v=rd(k);if(v&&v.id)a.push(v);});a.sort(function(x,y){return (y.at||'')<(x.at||'')?-1:1;});return a;}
   function saveNotice(n){wr(PR+'n_'+n.id+SUF,n);}
   function delNotice(id){try{localStorage.removeItem(PR+'n_'+id+SUF);}catch(e){}}
+  /* ---------- 인원 명단 (관리자 추가/삭제) ----------
+     키: tos_att_m_<uid>__ATT  ·  {name, role:'worker'|'admin', active, at, by, hist}
+     => Firebase 규칙/경로 변경 없이 기존 tos_ 동기화 레이어를 그대로 사용 */
+  function memKey(name){return PR+'m_'+uid(name)+SUF;}
+  function memOf(name){return rd(memKey(name));}
+  function allMembers(){
+    var a=[];keys(PR+'m_').forEach(function(k){var v=rd(k);if(v&&v.name)a.push(v);});
+    a.sort(function(x,y){
+      var ra=(x.role==='admin')?0:1, rb=(y.role==='admin')?0:1;
+      if(ra!==rb)return ra-rb;
+      return x.name<y.name?-1:(x.name>y.name?1:0);
+    });
+    return a;
+  }
+  function seedMembers(){
+    if(keys(PR+'m_').length)return;
+    CFG.MEMBERS.forEach(function(n){wr(memKey(n),{name:n,role:'worker',active:true,at:nowStamp(),by:'초기 등록'});});
+    CFG.ADMINS.forEach(function(n){wr(memKey(n),{name:n,role:'admin',active:true,at:nowStamp(),by:'초기 등록'});});
+  }
+  function isAdminName(name){
+    var m=memOf(name);
+    if(m)return m.role==='admin';
+    return CFG.ADMINS.indexOf(name)>=0;
+  }
+  function adminNames(){
+    seedMembers();
+    return allMembers().filter(function(m){return m.role==='admin'&&m.active!==false;}).map(function(m){return m.name;});
+  }
+  /* 출퇴근 기록 대상 = 활성 작업자 (관리자 제외) */
+  function workerNames(){
+    seedMembers();
+    return allMembers().filter(function(m){return m.active!==false&&m.role!=='admin';}).map(function(m){return m.name;});
+  }
+  function recCountOf(name){
+    var c=0;allRecs().forEach(function(r){if(r.name===name)c++;});return c;
+  }
+  function leaveCountOf(name){
+    var c=0;allLeaves().forEach(function(l){if(l.name===name)c++;});return c;
+  }
+
+  /* 근태/MD 집계 대상 : 활성 작업자 + 과거 기록이 남아있는 인원 (관리자는 제외) */
   function members(){
     var s={},out=[];
-    CFG.MEMBERS.forEach(function(n){s[n]=1;});
+    workerNames().forEach(function(n){s[n]=1;});
     allRecs().forEach(function(r){s[r.name]=1;});
     allLeaves().forEach(function(l){s[l.name]=1;});
-    for(var k in s){if(s.hasOwnProperty(k))out.push(k);}
+    for(var k in s){if(s.hasOwnProperty(k)&&!isAdminName(k))out.push(k);}
     out.sort();return out;
   }
 
@@ -5685,6 +6070,19 @@ window.ATT = (function(){
     var el=document.getElementById('attApp'); el.style.display='block'; el.scrollTop=0;
     document.body.style.overflow='hidden';
     try{me=JSON.parse(localStorage.getItem(ME)||'null');}catch(e){me=null;}
+    seedMembers();
+    if(me&&me.name){                       /* 명단이 바뀌었으면 권한/자격 재확인 */
+      var mm=memOf(me.name);
+      if(!mm||mm.active===false){
+        me=null;tab='';
+        try{localStorage.removeItem(ME);}catch(e){}
+      }else{
+        me.admin=(mm.role==='admin');
+        try{localStorage.setItem(ME,JSON.stringify(me));}catch(e){}
+        if(me.admin&&tab.indexOf('u_')===0)tab='a_att';
+        if(!me.admin&&tab.indexOf('a_')===0)tab='u_work';
+      }
+    }
     if(!tab) tab = (me&&me.admin)?'a_att':'u_work';
     render();
   }
@@ -5693,8 +6091,12 @@ window.ATT = (function(){
   function login(name){
     name=(name||'').trim();
     if(!name){alert('이름을 입력하세요.');return;}
+    seedMembers();
+    var m=memOf(name);
+    if(!m){alert('등록되지 않은 이름입니다.\n관리자 [인원] 탭에서 먼저 등록해야 입장할 수 있습니다.');return;}
+    if(m.active===false){alert('명단에서 삭제된 인원입니다.\n관리자에게 문의하십시오.');return;}
     var admin=false;
-    if(CFG.ADMINS.indexOf(name)>=0){
+    if(m.role==='admin'){
       var p=prompt('관리자 PIN을 입력하세요.');
       if(p===null)return;
       if(p!==CFG.ADMIN_PIN){alert('PIN이 올바르지 않습니다.');return;}
@@ -5709,6 +6111,16 @@ window.ATT = (function(){
     var v=document.getElementById('atName');
     login(v?v.value:'');
   }
+  function adminLogin(){
+    var ad=adminNames();
+    if(!ad.length){alert('등록된 관리자가 없습니다.');return;}
+    var n=ad[0];
+    if(ad.length>1){
+      n=prompt('관리자 이름을 입력하세요.\n('+ad.join(' / ')+')',ad[0]);
+      if(n===null)return; n=n.trim(); if(!n)return;
+    }
+    login(n);
+  }
   function logout(){
     if(!confirm('로그아웃 할까요?'))return;
     try{localStorage.removeItem(ME);}catch(e){}
@@ -5717,6 +6129,7 @@ window.ATT = (function(){
 
   /* ---------- 출퇴근 ---------- */
   function punch(kind){
+    if(me&&me.admin){alert('관리자 계정은 출퇴근 기록 대상이 아닙니다.\n근태 정정·대리입력은 [근태] 탭에서 처리하십시오.');return;}
     var d=new Date(), date=ymd(d), t=hm(d);
     var r=getRec(me.name,date)||{name:me.name,date:date,in:'',out:'',hist:[]};
     if(kind==='in'&&r.in){alert('오늘 출근은 이미 '+r.in+' 으로 기록되어 있습니다.\n수정은 관리자만 가능합니다.');return;}
@@ -5931,7 +6344,7 @@ window.ATT = (function(){
   }
   function tabs(){
     var list = me.admin
-      ? [['a_att','근태'],['a_appr','결재'],['a_md','MD'],['a_notice','공지'],['a_set','설정']]
+      ? [['a_att','근태'],['a_appr','결재'],['a_md','MD'],['a_mem','인원'],['a_notice','공지'],['a_set','설정']]
       : [['u_work','출퇴근'],['u_mine','내 기록'],['u_leave','연차'],['u_notice','공지']];
     return '<div class="at-tabs">'+list.map(function(t){
       return '<button class="'+(tab===t[0]?'on':'')+'" onclick="ATT.setTab(\''+t[0]+'\')">'+t[1]+'</button>';
@@ -5951,10 +6364,12 @@ window.ATT = (function(){
     return '<div class="at-login">'+
       '<div class="at-card" style="text-align:center">'+
       '<h4 style="font-size:16px">출퇴근 기록 시스템</h4>'+
-      '<div class="at-mut" style="margin-bottom:12px">본인 이름을 입력하고 입장하세요.<br>비밀번호는 없습니다. (관리자만 PIN 입력)</div>'+
+      '<div class="at-mut" style="margin-bottom:12px">등록된 <b>본인 이름</b>을 선택하거나 입력하고 입장하세요.<br>작업자는 비밀번호가 없고, 관리자만 PIN을 입력합니다.</div>'+
       '<input id="atName" placeholder="이름" onkeydown="if(event.key===\'Enter\')ATT.loginBox()">'+
-      '<div class="at-chips">'+CFG.MEMBERS.map(function(n){return '<button class="at-btn line sm" onclick="ATT.login(\''+n+'\')">'+esc(n)+'</button>';}).join('')+'</div>'+
+      '<div class="at-chips">'+workerNames().map(function(n){return '<button class="at-btn line sm" onclick="ATT.login(\''+n+'\')">'+esc(n)+'</button>';}).join('')+'</div>'+
+      (workerNames().length?'':'<div class="at-mut" style="margin:8px 0;color:#b91c1c">등록된 작업자가 없습니다. 관리자로 입장해 [인원] 탭에서 등록하십시오.</div>')+
       '<div style="margin-top:12px"><button class="at-btn" style="width:100%;padding:12px" onclick="ATT.loginBox()">입장</button></div>'+
+      '<div style="margin-top:8px"><button class="at-btn line" style="width:100%;padding:11px" onclick="ATT.adminLogin()">관리자 로그인 (PIN)</button></div>'+
       '<div class="at-mut" style="margin-top:10px;font-size:11.5px">기록 후에는 본인 수정·삭제가 불가합니다. 정정은 관리자에게 요청하세요.</div>'+
       '</div></div>';
   }
@@ -6140,9 +6555,138 @@ window.ATT = (function(){
       '<tr><th>연결 상태</th><td>'+(online()?'<span class="bdg b-ok">공유 DB 연결됨</span>':'<span class="bdg b-no">오프라인 · 이 기기에만 저장</span>')+'</td></tr>'+
       '<tr><th>관리자 PIN</th><td>코드 내 CFG.ADMIN_PIN 값 (파일 수정 후 재업로드 시 변경)</td></tr>'+
       '</tbody></table></div></div>'+
-      '<div class="at-card"><h4>등록 인원 ('+list.length+')</h4><div class="at-mut">'+list.map(esc).join(' · ')+'</div>'+
-      '<div class="at-mut" style="margin-top:6px">기본 인원은 코드 내 CFG.MEMBERS 배열이며, 이름을 직접 입력해 입장한 인원도 자동으로 목록에 포함됩니다.</div></div>'+
+      '<div class="at-card"><h4>인원 명단</h4>'+
+      '<div class="at-mut">작업자 '+workerNames().length+'명 · 관리자 '+adminNames().length+'명</div>'+
+      '<div class="at-mut" style="margin-top:4px">작업자 : '+(workerNames().map(esc).join(' · ')||'-')+'</div>'+
+      '<div class="at-mut" style="margin-top:4px">관리자 : '+(adminNames().map(esc).join(' · ')||'-')+'</div>'+
+      '<div style="margin-top:8px"><button class="at-btn line" style="width:100%" onclick="ATT.setTab(\'a_mem\')">인원 추가 · 삭제 화면으로</button></div>'+
+      '<div class="at-mut" style="margin-top:6px">명단에 등록된 인원만 로그인할 수 있고, 관리자는 출퇴근 기록 대상에서 제외됩니다.</div></div>'+
       '<div class="at-card"><h4>기록 원칙</h4><div class="at-mut">· 출퇴근·연차 기록은 삭제되지 않습니다. 취소는 상태 변경으로 처리되어 이력이 남습니다.<br>· 소급 작성·대리 서명은 금지이며, 부득이한 대리입력은 사유와 입력자가 함께 기록됩니다.<br>· 월 마감 시 MD 요약/상세 CSV를 내려받아 공사완료보고서에 첨부하십시오.</div></div>';
+  }
+
+  /* ---------- 관리자 : 인원 추가 / 삭제 ---------- */
+  function viewAdminMem(){
+    seedMembers();
+    var all=allMembers();
+    var act=all.filter(function(m){return m.active!==false;});
+    var off=all.filter(function(m){return m.active===false;});
+    var wN=act.filter(function(m){return m.role!=='admin';}).length;
+    var aN=act.filter(function(m){return m.role==='admin';}).length;
+    function card(m){
+      var rc=recCountOf(m.name), lc=leaveCountOf(m.name), nm=m.name;
+      var role=(m.role==='admin')?'<span class="bdg b-creq">관리자</span>':'<span class="bdg b-ok">작업자</span>';
+      var offb=(m.active===false)?' <span class="bdg b-can">삭제됨</span>':'';
+      var btns=(m.active===false)
+        ? '<button class="at-btn line sm" onclick="ATT.memRestore(\''+nm+'\')">명단 복구</button>'+
+          '<button class="at-btn line sm" style="color:#b91c1c;border-color:#fecaca" onclick="ATT.memPurge(\''+nm+'\')">기록까지 완전삭제</button>'
+        : '<button class="at-btn line sm" onclick="ATT.memRole(\''+nm+'\')">'+(m.role==='admin'?'작업자로 변경':'관리자로 지정')+'</button>'+
+          '<button class="at-btn line sm" onclick="ATT.memRename(\''+nm+'\')">이름 수정</button>'+
+          '<button class="at-btn line sm" style="color:#b91c1c;border-color:#fecaca" onclick="ATT.memDel(\''+nm+'\')">삭제</button>';
+      return '<div class="at-card">'+
+        '<div><b style="font-size:15px">'+esc(nm)+'</b> '+role+offb+(m.role==='admin'?'<span class="at-mut" style="font-size:11px"> · 출퇴근 기록 대상 아님</span>':'')+'</div>'+
+        '<div class="at-mut" style="font-size:11.5px;margin-top:4px">출퇴근 '+rc+'건 · 연차 '+lc+'건 · 등록 '+esc(m.at||'-')+(m.by?' ('+esc(m.by)+')':'')+
+        (m.active===false&&m.delAt?'<br>삭제 '+esc(m.delAt)+' ('+esc(m.delBy||'')+')':'')+'</div>'+
+        '<div class="at-row" style="margin-top:8px">'+btns+'</div></div>';
+    }
+    return '<div class="at-kpi">'+
+      '<div><span>작업자</span><b>'+wN+'</b></div>'+
+      '<div><span>관리자</span><b>'+aN+'</b></div>'+
+      '<div><span>삭제된 인원</span><b>'+off.length+'</b></div>'+
+      '<div><span>전체 등록</span><b>'+all.length+'</b></div></div>'+
+      '<div class="at-card"><h4>인원 추가</h4>'+
+      '<div class="at-row"><input id="mmName" placeholder="성명" style="flex:1;min-width:120px" onkeydown="if(event.key===\'Enter\')ATT.memAdd()">'+
+      '<select id="mmRole" style="min-width:150px"><option value="worker">작업자 (출퇴근 기록)</option><option value="admin">관리자 (기록 없음)</option></select>'+
+      '<button class="at-btn" onclick="ATT.memAdd()">추가</button></div>'+
+      '<div class="at-mut" style="margin-top:6px">· 여기에 등록된 인원만 로그인 화면에 표시되고 입장할 수 있습니다.<br>· <b>관리자</b>는 출퇴근 버튼이 없으며 근태 정정·연차 결재·MD 집계만 수행합니다.<br>· 관리자 추가 시 PIN 확인이 필요합니다.</div></div>'+
+      '<div class="at-card"><h4>재직 인원 ('+act.length+')</h4><div class="at-mut">행의 버튼으로 권한 변경·이름 수정·삭제가 가능하며 변경 이력이 기록에 남습니다.</div></div>'+
+      act.map(card).join('')+
+      (off.length?'<div class="at-card"><h4>삭제된 인원 ('+off.length+')</h4><div class="at-mut">로그인·근태 목록에서 제외되었으나 과거 출퇴근·연차 기록은 보존됩니다.</div></div>'+off.map(card).join(''):'');
+  }
+  function memAdd(){
+    var el=document.getElementById('mmName'), rl=document.getElementById('mmRole');
+    var n=el?el.value.trim():'', role=rl?rl.value:'worker';
+    if(!n){alert('성명을 입력하세요.');return;}
+    if(n.length>12){alert('성명을 확인하세요. (12자 이내)');return;}
+    seedMembers();
+    var ex=memOf(n);
+    if(ex&&ex.active!==false){alert('['+n+'] 은(는) 이미 등록된 인원입니다.');return;}
+    if(role==='admin'){
+      var p=prompt('관리자 권한으로 추가합니다.\n관리자 PIN을 입력하세요.');
+      if(p===null)return;
+      if(p!==CFG.ADMIN_PIN){alert('PIN이 올바르지 않습니다.');return;}
+    }
+    if(!confirm('['+n+'] 을(를) '+(role==='admin'?'관리자':'작업자')+'로 등록할까요?'))return;
+    wr(memKey(n),{name:n,role:role,active:true,at:nowStamp(),by:(me?me.name:''),
+      hist:((ex&&ex.hist)||[]).concat([{t:nowStamp(),who:(me?me.name:''),act:'인원 등록 ('+(role==='admin'?'관리자':'작업자')+')'}])});
+    if(el)el.value='';
+    alert('['+n+'] 등록 완료'+(role==='worker'?' · 로그인 화면에 표시됩니다.':' · 관리자 PIN으로 입장합니다.'));
+    render();
+  }
+  function memRole(name){
+    var m=memOf(name);if(!m){alert('명단에 없습니다.');return;}
+    var to=(m.role==='admin')?'worker':'admin';
+    if(to==='admin'){
+      var p=prompt('['+name+'] 을(를) 관리자로 지정합니다.\n관리자 PIN을 입력하세요.');
+      if(p===null)return;
+      if(p!==CFG.ADMIN_PIN){alert('PIN이 올바르지 않습니다.');return;}
+      if(!confirm('관리자로 지정하면 출퇴근 기록 대상에서 제외되고 근태·결재 권한이 부여됩니다.\n계속할까요?'))return;
+    }else{
+      if(adminNames().length<=1){alert('관리자가 최소 1명은 있어야 합니다.');return;}
+      if(!confirm('['+name+'] 을(를) 작업자로 변경할까요? (출퇴근 기록 대상이 됩니다)'))return;
+    }
+    m.role=to;
+    m.hist=(m.hist||[]).concat([{t:nowStamp(),who:(me?me.name:''),act:'권한 변경 -> '+(to==='admin'?'관리자':'작업자')}]);
+    wr(memKey(name),m);
+    if(me&&me.name===name){me.admin=(to==='admin');try{localStorage.setItem(ME,JSON.stringify(me));}catch(e){}tab=me.admin?'a_mem':'u_work';}
+    render();
+  }
+  function memRename(name){
+    var m=memOf(name);if(!m){alert('명단에 없습니다.');return;}
+    var v=prompt('['+name+'] 의 이름을 수정합니다.\n※ 기존 출퇴근·연차 기록의 이름은 변경되지 않으므로, 오타 정정 용도로만 사용하십시오.',name);
+    if(v===null)return; v=v.trim();
+    if(!v||v===name)return;
+    if(memOf(v)){alert('['+v+'] 은(는) 이미 등록된 이름입니다.');return;}
+    if(!confirm('['+name+'] -> ['+v+'] 로 변경할까요?'))return;
+    var o={name:v,role:m.role,active:m.active!==false,at:m.at||nowStamp(),by:m.by||'',
+      hist:(m.hist||[]).concat([{t:nowStamp(),who:(me?me.name:''),act:'이름 수정 '+name+' -> '+v}])};
+    wr(memKey(v),o);
+    try{localStorage.removeItem(memKey(name));}catch(e){}
+    if(me&&me.name===name){me.name=v;try{localStorage.setItem(ME,JSON.stringify(me));}catch(e){}}
+    render();
+  }
+  function memDel(name){
+    var m=memOf(name);if(!m){alert('명단에 없습니다.');return;}
+    if(me&&me.name===name){alert('로그인 중인 본인 계정은 삭제할 수 없습니다.');return;}
+    if(m.role==='admin'&&adminNames().length<=1){alert('관리자가 최소 1명은 있어야 합니다.');return;}
+    var rc=recCountOf(name), lc=leaveCountOf(name);
+    if(!confirm('['+name+'] 을(를) 명단에서 삭제할까요?\n\n· 로그인 화면·근태 목록에서 제외됩니다.\n· 기존 출퇴근 '+rc+'건 / 연차 '+lc+'건은 그대로 보존됩니다.\n· [인원] 탭에서 언제든 복구할 수 있습니다.'))return;
+    m.active=false;m.delBy=(me?me.name:'');m.delAt=nowStamp();
+    m.hist=(m.hist||[]).concat([{t:nowStamp(),who:(me?me.name:''),act:'명단 삭제'}]);
+    wr(memKey(name),m);
+    alert('['+name+'] 명단에서 삭제되었습니다.');
+    render();
+  }
+  function memRestore(name){
+    var m=memOf(name);if(!m){alert('명단에 없습니다.');return;}
+    if(!confirm('['+name+'] 을(를) 명단으로 복구할까요?'))return;
+    m.active=true;m.delBy='';m.delAt='';
+    m.hist=(m.hist||[]).concat([{t:nowStamp(),who:(me?me.name:''),act:'명단 복구'}]);
+    wr(memKey(name),m);render();
+  }
+  function memPurge(name){
+    var rc=recCountOf(name), lc=leaveCountOf(name);
+    var v=prompt('['+name+'] 의 명단과 출퇴근 '+rc+'건 · 연차 '+lc+'건을 모두 영구 삭제합니다.\n되돌릴 수 없으며 공유 DB에서도 삭제됩니다.\n\n삭제하려면 이름을 그대로 입력하세요.','');
+    if(v===null)return;
+    if(v.trim()!==name){alert('이름이 일치하지 않아 취소되었습니다.');return;}
+    var p=prompt('확인을 위해 관리자 PIN을 입력하세요.');
+    if(p===null)return;
+    if(p!==CFG.ADMIN_PIN){alert('PIN이 올바르지 않습니다.');return;}
+    var n=0;
+    keys(PR+'r_').forEach(function(k){var o=rd(k);if(o&&o.name===name){try{localStorage.removeItem(k);n++;}catch(e){}}});
+    keys(PR+'l_').forEach(function(k){var o=rd(k);if(o&&o.name===name){try{localStorage.removeItem(k);n++;}catch(e){}}});
+    try{localStorage.removeItem(memKey(name));}catch(e){}
+    alert('['+name+'] 완전 삭제 완료 · 기록 '+n+'건 삭제');
+    render();
   }
 
   function render(){
@@ -6158,6 +6702,7 @@ window.ATT = (function(){
     else if(tab==='a_appr')body=viewAdminAppr();
     else if(tab==='a_md')body=viewAdminMd();
     else if(tab==='a_notice')body=viewAdminNotice();
+    else if(tab==='a_mem')body=viewAdminMem();
     else if(tab==='a_set')body=viewAdminSet();
     else body=me.admin?viewAdminAtt():viewWork();
     var warn=online()?'':'<div class="at-warn">공유 DB(Firebase)에 연결되지 않았습니다. 지금 기록은 이 기기에만 저장되며 연결되면 자동 반영됩니다.</div>';
@@ -6195,6 +6740,7 @@ window.ATT = (function(){
     showPortal:showPortal, goTOS:goTOS, goATT:goATT,
     login:login, loginBox:loginBox, logout:logout,
     punch:punch, adminSetTime:adminSetTime, adminSaveTime:adminSaveTime, adminAdd:adminAdd,
+    adminLogin:adminLogin, memAdd:memAdd, memRole:memRole, memDel:memDel, memRestore:memRestore, memPurge:memPurge, memRename:memRename,
     leaveNew:leaveNew, leaveAct:leaveAct,
     noticeNew:noticeNew, noticeDel:noticeDel,
     csvSummary:csvSummary, csvDetail:csvDetail,
@@ -6311,6 +6857,14 @@ window.ATT = (function(){
   #attApp table.m-card td:before,#chaeumApp table.m-card td:before{flex:0 0 66px;font-size:11px}
   #attApp .at-big button{font-size:17px;padding:22px 6px}
 }
+
+/* [인원 관리] 관리자 인원 추가·삭제 카드 : 모바일 2열 버튼 */
+@media(max-width:600px){
+  #attApp .at-card .at-row>button.sm{flex:1 1 calc(50% - 4px);min-height:40px;font-size:12.5px}
+  #attApp #mmRole{flex:1 1 100%;min-height:40px;font-size:16px}
+  #attApp #mmName{flex:1 1 100%}
+  #attApp .at-card .at-row>button.at-btn:not(.sm){flex:1 1 100%;min-height:44px}
+}
 </style>
 <script>
 /* [MOBILE UI OPTIMIZE] 표 헤더를 각 셀 라벨(data-lb)로 복사 -> 좁은 화면에서 카드형으로 표시 */
@@ -6367,4 +6921,203 @@ window.ATT = (function(){
 })();
 </script>
 
+
+<!-- ============================================================
+     [FB SYNC MOBILE] 동기화 상태 배지 · 진단 · 자동 갱신
+     - 모바일에서 저장한 내용이 다른 기기에 반영되는지 눈으로 확인 가능
+     - 미전송 건이 있으면 배지에 건수 표시, 탭하면 즉시 전송 / 진단 실행
+     ============================================================ -->
+<style id="fb-badge-style">
+#fbBadge{position:fixed;left:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:99998;
+ display:none;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;border:1px solid #d7dbe3;
+ background:#fff;color:#0f1729;font:600 12px/1 Pretendard,-apple-system,"Segoe UI",sans-serif;
+ box-shadow:0 2px 8px rgba(16,24,40,.12);cursor:pointer;-webkit-tap-highlight-color:transparent}
+#fbBadge .dot{width:8px;height:8px;border-radius:50%;background:#94a3b8;flex:0 0 8px}
+#fbBadge.ok .dot{background:#10b981}
+#fbBadge.wait{border-color:#fcd34d;background:#fffbeb}
+#fbBadge.wait .dot{background:#f59e0b}
+#fbBadge.off{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+#fbBadge.off .dot{background:#ef4444}
+#fbDiagMask{position:fixed;inset:0;background:rgba(15,23,41,.5);z-index:99999;display:none}
+#fbDiagSheet{position:fixed;left:0;right:0;bottom:0;z-index:100000;display:none;background:#fff;
+ border-radius:16px 16px 0 0;max-height:92dvh;overflow:auto;
+ padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px));
+ font:400 13px/1.5 Pretendard,-apple-system,"Segoe UI",sans-serif;color:#0f1729}
+#fbDiagSheet h4{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+#fbDiagSheet h4 button{margin-left:auto;border:1px solid #d7dbe3;background:#fff;border-radius:8px;padding:6px 12px;font-size:13px}
+#fbDiagSheet table{width:100%;border-collapse:collapse;margin-bottom:10px}
+#fbDiagSheet th,#fbDiagSheet td{border-bottom:1px solid #eef0f4;padding:7px 4px;text-align:left;vertical-align:top;font-size:12.5px}
+#fbDiagSheet th{width:38%;color:#64748b;font-weight:600}
+#fbDiagSheet td{word-break:break-all}
+#fbDiagBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+#fbDiagBtns button{min-height:44px;border-radius:10px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font:600 13px Pretendard,sans-serif}
+#fbDiagBtns button.wide{grid-column:1/-1;border-color:#d7dbe3;background:#fff;color:#0f1729}
+#fbDiagMsg{margin-top:10px;padding:9px 11px;border-radius:10px;background:#f4f5fa;border:1px solid #e6e8ee;font-size:12.5px;white-space:pre-wrap}
+@media (max-width:600px){ #fbBadge{font-size:11.5px;padding:6px 10px} }
+</style>
+<div id="fbBadge" onclick="FBDIAG.open()"><span class="dot"></span><span id="fbBadgeTxt">동기화 확인 중</span></div>
+<div id="fbDiagMask" onclick="FBDIAG.close()"></div>
+<div id="fbDiagSheet"></div>
+<script>
+window.FBDIAG=(function(){
+  var msg='', openFlag=false;
+
+  function st(){ try{ return (window.FBSync&&FBSync.state)?FBSync.state():null; }catch(e){ return null; } }
+  function ago(t){
+    if(!t) return '-';
+    var s=Math.round((Date.now()-t)/1000);
+    if(s<60) return s+'초 전';
+    if(s<3600) return Math.round(s/60)+'분 전';
+    return Math.round(s/3600)+'시간 전';
+  }
+  function lsSize(){
+    var n=0,i,k,v;
+    for(i=0;i<localStorage.length;i++){ k=localStorage.key(i); v=localStorage.getItem(k)||''; n+=k.length+v.length; }
+    return (n/1024/1024).toFixed(2)+' MB';
+  }
+  function cntPfx(p){
+    var n=0,i,k;
+    for(i=0;i<localStorage.length;i++){ k=localStorage.key(i); if(k&&k.indexOf(p)===0)n++; }
+    return n;
+  }
+  function visible(el){ el=document.getElementById(el); return !!(el&&el.style.display&&el.style.display!=='none'); }
+  function onMobileScreen(){ return window.innerWidth<=900; }
+
+  /* ── 상태 배지 ─────────────────────────────────────────── */
+  function paint(){
+    var b=document.getElementById('fbBadge'), t=document.getElementById('fbBadgeTxt');
+    if(!b||!t) return;
+    var show = visible('attPortal')||visible('attApp')||visible('chaeumApp')||onMobileScreen();
+    b.style.display = show?'inline-flex':'none';
+    var s=st();
+    b.className='';
+    if(!s||!s.inited){ t.textContent='연결 안 됨 · 이 기기에만 저장'; b.className='off'; }
+    else if(!s.connected){ t.textContent='오프라인'+(s.queue?' · 대기 '+s.queue+'건':'')+' · 눌러서 진단'; b.className='off'; }
+    else if(s.queue){ t.textContent='전송 대기 '+s.queue+'건 · 눌러서 전송'; b.className='wait'; }
+    else { t.textContent='동기화 정상'+(s.lastPush?' · 전송 '+ago(s.lastPush):''); b.className='ok'; }
+    if(s&&s.writeFail){ t.textContent+=' · 저장실패 '+s.writeFail; }
+
+    var w=document.getElementById('attFbWarn');
+    if(w){
+      if(!s||!s.inited||!s.connected){
+        w.style.display='block';
+        w.innerHTML='Firebase 연결이 확인되지 않습니다. 지금 기록하면 <b>이 기기에만</b> 저장되고, 연결되면 자동 전송됩니다. (좌측 하단 상태 배지에서 진단 가능)';
+      } else {
+        w.style.display='none';
+      }
+    }
+    if(openFlag) fill();
+  }
+
+  /* ── 진단 시트 ─────────────────────────────────────────── */
+  function fill(){
+    var s=st()||{};
+    var rows=''+
+      '<tr><th>연결 상태</th><td>'+(!s.inited?'초기화 실패 / SDK 미로드':(s.connected?'온라인(실시간 연결됨)':'오프라인'))+'</td></tr>'+
+      '<tr><th>로그인</th><td>'+(s.auth||'-')+(s.uid?'<br>UID '+s.uid:'')+'</td></tr>'+
+      '<tr><th>DB 주소</th><td>'+(s.dbUrl||'-')+'</td></tr>'+
+      '<tr><th>저장 경로</th><td>'+(s.root||'-')+'</td></tr>'+
+      '<tr><th>미전송 대기</th><td>'+(s.queue||0)+'건</td></tr>'+
+      '<tr><th>최근 전송 / 수신</th><td>'+ago(s.lastPush)+' / '+ago(s.lastRecv)+'</td></tr>'+
+      '<tr><th>초기 내려받기</th><td>'+(s.pullCount==null?'-':s.pullCount+'건')+'</td></tr>'+
+      '<tr><th>로컬 저장 실패</th><td>'+(s.writeFail||0)+'건'+((s.writeFail||0)?' (기기 저장공간 초과 의심)':'')+'</td></tr>'+
+      '<tr><th>이 기기 데이터</th><td>출퇴근 '+cntPfx('tos_att_r_')+'건 · 명단 '+cntPfx('tos_att_m_')+'명 · 점검 '+cntPfx('tos_chq_')+'건<br>캐시 사용량 '+lsSize()+'</td></tr>'+
+      '<tr><th>마지막 오류</th><td>'+(s.err||'없음')+'</td></tr>';
+    document.getElementById('fbDiagSheet').innerHTML=
+      '<h4>동기화 진단<button onclick="FBDIAG.close()">닫기</button></h4>'+
+      '<table>'+rows+'</table>'+
+      '<div id="fbDiagBtns">'+
+      '<button onclick="FBDIAG.flush()">지금 전송</button>'+
+      '<button onclick="FBDIAG.pull()">다시 받기</button>'+
+      '<button onclick="FBDIAG.reconnect()">연결 재시도</button>'+
+      '<button onclick="FBDIAG.health()">쓰기 권한 테스트</button>'+
+      '<button class="wide" onclick="FBDIAG.reload()">앱 새로고침(캐시 우회)</button>'+
+      '</div>'+
+      (msg?'<div id="fbDiagMsg">'+msg+'</div>':'');
+  }
+  function open(){
+    openFlag=true; msg='';
+    document.getElementById('fbDiagMask').style.display='block';
+    document.getElementById('fbDiagSheet').style.display='block';
+    fill();
+    var s=st();
+    if(s&&s.connected&&s.queue) flush();
+  }
+  function close(){
+    openFlag=false;
+    document.getElementById('fbDiagMask').style.display='none';
+    document.getElementById('fbDiagSheet').style.display='none';
+  }
+  function say(m){ msg=m; if(openFlag)fill(); }
+
+  function flush(){
+    if(!(window.FBSync&&FBSync.flush)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    var n=FBSync.flush();
+    say(n?('미전송 '+n+'건 전송을 요청했습니다. 잠시 후 대기 건수가 0이 되는지 확인하세요.'):'미전송 건이 없습니다.');
+  }
+  function pull(){
+    if(!(window.FBSync&&FBSync.pull)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    say('클라우드에서 받는 중...');
+    FBSync.pull(function(e,n){
+      if(e){ say('받기 실패: '+((e&&(e.code||e.message))||e)); return; }
+      try{ if(window.ATT&&ATT.render)ATT.render(); }catch(x){}
+      try{ chqRefresh(true); }catch(x){}
+      say('클라우드에서 '+n+'건을 받았습니다.');
+    });
+  }
+  function reconnect(){
+    if(!(window.FBSync&&FBSync.reconnect)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    FBSync.reconnect();
+    say('연결을 다시 시도했습니다. 3~5초 후 상태를 확인하세요.');
+  }
+  function health(){
+    if(!(window.FBSync&&FBSync.health)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    say('테스트 중...');
+    FBSync.health(function(err,ms){
+      if(!err){ say('정상: 클라우드 쓰기·읽기 성공 ('+ms+'ms).\n동기화 경로에는 문제가 없습니다.'); return; }
+      var e=String(err).toLowerCase();
+      if(e.indexOf('permission')>=0) say('권한 거부(PERMISSION_DENIED)\nFirebase 보안 규칙에서 쓰기가 막혀 있습니다. 규칙의 읽기/쓰기 허용 범위를 확인하세요.');
+      else if(e.indexOf('not-inited')>=0) say('Firebase 초기화 전입니다. 인터넷 연결을 확인하고 새로고침하세요.');
+      else if(e.indexOf('network')>=0||e.indexOf('unavailable')>=0) say('네트워크 오류: 사내 Wi-Fi 차단 가능성이 있습니다. 모바일 데이터로 바꿔 다시 시도해 보세요.');
+      else say('실패: '+err);
+    });
+  }
+  function reload(){
+    try{
+      var u=location.href.split('#')[0].split('?')[0];
+      location.replace(u+'?v='+Date.now());
+    }catch(e){ location.reload(); }
+  }
+
+  /* ── 원격 변경 시 출퇴근 · 점검확인서 화면 자동 갱신 ────── */
+  var chqSnap='';
+  function chqKeysSnap(){
+    var a=[],i,k;
+    for(i=0;i<localStorage.length;i++){ k=localStorage.key(i); if(k&&k.indexOf('tos_chq_')===0)a.push(k+':'+((localStorage.getItem(k)||'').length)); }
+    return a.sort().join('|');
+  }
+  function chqRefresh(force){
+    if(!visible('chaeumApp')||!window.CHAEUM) return;
+    if(document.querySelector('.chq-mask')) return;          /* 상세 창 열려 있으면 보류 */
+    if(document.querySelector('.chqpk-mask')) return;        /* 배정 선택 시트 열려 있으면 보류 */
+    var a=document.activeElement;
+    if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    var s=chqKeysSnap();
+    if(!force&&s===chqSnap) return;
+    chqSnap=s;
+    var on=document.querySelector('#chaeumRoot .tabs button.on');
+    var t='open';
+    if(on&&on.getAttribute('onclick')&&on.getAttribute('onclick').indexOf('done')>=0)t='done';
+    try{ CHAEUM.setTab(t); }catch(e){}
+  }
+  setInterval(function(){ try{chqRefresh(false);}catch(e){} }, 3000);
+
+  window.addEventListener('fbstate', paint);
+  setInterval(paint, 1500);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', paint);
+  else paint();
+
+  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload };
+})();
+</script>
 </body></html>
