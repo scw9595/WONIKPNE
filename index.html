@@ -58,6 +58,11 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
   var inited = false, ready = false, connected = false, applyingRemote = false, liveOn = false;
   var pending = {}, queue = {}, stamps = {}, tombs = {};
   var lastRecv = 0, lastPush = 0, lastRecon = 0;
+  var skew = 0;                     /* 서버시각 - 기기시각 (ms) */
+  var preSync = true;               /* 아직 클라우드를 한 번도 못 읽음 */
+  var pre = {};                     /* 그 사이에 기록된 키(임시) */
+  var CONFK = 'fb_conflict_v1';     /* 밀려난 로컬 값 백업(안전장치) */
+  function now(){ return Date.now() + skew; }
   var writeFail = 0, pullCount = null, lastErr = '', authState = '미시도';
   var blocked = '', recovered = 0, reconInfo = null;
 
@@ -130,7 +135,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     /* 값(v)은 복사해 두지 않는다 — 전송 시점에 localStorage 에서 다시 읽는다.
        (v7 처럼 값을 함께 저장하면 캐시 사용량이 2배가 되어 모바일 저장 한도(약 5MB)를
         넘기고, 그 순간부터 저장 자체가 실패한다) */
-    queue[k] = { del: !!isDel, at: Date.now() };
+    queue[k] = { del: !!isDel, at: now() };
     saveQueue();
   }
   function dequeue(k){
@@ -165,8 +170,9 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     var ok = true;
     try { origSet(k, v); } catch (e) { ok = false; writeFail++; console.warn('[FB] 로컬 저장 실패', k, e && (e.name || e)); }
     if (!applyingRemote && shareable(k)) {
-      stamps[k] = Date.now(); saveStamps();
+      stamps[k] = now(); saveStamps();
       if (tombs[k]) { delete tombs[k]; saveTombs(); }
+      if (preSync) pre[k] = 1;       /* 클라우드 확인 전 기록 → 임시 취급 */
       enqueue(k, v, false);          /* ← 앱이 즉시 종료돼도 유실되지 않음 */
       pushKey(k, v, false);
     }
@@ -175,7 +181,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
   localStorage.removeItem = function (k) {
     origRemove(k);
     if (!applyingRemote && shareable(k)) {
-      tombs[k] = Date.now(); saveTombs();
+      tombs[k] = now(); saveTombs();
       if (stamps[k]) { delete stamps[k]; saveStamps(); }
       enqueue(k, '', true);
       pushKey(k, null, true);
@@ -188,7 +194,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     pending[k] = setTimeout(function(){ sendNow(k, v, isDel); }, 60);
   }
   function ack(k){
-    return function(){ dequeue(k); lastPush = Date.now(); blocked = ''; emit(); };
+    return function(){ dequeue(k); lastPush = now(); blocked = ''; emit(); };
   }
   function fail(k){
     return function(e){
@@ -207,7 +213,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
       if (isDel) { ref.remove().then(ack(k)).catch(fail(k)); return; }
       if (v == null) v = origGet(k);
       if (v == null) return;
-      ref.set({ v: v, at: Date.now(), by: who() }).then(ack(k)).catch(fail(k));
+      ref.set({ v: v, at: now(), by: who() }).then(ack(k)).catch(fail(k));
     } catch (e) { lastErr = String(e && e.message || e); }
   }
 
@@ -258,13 +264,25 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         if (!rec || typeof rec.v !== 'string') return;
         var key = dec(ek); seen[key] = 1;
         var loc = origGet(key), rat = +(rec.at || 0), lst = stampOf(key);
+        if (lst > now() + 300000) lst = 0;               /* 기기 시계가 미래로 틀어진 경우 무시 */
         if (loc === rec.v) { dequeue(key); if (rat > lst) stamps[key] = rat; same++; return; }
         if (loc == null) {
           if (tombOf(key) > rat) return;                /* 이 기기에서 지운 것이 더 최신 */
           applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || Date.now(); applied++; return;
         }
-        if (lst > rat || queue[key]) {                    /* 로컬이 더 최신(또는 아직 못 올린 건) → 올린다 */
-          if (!lst) stamps[key] = Date.now();
+        if (pre[key]) {
+          /* 클라우드를 읽기 전에 이 기기에서 만들어진 값(앱 기본값/SEED 포함)이며
+             클라우드에는 실제 값이 있다 → 클라우드를 따른다. 밀려난 값은 백업해 둔다. */
+          try {
+            var cf = jget(CONFK);
+            cf[key] = { v: String(loc).slice(0, 4000), at: lst };
+            jset(CONFK, cf);
+          } catch (e) {}
+          delete pre[key]; dequeue(key);
+          applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || now(); applied++;
+          return;
+        }
+        if (lst > rat) {                                 /* 로컬이 더 최신 → 올린다 */
           enqueue(key, loc, false); pushed++;
         } else {                                         /* 클라우드가 더 최신 → 받는다 */
           applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || Date.now(); applied++;
@@ -273,14 +291,16 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
       eachLocalShared(function(key, val){
         if (seen[key]) return;                           /* 클라우드에 없는 로컬 전용 키 */
         var lst = stampOf(key);
-        if (lst && lst <= tombOf(key)) return;           /* 이 기기에서 지운 것이 더 최신 */
-        enqueue(key, val, false); pushed++;              /* 나머지는 항상 올린다(유실분 상시 회수) */
-        if (!lst) { stamps[key] = Date.now(); recovered++; }
+        if (recover || (lst && lst > tombOf(key))) {
+          enqueue(key, val, false); pushed++;
+          if (recover && !lst) { stamps[key] = Date.now(); recovered++; }
+        }
       });
     } catch (e) { console.warn('[FB] 대조 중 오류', e); lastErr = '대조 오류'; }
     applyingRemote = false;
     saveStamps(); saveTombs(); saveQueue();
     if (recover) { try { origSet(RECK, String(Date.now())); } catch (e) {} }
+    preSync = false; pre = {};
     lastRecv = Date.now(); lastRecon = Date.now();
     reconInfo = { applied: applied, pushed: pushed, same: same, at: Date.now() };
     flush();
@@ -356,6 +376,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         queue: qsize(), queueAge: (qOldest() ? Date.now() - qOldest() : 0),
         writeFail: writeFail, pullCount: pullCount, blocked: blocked,
         auxFail: auxFail, usageKB: usageKB(), ver: (window.APP_VER || '?'),
+        preSync: preSync, conflicts: Object.keys(jget(CONFK)).length,
         recovered: recovered, recon: reconInfo,
         tracked: Object.keys(stamps).length,
         lastRecv: lastRecv, lastPush: lastPush, err: lastErr,
@@ -436,24 +457,6 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
       function go(){ if (finished) return; finished = true; done(); }
 
       var cfg = window.FIREBASE_CONFIG;
-      if (typeof firebase === 'undefined' && !window.__fbAlt) {
-        /* 사내망에서 gstatic.com 이 막히면 SDK 자체가 안 내려온다 → 대체 CDN 1회 시도 */
-        window.__fbAlt = 1;
-        lastErr = 'SDK 미로드 → 대체 CDN 시도';
-        emit();
-        var base = 'https://cdn.jsdelivr.net/npm/firebase@10.12.2/';
-        var files = ['firebase-app-compat.js', 'firebase-database-compat.js', 'firebase-auth-compat.js'];
-        var idx = 0, self = this;
-        (function next(){
-          if (idx >= files.length) { try { self.boot(done); } catch (e) { go(); } return; }
-          var s = document.createElement('script');
-          s.src = base + files[idx++];
-          s.onload  = next;
-          s.onerror = function(){ lastErr = '대체 CDN 도 차단됨(사내망 확인 필요)'; emit(); go(); };
-          document.head.appendChild(s);
-        })();
-        return;
-      }
       if (typeof firebase === 'undefined' || !cfg || !cfg.apiKey || cfg.apiKey.indexOf('여기에') === 0) {
         lastErr = 'Firebase SDK/설정 없음';
         console.warn('[FB] Firebase 설정 없음 → 로컬(localStorage) 전용 모드로 동작합니다.');
@@ -472,6 +475,13 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         emit();
         return go();
       }
+
+      try {
+        db.ref('.info/serverTimeOffset').on('value', function(s){
+          var v = s && s.val();
+          if (typeof v === 'number' && Math.abs(v) < 86400000 * 3) skew = v;   /* 기기 시계 오차 보정 */
+        });
+      } catch (e) {}
 
       try {
         db.ref('.info/connected').on('value', function(s){
@@ -542,7 +552,14 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     lastRecv = Date.now();
     if (origGet(key) === rec.v) { dequeue(key); emit(); return; }   /* 내가 쓴 것이면 무시 */
     var rat = +(rec.at || 0);
-    if (queue[key] && stampOf(key) > rat) { emit(); return; }       /* 아직 못 올린 로컬 최신본 보호 */
+    if (queue[key] && !queue[key].del && stampOf(key) > rat) {
+      /* 아직 못 올린 로컬 최신본 보호 — 단, 올릴 수 없는 상태(권한 거부)이거나
+         30초 넘게 막혀 있으면 이 기기만 과거에 머무는 것을 막기 위해 원격을 받는다. */
+      var stuck = (blocked === 'permission') || ((now() - (+queue[key].at || 0)) > 30000);
+      if (!stuck) { sendNow(key, null, false); emit(); return; }
+      console.warn('[FB] 미전송 적체 — 원격 값을 받습니다:', key);
+      dequeue(key);
+    }
     applyRemote(key, rec.v, rat, false);
     emit();
     rerenderIfCurrent(key);
@@ -7240,31 +7257,10 @@ window.FBDIAG=(function(){
   }
 
   /* ── 진단 시트 ─────────────────────────────────────────── */
-  var devTxt='';
-  function devs(){
-    if(!(window.FBSync&&FBSync.devices)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
-    say('기기 목록을 조회하는 중...');
-    FBSync.devices(function(e,list){
-      if(e){ say('조회 실패: '+((e&&(e.code||e.message))||e)); return; }
-      var mine=(st()||{}).ver||'?';
-      var rows='', old=0;
-      (list||[]).forEach(function(d){
-        var bad=(d.ver!==mine);
-        if(bad)old++;
-        rows+='<div style="font-size:11px;line-height:1.5;'+(bad?'color:#b91c1c;font-weight:700':'color:#334155')+'">'+
-              (d.me?'▶ 이 기기 · ':'')+'<b>'+d.ver+'</b> · '+ago(d.at)+'<br><span style="color:#64748b;font-weight:400">'+
-              String(d.ua).replace(/</g,'&lt;').slice(0,70)+'</span></div>';
-      });
-      devTxt=rows||'기록 없음';
-      fill();
-      say(old? ('접속 기기 '+list.length+'대 중 '+old+'대가 이 기기와 다른 버전입니다.\n구버전 기기에서 저장하면 그 기기 데이터가 다른 기기로 올라가지 않습니다. 해당 기기에서 「앱 새로고침(캐시 우회)」을 실행하세요.')
-                : ('접속 기기 '+list.length+'대 모두 동일 버전('+mine+')입니다.'));
-    });
-  }
-
   function fill(){
     var s=st()||{};
     var rows=''+
+      '<tr><th>앱 버전</th><td>'+(window.APP_VER||'?')+' · 캐시 '+((window.FBSync&&FBSync.usageKB)?FBSync.usageKB()+'KB':lsSize())+'</td></tr>'+
       '<tr><th>연결 상태</th><td>'+(!s.inited?'초기화 실패 / SDK 미로드':(s.connected?'온라인(실시간 연결됨)':'오프라인'))+'</td></tr>'+
       '<tr><th>로그인</th><td>'+(s.auth||'-')+(s.uid?'<br>UID '+s.uid:'')+'</td></tr>'+
       '<tr><th>DB 주소</th><td>'+(s.dbUrl||'-')+'</td></tr>'+
@@ -7277,9 +7273,9 @@ window.FBDIAG=(function(){
       '<tr><th>초기 내려받기</th><td>'+(s.pullCount==null?'-':s.pullCount+'건')+'</td></tr>'+
       '<tr><th>로컬 저장 실패</th><td>'+(s.writeFail||0)+'건'+((s.writeFail||0)?' (기기 저장공간 초과 의심)':'')+'</td></tr>'+
       '<tr><th>이 기기 데이터</th><td>출퇴근 '+cntPfx('tos_att_r_')+'건 · 명단 '+cntPfx('tos_att_m_')+'명 · 점검 '+cntPfx('tos_chq_')+'건<br>캐시 사용량 '+lsSize()+'</td></tr>'+
-      '<tr><th>마지막 오류</th><td>'+(s.err||'없음')+'</td></tr>'+
-      '<tr><th>이 기기 앱 버전</th><td><b>'+(s.ver||'?')+'</b>'+((s.usageKB!=null)?' · 캐시 '+s.usageKB+'KB / 약 5000KB':'')+((s.auxFail)?'<br><b style="color:#dc2626">저장공간 부족으로 전송 대기 목록 기록 실패</b>':'')+'</td></tr>'+
-      (devTxt?'<tr><th>기기별 버전</th><td>'+devTxt+'</td></tr>':'');
+      '<tr><th>보호 조치</th><td>'+(s.preSync?'<b style="color:#b45309">클라우드 확인 전 — 이 기기 기록은 임시로 보관 중</b>':'정상(대조 완료)')+
+        (s.conflicts?'<br>밀려난 로컬 값 백업 '+s.conflicts+'건':'')+'</td></tr>'+
+      '<tr><th>마지막 오류</th><td>'+(s.err||'없음')+'</td></tr>';
     document.getElementById('fbDiagSheet').innerHTML=
       '<h4>동기화 진단<button onclick="FBDIAG.close()">닫기</button></h4>'+
       '<table>'+rows+'</table>'+
@@ -7289,8 +7285,8 @@ window.FBDIAG=(function(){
       '<button onclick="FBDIAG.reconnect()">연결 재시도</button>'+
       '<button onclick="FBDIAG.health()">쓰기 권한 테스트</button>'+
       '<button class="wide" onclick="FBDIAG.recon()">로컬↔클라우드 전체 재대조(유실분 복구)</button>'+
+      '<button class="wide" onclick="FBDIAG.devices()">기기별 접속 버전 확인(PC·모바일 같은 버전인지)</button>'+
       '<button class="wide" onclick="FBDIAG.reload()">앱 새로고침(캐시 우회)</button>'+
-      '<button class="wide" onclick="FBDIAG.devs()">기기별 앱 버전 확인(구버전 기기 찾기)</button>'+
       '</div>'+
       (msg?'<div id="fbDiagMsg">'+msg+'</div>':'');
   }
@@ -7388,7 +7384,22 @@ window.FBDIAG=(function(){
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', paint);
   else paint();
 
-  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload, recon:recon, devs:devs };
+  function devices(){
+    if(!(window.FBSync&&FBSync.devices)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    say('확인 중...');
+    FBSync.devices(function(e,list){
+      if(e){ say('확인 실패: '+((e&&(e.code||e.message))||e)); return; }
+      if(!list||!list.length){ say('접속 기록이 없습니다. 각 기기에서 앱을 한 번 열어주세요.'); return; }
+      var mine=(window.APP_VER||'?'), bad=0, s='';
+      list.slice(0,8).forEach(function(d){
+        var old=(d.ver!==mine);
+        if(old)bad++;
+        s+='· '+(d.me?'[이 기기] ':'')+d.ver+(old?' (구버전)':'')+' / '+ago(d.at)+'<br>';
+      });
+      say('접속 기기 '+list.length+'대 (이 기기 '+mine+')<br>'+s+(bad?'<b style="color:#dc2626">구버전 기기가 있습니다. 그 기기에서 「앱 새로고침(캐시 우회)」을 실행하세요.</b>':'모든 기기가 같은 버전입니다.'));
+    });
+  }
+  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload, recon:recon, devices:devices };
 })();
 </script>
 
