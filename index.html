@@ -21,6 +21,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos";
+window.APP_VER = "v8";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -60,6 +61,24 @@ window.FIREBASE_ROOT = "wonikpne_tos";
   var writeFail = 0, pullCount = null, lastErr = '', authState = '미시도';
   var blocked = '', recovered = 0, reconInfo = null;
 
+  var DEVK = 'fb_devid_v1';
+  function devId(){
+    var d = null;
+    try { d = origGet(DEVK); } catch (e) {}
+    if (!d) { d = 'D' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { origSet(DEVK, d); } catch (e) {} }
+    return d;
+  }
+  function devPing(){
+    if (!db) return;
+    try {
+      db.ref(ROOT + '/_dev/' + devId()).set({
+        ver: (window.APP_VER || '?'),
+        ua : String(navigator.userAgent || '').slice(0, 120),
+        at : Date.now()
+      }).catch(function(){});
+    } catch (e) {}
+  }
+
   function enc(k){ return k.replace(/[.#$\[\]\/]/g, function(c){ return '~' + c.charCodeAt(0).toString(16) + '~'; }); }
   function dec(k){ return k.replace(/~([0-9a-f]{2})~/gi, function(_, h){ return String.fromCharCode(parseInt(h, 16)); }); }
 
@@ -80,7 +99,24 @@ window.FIREBASE_ROOT = "wonikpne_tos";
 
   /* ── 로컬 보조 저장소(미전송함 / 저장시각 / 삭제표식) ────── */
   function jget(k){ try { return JSON.parse(origGet(k) || '{}') || {}; } catch (e) { return {}; } }
-  function jset(k, o){ try { origSet(k, JSON.stringify(o)); } catch (e) {} }
+  var auxFail = 0;
+  function jset(k, o){
+    try { origSet(k, JSON.stringify(o)); if (k === OUTBOX) auxFail = 0; return true; }
+    catch (e) {
+      /* 용량 초과 → 오래된 '저장시각' 기록부터 버려서 미전송함은 반드시 살린다 */
+      try {
+        var ks = Object.keys(stamps).sort(function(a, b){ return (+stamps[a] || 0) - (+stamps[b] || 0); });
+        ks.slice(0, Math.max(1, Math.floor(ks.length / 4))).forEach(function(x){ delete stamps[x]; });
+        origSet(STAMPK, JSON.stringify(stamps));
+        origSet(k, JSON.stringify(o));
+        return true;
+      } catch (e2) {
+        if (k === OUTBOX) auxFail++;
+        console.warn('[FB] 보조 저장소 기록 실패(기기 저장공간 부족)', k);
+        return false;
+      }
+    }
+  }
   queue  = jget(OUTBOX);
   stamps = jget(STAMPK);
   tombs  = jget(TOMBK);
@@ -91,7 +127,10 @@ window.FIREBASE_ROOT = "wonikpne_tos";
   function tombOf(k){ return +(tombs[k] || 0); }
 
   function enqueue(k, v, isDel){
-    queue[k] = { v: (v == null ? '' : v), del: !!isDel, at: Date.now() };
+    /* 값(v)은 복사해 두지 않는다 — 전송 시점에 localStorage 에서 다시 읽는다.
+       (v7 처럼 값을 함께 저장하면 캐시 사용량이 2배가 되어 모바일 저장 한도(약 5MB)를
+        넘기고, 그 순간부터 저장 자체가 실패한다) */
+    queue[k] = { del: !!isDel, at: Date.now() };
     saveQueue();
   }
   function dequeue(k){
@@ -102,6 +141,18 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     var t = 0;
     Object.keys(queue).forEach(function(k){ var a = +(queue[k] && queue[k].at || 0); if (a && (!t || a < t)) t = a; });
     return t;
+  }
+
+  /* 이 기기 캐시(localStorage) 사용량 — 30초 캐싱 */
+  var lsKB = 0, lsAt = 0;
+  function usageKB(){
+    if (lsAt && (Date.now() - lsAt) < 30000) return lsKB;
+    var n = 0, i, k, v;
+    try {
+      for (i = 0; i < localStorage.length; i++) { k = localStorage.key(i); v = origGet(k) || ''; n += k.length + v.length; }
+    } catch (e) {}
+    lsKB = Math.round(n / 1024); lsAt = Date.now();
+    return lsKB;
   }
 
   function safeSet(k, v){
@@ -170,7 +221,7 @@ window.FIREBASE_ROOT = "wonikpne_tos";
       if (it.del) sendNow(k, null, true);
       else {
         var v = origGet(k);
-        if (v == null) v = it.v;
+        if (v == null) { dequeue(k); n--; return; }   /* 로컬에도 없으면 보낼 것이 없음 */
         sendNow(k, v, false);
       }
     });
@@ -212,7 +263,8 @@ window.FIREBASE_ROOT = "wonikpne_tos";
           if (tombOf(key) > rat) return;                /* 이 기기에서 지운 것이 더 최신 */
           applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || Date.now(); applied++; return;
         }
-        if (lst > rat) {                                 /* 로컬이 더 최신 → 올린다 */
+        if (lst > rat || queue[key]) {                    /* 로컬이 더 최신(또는 아직 못 올린 건) → 올린다 */
+          if (!lst) stamps[key] = Date.now();
           enqueue(key, loc, false); pushed++;
         } else {                                         /* 클라우드가 더 최신 → 받는다 */
           applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || Date.now(); applied++;
@@ -221,10 +273,9 @@ window.FIREBASE_ROOT = "wonikpne_tos";
       eachLocalShared(function(key, val){
         if (seen[key]) return;                           /* 클라우드에 없는 로컬 전용 키 */
         var lst = stampOf(key);
-        if (recover || (lst && lst > tombOf(key))) {
-          enqueue(key, val, false); pushed++;
-          if (recover && !lst) { stamps[key] = Date.now(); recovered++; }
-        }
+        if (lst && lst <= tombOf(key)) return;           /* 이 기기에서 지운 것이 더 최신 */
+        enqueue(key, val, false); pushed++;              /* 나머지는 항상 올린다(유실분 상시 회수) */
+        if (!lst) { stamps[key] = Date.now(); recovered++; }
       });
     } catch (e) { console.warn('[FB] 대조 중 오류', e); lastErr = '대조 오류'; }
     applyingRemote = false;
@@ -273,8 +324,11 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     var el = document.getElementById('fbBlockBar');
     var n = qsize(), old = qOldest(), txt = '', red = true;
     if (blocked === 'permission') txt = '클라우드 저장 거부됨(보안 규칙) — 지금 기록은 이 기기에만 남습니다. 눌러서 재시도';
+    else if (auxFail) txt = '기기 저장공간 부족 — 전송 대기 목록을 기록할 수 없습니다. 사진/오래된 자료를 정리하세요.';
     else if (!inited) txt = '클라우드 미연결 — 기록은 이 기기에만 저장되며 연결되면 자동 전송됩니다.';
+    else if (writeFail) txt = '이 기기 저장 실패 ' + writeFail + '건 — 저장공간(약 5MB) 초과입니다. 사진/오래된 자료를 정리하세요.';
     else if (n && old && (Date.now() - old) > 15000) { txt = '클라우드 미전송 ' + n + '건 — 눌러서 지금 전송'; red = false; }
+    else if (usageKB() > 4200) { txt = '이 기기 캐시 ' + usageKB() + 'KB — 저장 한도(약 5MB)에 근접했습니다. 사진 정리를 권장합니다.'; red = false; }
     if (!txt) { if (el) el.style.display = 'none'; return; }
     if (!el) {
       el = document.createElement('div');
@@ -301,6 +355,7 @@ window.FIREBASE_ROOT = "wonikpne_tos";
         inited: inited, ready: ready, connected: connected,
         queue: qsize(), queueAge: (qOldest() ? Date.now() - qOldest() : 0),
         writeFail: writeFail, pullCount: pullCount, blocked: blocked,
+        auxFail: auxFail, usageKB: usageKB(), ver: (window.APP_VER || '?'),
         recovered: recovered, recon: reconInfo,
         tracked: Object.keys(stamps).length,
         lastRecv: lastRecv, lastPush: lastPush, err: lastErr,
@@ -350,6 +405,20 @@ window.FIREBASE_ROOT = "wonikpne_tos";
       saveStamps(); lastPush = Date.now(); emit();
       return n;
     },
+    devices: function(cb){
+      cb = cb || function(){};
+      if (!db || !inited) return cb('offline');
+      db.ref(ROOT + '/_dev').once('value').then(function(s){
+        var o = s.val() || {}, list = [];
+        Object.keys(o).forEach(function(k){
+          var r = o[k] || {};
+          list.push({ id: k, ver: r.ver || '?', ua: r.ua || '', at: +(r.at || 0), me: (k === devId()) });
+        });
+        list.sort(function(a, b){ return b.at - a.at; });
+        cb(null, list);
+      }).catch(function(e){ cb(e); });
+    },
+    usageKB  : function(){ return usageKB(); },
     pull: function(cb){
       cb = cb || function(){};
       if (!db || !inited) return cb('offline');
@@ -367,6 +436,24 @@ window.FIREBASE_ROOT = "wonikpne_tos";
       function go(){ if (finished) return; finished = true; done(); }
 
       var cfg = window.FIREBASE_CONFIG;
+      if (typeof firebase === 'undefined' && !window.__fbAlt) {
+        /* 사내망에서 gstatic.com 이 막히면 SDK 자체가 안 내려온다 → 대체 CDN 1회 시도 */
+        window.__fbAlt = 1;
+        lastErr = 'SDK 미로드 → 대체 CDN 시도';
+        emit();
+        var base = 'https://cdn.jsdelivr.net/npm/firebase@10.12.2/';
+        var files = ['firebase-app-compat.js', 'firebase-database-compat.js', 'firebase-auth-compat.js'];
+        var idx = 0, self = this;
+        (function next(){
+          if (idx >= files.length) { try { self.boot(done); } catch (e) { go(); } return; }
+          var s = document.createElement('script');
+          s.src = base + files[idx++];
+          s.onload  = next;
+          s.onerror = function(){ lastErr = '대체 CDN 도 차단됨(사내망 확인 필요)'; emit(); go(); };
+          document.head.appendChild(s);
+        })();
+        return;
+      }
       if (typeof firebase === 'undefined' || !cfg || !cfg.apiKey || cfg.apiKey.indexOf('여기에') === 0) {
         lastErr = 'Firebase SDK/설정 없음';
         console.warn('[FB] Firebase 설정 없음 → 로컬(localStorage) 전용 모드로 동작합니다.');
@@ -378,6 +465,7 @@ window.FIREBASE_ROOT = "wonikpne_tos";
         db = firebase.database();
         if (firebase.auth) auth = firebase.auth();
         inited = true;
+        devPing();
       } catch (e) {
         lastErr = '초기화 실패';
         console.warn('[FB] 초기화 실패 → 로컬 모드', e);
@@ -7152,6 +7240,28 @@ window.FBDIAG=(function(){
   }
 
   /* ── 진단 시트 ─────────────────────────────────────────── */
+  var devTxt='';
+  function devs(){
+    if(!(window.FBSync&&FBSync.devices)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    say('기기 목록을 조회하는 중...');
+    FBSync.devices(function(e,list){
+      if(e){ say('조회 실패: '+((e&&(e.code||e.message))||e)); return; }
+      var mine=(st()||{}).ver||'?';
+      var rows='', old=0;
+      (list||[]).forEach(function(d){
+        var bad=(d.ver!==mine);
+        if(bad)old++;
+        rows+='<div style="font-size:11px;line-height:1.5;'+(bad?'color:#b91c1c;font-weight:700':'color:#334155')+'">'+
+              (d.me?'▶ 이 기기 · ':'')+'<b>'+d.ver+'</b> · '+ago(d.at)+'<br><span style="color:#64748b;font-weight:400">'+
+              String(d.ua).replace(/</g,'&lt;').slice(0,70)+'</span></div>';
+      });
+      devTxt=rows||'기록 없음';
+      fill();
+      say(old? ('접속 기기 '+list.length+'대 중 '+old+'대가 이 기기와 다른 버전입니다.\n구버전 기기에서 저장하면 그 기기 데이터가 다른 기기로 올라가지 않습니다. 해당 기기에서 「앱 새로고침(캐시 우회)」을 실행하세요.')
+                : ('접속 기기 '+list.length+'대 모두 동일 버전('+mine+')입니다.'));
+    });
+  }
+
   function fill(){
     var s=st()||{};
     var rows=''+
@@ -7167,7 +7277,9 @@ window.FBDIAG=(function(){
       '<tr><th>초기 내려받기</th><td>'+(s.pullCount==null?'-':s.pullCount+'건')+'</td></tr>'+
       '<tr><th>로컬 저장 실패</th><td>'+(s.writeFail||0)+'건'+((s.writeFail||0)?' (기기 저장공간 초과 의심)':'')+'</td></tr>'+
       '<tr><th>이 기기 데이터</th><td>출퇴근 '+cntPfx('tos_att_r_')+'건 · 명단 '+cntPfx('tos_att_m_')+'명 · 점검 '+cntPfx('tos_chq_')+'건<br>캐시 사용량 '+lsSize()+'</td></tr>'+
-      '<tr><th>마지막 오류</th><td>'+(s.err||'없음')+'</td></tr>';
+      '<tr><th>마지막 오류</th><td>'+(s.err||'없음')+'</td></tr>'+
+      '<tr><th>이 기기 앱 버전</th><td><b>'+(s.ver||'?')+'</b>'+((s.usageKB!=null)?' · 캐시 '+s.usageKB+'KB / 약 5000KB':'')+((s.auxFail)?'<br><b style="color:#dc2626">저장공간 부족으로 전송 대기 목록 기록 실패</b>':'')+'</td></tr>'+
+      (devTxt?'<tr><th>기기별 버전</th><td>'+devTxt+'</td></tr>':'');
     document.getElementById('fbDiagSheet').innerHTML=
       '<h4>동기화 진단<button onclick="FBDIAG.close()">닫기</button></h4>'+
       '<table>'+rows+'</table>'+
@@ -7178,6 +7290,7 @@ window.FBDIAG=(function(){
       '<button onclick="FBDIAG.health()">쓰기 권한 테스트</button>'+
       '<button class="wide" onclick="FBDIAG.recon()">로컬↔클라우드 전체 재대조(유실분 복구)</button>'+
       '<button class="wide" onclick="FBDIAG.reload()">앱 새로고침(캐시 우회)</button>'+
+      '<button class="wide" onclick="FBDIAG.devs()">기기별 앱 버전 확인(구버전 기기 찾기)</button>'+
       '</div>'+
       (msg?'<div id="fbDiagMsg">'+msg+'</div>':'');
   }
@@ -7275,7 +7388,7 @@ window.FBDIAG=(function(){
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', paint);
   else paint();
 
-  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload, recon:recon };
+  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload, recon:recon, devs:devs };
 })();
 </script>
 
