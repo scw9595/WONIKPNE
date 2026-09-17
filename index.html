@@ -21,7 +21,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos";
-window.APP_VER = "v11";   /* 기기별 버전 확인용 */
+window.APP_VER = "v12";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -71,6 +71,7 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
   function now(){ return Date.now() + skew; }
   var writeFail = 0, pullCount = null, lastErr = '', authState = '미시도';
   var authErr = '';                 /* 익명 로그인 실패 코드 */
+  var authOptional = false;         /* [v12] 익명 로그인을 쓸 수 없지만 쓰기가 되는 프로젝트 = 무인증 모드 */
   var isFile  = false;              /* file:// 로 열린 로컬 사본인가 */
   try { isFile = (String(location.protocol) === 'file:'); } catch (e) {}
   var bootAt  = Date.now();
@@ -203,7 +204,7 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
     if (isFile)                  return ['이 기기에만 저장되었습니다<br>PC에 저장된 사본(file://)은 공유되지 않습니다 — https 주소로 접속하세요', 'bad'];
     if (typeof firebase === 'undefined') return ['이 기기에만 저장되었습니다<br>Firebase 연결 파일을 불러오지 못했습니다(인터넷·사내망 차단)', 'bad'];
     if (!inited)                 return ['이 기기에만 저장되었습니다<br>클라우드 미연결 — 연결되면 자동 전송됩니다', 'warn'];
-    if (blocked === 'auth')      return ['클라우드 업로드 실패 — 로그인 거부(' + (authErr || '?') + ')<br>이 기록은 다른 기기에서 보이지 않습니다. 눌러서 재시도', 'bad'];
+    if (blocked === 'auth' && !authOptional) return ['클라우드 업로드 실패 — 로그인 거부(' + (authErr || '?') + ')<br>이 기록은 다른 기기에서 보이지 않습니다. 눌러서 재시도', 'bad'];
     if (blocked === 'permission')return ['클라우드 업로드 거부 — 보안 규칙<br>이 기록은 다른 기기에서 보이지 않습니다. 눌러서 재시도', 'bad'];
     if (!connected)              return ['오프라인 — 이 기기에 보관 중<br>연결되면 자동 전송됩니다', 'warn'];
     if (qsize())                 return ['업로드 대기 ' + qsize() + '건 — 눌러서 지금 전송', 'warn'];
@@ -402,7 +403,7 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
     var el = document.getElementById('fbBlockBar');
     var n = qsize(), old = qOldest(), txt = '', red = true;
     if (isFile) txt = '이 파일은 기기에 저장된 사본(file://)입니다 — 다른 기기와 절대 공유되지 않습니다. 인터넷 주소(https)로 접속하세요.';
-    else if (blocked === 'auth') txt = '클라우드 로그인 실패(' + (authErr || '?') + ') — 이 기기 기록은 공유되지 않습니다. 눌러서 재시도';
+    else if (blocked === 'auth' && !authOptional) txt = '클라우드 로그인 실패(' + (authErr || '?') + ') — 이 기기 기록은 공유되지 않습니다. 눌러서 재시도';
     else if (blocked === 'permission') txt = '클라우드 저장 거부됨(보안 규칙) — 지금 기록은 이 기기에만 남습니다. 눌러서 재시도';
     else if (auxFail) txt = '기기 저장공간 부족 — 전송 대기 목록을 기록할 수 없습니다. 사진/오래된 자료를 정리하세요.';
     else if (!inited) txt = '클라우드 미연결 — 기록은 이 기기에만 저장되며 연결되면 자동 전송됩니다.';
@@ -440,7 +441,7 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
         recovered: recovered, recon: reconInfo,
         tracked: Object.keys(stamps).length,
         lastRecv: lastRecv, lastPush: lastPush, err: lastErr,
-        auth: authState, authErr: authErr, isFile: isFile, root: ROOT,
+        auth: authState, authErr: authErr, authOptional: authOptional, isFile: isFile, root: ROOT,
         dbUrl: (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL) || '',
         uid: (auth && auth.currentUser) ? auth.currentUser.uid : ''
       };
@@ -452,7 +453,7 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
         try { firebase.database().goOnline(); } catch (e) {}
         if (auth && auth.signInAnonymously && !(auth.currentUser)) {
           auth.signInAnonymously().then(function(){ authState = '익명 로그인'; emit(); })
-            .catch(function(e){ authState = '로그인 실패(' + ((e && e.code) || '') + ')'; emit(); });
+            .catch(function(e){ if (!authOptional) authState = '로그인 실패(' + ((e && e.code) || '') + ')'; emit(); });
         }
         flush(); syncBoth();
       }, 400);
@@ -523,7 +524,9 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
       add('Firebase 파일(SDK)', typeof firebase !== 'undefined', (typeof firebase === 'undefined') ? '불러오지 못함 — 인터넷/사내망 차단 의심' : '정상');
       add('DB 초기화', !!inited, inited ? ((window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL) || '') : (lastErr || '실패'));
       add('실시간 연결', !!connected, connected ? '온라인' : '오프라인 또는 차단');
-      add('익명 로그인', !!(auth && auth.currentUser), (auth && auth.currentUser) ? ('UID ' + String(auth.currentUser.uid).slice(0, 10)) : (authErr || authState));
+      add('익명 로그인', !!(auth && auth.currentUser) || authOptional,
+          (auth && auth.currentUser) ? ('UID ' + String(auth.currentUser.uid).slice(0, 10))
+          : (authOptional ? '미사용 — 이 프로젝트는 인증 없이 동작합니다' : (authErr || authState)));
       add('기기 저장공간', usageKB() < 4200, usageKB() + 'KB / 약 5,000KB');
       add('미전송 대기', qsize() === 0, qsize() + '건');
       if (!db || !inited) return cb(null, out);
@@ -598,8 +601,25 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
       /* ── 익명 로그인: 실패를 '조용히' 넘기지 않는다 ─────────────
          규칙이 auth != null 이면 로그인 실패 = 업로드 전면 거부이므로
          실패 코드를 보관하고 화면에 원인과 조치 방법을 표시한다. */
+      /* [v12] 프로젝트 설정 때문에 익명 로그인을 쓸 수 없는 경우의 코드들.
+         이 경우 규칙이 인증을 요구하지 않으면 로그인 없이도 정상 동작한다. */
+      var CFG_AUTH_ERR = /admin-restricted-operation|operation-not-allowed|configuration-not-found|unauthorized-domain|identity-toolkit|restricted/i;
+      function probeWrite(){
+        try {
+          var ref = db.ref(ROOT + '/_probe/' + devId());
+          return ref.set({ at: Date.now(), ver: (window.APP_VER || '?') })
+            .then(function(){ return ref.once('value'); })
+            .then(function(s){ return !!(s && s.val()); })
+            .catch(function(e){
+              var c = (e && (e.code || e.message)) || '';
+              if (/permission/i.test(String(c))) blocked = 'permission';
+              return false;
+            });
+        } catch (e) { return Promise.resolve(false); }
+      }
       function authName(c){
         c = String(c || '');
+        if (/admin-restricted-operation/.test(c)) return '익명 로그인 차단(프로젝트 설정)';
         if (/operation-not-allowed/.test(c))    return '익명 로그인 꺼져 있음';
         if (/unauthorized-domain/.test(c))      return '승인된 도메인 아님';
         if (/configuration-not-found/.test(c))  return 'Authentication 미설정';
@@ -624,12 +644,43 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
             var c = (e && e.code) || '';
             authErr = String(c);
             authState = '익명 로그인 실패(' + authName(c) + ')';
-            blocked = 'auth'; lastErr = authState;
+            lastErr = authState;
             console.warn('[FB] 익명 로그인 실패 →', c);
+            /* [v12] 설정성 오류(admin-restricted-operation 등)는 '업로드 불가'와 동의어가 아니다.
+               규칙이 인증을 요구하지 않으면 로그인 없이도 읽기/쓰기가 된다.
+               따라서 실제 쓰기를 한 번 해보고 그 결과로만 판정한다. */
+            if (CFG_AUTH_ERR.test(String(c))) {
+              emit();
+              return probeWrite().then(function(okw){
+                if (okw) {
+                  authOptional = true;
+                  if (blocked === 'auth') blocked = '';
+                  authState = '무인증 모드(익명 로그인 미사용 · 쓰기 정상)';
+                  lastErr = '';
+                  console.log('[FB] 익명 로그인 불가 + 쓰기 정상 → 무인증 모드로 동작합니다.');
+                } else {
+                  blocked = 'auth';
+                }
+                emit();
+              });
+            }
+            blocked = 'auth';
             emit();
             if (n > 0 && /network|internal|timeout/i.test(String(c))) {
               return new Promise(function(r){ setTimeout(function(){ tryAuth(n - 1).then(r, r); }, 1500); });
             }
+            /* [v12] 재시도까지 실패했더라도 쓰기가 되면 업로드는 가능하다 → 무인증 모드로 판정.
+               (로그인 실패만으로 '공유 안 됨' 경고를 띄우던 오경보를 차단) */
+            return probeWrite().then(function(okw){
+              if (okw) {
+                authOptional = true;
+                if (blocked === 'auth') blocked = '';
+                authState = '무인증 모드(로그인 미사용 · 쓰기 정상)';
+                lastErr = '';
+                console.log('[FB] 로그인 실패했으나 쓰기 정상 → 무인증 모드로 동작합니다.');
+              }
+              emit();
+            });
           });
       }
       var authStep = tryAuth(1);
@@ -697,7 +748,7 @@ window.APP_VER = "v11";   /* 기기별 버전 확인용 */
     if (queue[key] && !queue[key].del && stampOf(key) > rat) {
       /* 아직 못 올린 로컬 최신본 보호 — 단, 올릴 수 없는 상태(권한 거부)이거나
          8초 넘게 막혀 있으면 이 기기만 과거에 머무는 것을 막기 위해 원격을 받는다. */
-      var stuck = (blocked === 'permission') || (blocked === 'auth') || ((now() - (+queue[key].at || 0)) > 8000);
+      var stuck = (blocked === 'permission') || (blocked === 'auth' && !authOptional) || ((now() - (+queue[key].at || 0)) > 8000);
       if (!stuck) { sendNow(key, null, false); emit(); return; }
       console.warn('[FB] 미전송 적체 — 원격 값을 받습니다:', key);
       dequeue(key);
@@ -7177,7 +7228,7 @@ window.ATT = (function(){
       paintWarn(true,'이 파일은 기기에 저장된 <b>사본(file://)</b>입니다. 다른 기기와 절대 공유되지 않습니다 — 인터넷 주소(https://…/WONIKPNE/)로 접속하세요.');
       return;
     }
-    if(s.blocked==='auth' || s.blocked==='permission' || s.writeFail){
+    if((s.blocked==='auth' && !s.authOptional) || s.blocked==='permission' || s.writeFail){
       var why = (s.blocked==='auth') ? ('클라우드 로그인 거부 ('+(s.authErr||'?')+')')
               : (s.blocked==='permission') ? '클라우드 저장 거부 (보안 규칙)'
               : ('이 기기 저장 실패 '+s.writeFail+'건 — 저장공간 초과');
@@ -7507,7 +7558,7 @@ window.FBDIAG=(function(){
       '<tr><th>접속 방식</th><td>'+whereTxt()+'</td></tr>'+
       '<tr><th>앱 버전</th><td>'+(window.APP_VER||'?')+' · 캐시 '+((window.FBSync&&FBSync.usageKB)?FBSync.usageKB()+'KB':lsSize())+'</td></tr>'+
       '<tr><th>연결 상태</th><td>'+(!s.inited?'초기화 실패 / SDK 미로드':(s.connected?'온라인(실시간 연결됨)':'오프라인'))+'</td></tr>'+
-      '<tr><th>로그인</th><td>'+(s.authErr?'<b style="color:#dc2626">'+dEsc(s.auth||'실패')+'</b>':dEsc(s.auth||'-'))+(s.uid?'<br>UID '+dEsc(s.uid):'')+'</td></tr>'+
+      '<tr><th>로그인</th><td>'+((s.authErr&&!s.authOptional)?'<b style="color:#dc2626">'+dEsc(s.auth||'실패')+'</b>':dEsc(s.auth||'-'))+(s.uid?'<br>UID '+dEsc(s.uid):'')+'</td></tr>'+
       '<tr><th>DB 주소</th><td>'+(s.dbUrl||'-')+'</td></tr>'+
       '<tr><th>저장 경로</th><td>'+(s.root||'-')+'</td></tr>'+
       '<tr><th>미전송 대기</th><td>'+(s.queue||0)+'건'+((s.queue&&s.queueAge)?' (가장 오래된 건 '+Math.round(s.queueAge/1000)+'초 경과)':'')+
@@ -8606,7 +8657,8 @@ window.FBPROOF = (function(){
     var f=find('접속 방식'), w=find('클라우드 쓰기'), a=find('익명 로그인'), sdk=find('Firebase 파일(SDK)'), st=find('기기 저장공간');
     if(f && !f.ok)   return ['이 기기에 저장된 사본(file://)을 열고 있습니다 — 절대 공유되지 않습니다','#b91c1c','브라우저 주소창에 https://…/WONIKPNE/ 를 직접 입력해 접속하십시오.'];
     if(sdk && !sdk.ok) return ['Firebase 연결 파일을 내려받지 못했습니다','#b91c1c','사내망/보안프로그램 차단 또는 인터넷 불가. 다른 회선(LTE 등)으로 시도해 보십시오.'];
-    if(a && !a.ok)   return ['클라우드 로그인이 거부되었습니다 — '+esc(a.note),'#b91c1c','Firebase 콘솔 > Authentication 에서 익명 로그인 사용, 승인된 도메인에 scw9595.github.io 추가가 필요합니다.'];
+    /* [v12] 쓰기가 되면 로그인 실패는 문제가 아니다 — 무인증으로 동작하는 프로젝트이기 때문. */
+    if(w && !w.ok && a && !a.ok) return ['클라우드 로그인·쓰기가 모두 거부되었습니다 — '+esc(a.note),'#b91c1c','Firebase 콘솔 > Authentication 에서 익명 로그인을 사용 설정하거나, Realtime Database 규칙을 인증 없이 허용하도록 게시해야 합니다.'];
     if(w && !w.ok)   return ['클라우드 쓰기가 거부되었습니다 — '+esc(w.note),'#b91c1c','Realtime Database > 규칙 이 만료/차단된 상태입니다. 규칙을 갱신해 게시해야 합니다.'];
     if(st && !st.ok) return ['이 기기 저장공간이 한도에 도달했습니다','#b45309','사진/오래된 자료를 정리하십시오. 한도를 넘으면 저장 자체가 실패합니다.'];
     return ['클라우드 쓰기·되읽기 모두 정상입니다','#047857','이 기기는 정상입니다. 반영이 안 보이면 <b>보는 쪽(PC)</b>을 새로고침하고 아래 기기 목록의 버전을 확인하십시오.'];
