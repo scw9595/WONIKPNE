@@ -21,7 +21,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos";
-window.APP_VER = "v12";   /* 기기별 버전 확인용 */
+window.APP_VER = "v13";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -340,6 +340,19 @@ window.APP_VER = "v12";   /* 기기별 버전 확인용 */
           delete pre[key]; dequeue(key);
           applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || now(); applied++;
           return;
+        }
+        if (queue[key] && !queue[key].del) {
+          /* [v13] 이 기기에서 저장했지만 아직 클라우드로 못 올린 값이다.
+             기기 시계가 조금 느리면 lst <= rat 이 되어 아래 비교에서 '클라우드가 최신'으로
+             판정되고, 사용자가 방금 모바일에서 작성한 내용이 클라우드 옛 값으로 덮어써진 뒤
+             그 옛 값이 다시 올라가 버렸다(= 모바일 작성분이 PC에 영원히 안 올라감).
+             미전송분이 남아 있으면 시각 비교 없이 '올리기'를 택한다. */
+          try {
+            var cfq = jget(CONFK);
+            cfq['(원격보관)' + key] = { v: String(rec.v).slice(0, 4000), at: rat };
+            jset(CONFK, cfq);
+          } catch (e) {}
+          enqueue(key, loc, false); pushed++; return;
         }
         if (lst > rat) {                                 /* 로컬이 더 최신 → 올린다 */
           enqueue(key, loc, false); pushed++;
@@ -745,12 +758,24 @@ window.APP_VER = "v12";   /* 기기별 버전 확인용 */
     lastRecv = Date.now();
     if (origGet(key) === rec.v) { dequeue(key); emit(); return; }   /* 내가 쓴 것이면 무시 */
     var rat = +(rec.at || 0);
-    if (queue[key] && !queue[key].del && stampOf(key) > rat) {
-      /* 아직 못 올린 로컬 최신본 보호 — 단, 올릴 수 없는 상태(권한 거부)이거나
-         8초 넘게 막혀 있으면 이 기기만 과거에 머무는 것을 막기 위해 원격을 받는다. */
-      var stuck = (blocked === 'permission') || (blocked === 'auth' && !authOptional) || ((now() - (+queue[key].at || 0)) > 8000);
+    if (queue[key] && !queue[key].del) {
+      /* [v13] 이 기기의 미전송 작성분 보호.
+         (구버전 조건) stampOf(key) > rat 이었기 때문에 기기 시계가 몇 초라도 느리면
+         보호 대상에서 빠져 모바일 작성분이 즉시 원격 값으로 덮어써졌다.
+         (구버전 조건) 8초만 지나면 미전송분을 버렸기 때문에, 화면잠금·앱전환·약전계로
+         업로드가 잠깐 지연되는 모바일에서는 작성분이 그대로 사라졌다.
+         → 시각 비교를 걷어내고, '실제로 업로드가 거부된 상태'가 5분 넘게 계속될 때에만
+            포기한다. 포기하더라도 로컬 값을 백업해 둔다. */
+      var qage = now() - (+queue[key].at || 0);
+      var hardBlocked = (blocked === 'permission') || (blocked === 'auth' && !authOptional);
+      var stuck = hardBlocked && qage > 300000;
       if (!stuck) { sendNow(key, null, false); emit(); return; }
-      console.warn('[FB] 미전송 적체 — 원격 값을 받습니다:', key);
+      try {
+        var cfr = jget(CONFK);
+        cfr[key] = { v: String(origGet(key) || '').slice(0, 4000), at: stampOf(key) };
+        jset(CONFK, cfr);
+      } catch (e) {}
+      console.warn('[FB] 업로드 거부 5분 경과 — 원격 값을 받습니다(로컬 값은 백업):', key);
       dequeue(key);
     }
     applyRemote(key, rec.v, rat, false);
@@ -775,7 +800,7 @@ window.APP_VER = "v12";   /* 기기별 버전 확인용 */
     emit();
   });
   window.addEventListener('offline', function(){ connected = false; emit(); });
-  setInterval(function(){ if (inited && connected && qsize()) flush(); banner(); }, 7000);
+  setInterval(function(){ if (inited && qsize()) flush(); banner(); }, 7000);
   window.addEventListener('pageshow', function(){ if (inited) { flush(); } });
   /* [v10] 화면 끄기·앱 전환·탭 종료 순간: 디바운스를 기다리지 않고 즉시 전송 */
   function flushNow(){
