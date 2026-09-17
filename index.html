@@ -21,7 +21,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos";
-window.APP_VER = "v8";   /* 기기별 버전 확인용 */
+window.APP_VER = "v10";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -60,10 +60,20 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
   var lastRecv = 0, lastPush = 0, lastRecon = 0;
   var skew = 0;                     /* 서버시각 - 기기시각 (ms) */
   var preSync = true;               /* 아직 클라우드를 한 번도 못 읽음 */
+  var userTouched = false;          /* 사용자가 화면을 실제로 조작했는가 */
+  try {
+    ['pointerdown','keydown','touchstart','change'].forEach(function(ev){
+      document.addEventListener(ev, function(){ userTouched = true; }, true);
+    });
+  } catch (e) {}
   var pre = {};                     /* 그 사이에 기록된 키(임시) */
   var CONFK = 'fb_conflict_v1';     /* 밀려난 로컬 값 백업(안전장치) */
   function now(){ return Date.now() + skew; }
   var writeFail = 0, pullCount = null, lastErr = '', authState = '미시도';
+  var authErr = '';                 /* 익명 로그인 실패 코드 */
+  var isFile  = false;              /* file:// 로 열린 로컬 사본인가 */
+  try { isFile = (String(location.protocol) === 'file:'); } catch (e) {}
+  var bootAt  = Date.now();
   var blocked = '', recovered = 0, reconInfo = null;
 
   var DEVK = 'fb_devid_v1';
@@ -165,6 +175,49 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     catch (e) { writeFail++; console.warn('[FB] 로컬 저장 실패(용량?)', k, e && (e.name || e)); return false; }
   }
 
+  /* ── 저장 결과 즉시 통보(모든 모듈 공통) ──────────────────
+     저장 버튼을 누른 사람이 "이 기록이 클라우드에 올라갔는지"를
+     그 자리에서 알 수 있게 한다. 조용한 실패를 없애는 핵심 장치. */
+  var toastEl = null, toastT = null;
+  function toast(text, kind){
+    try {
+      if (!document.body) return;
+      if (!toastEl) {
+        toastEl = document.createElement('div');
+        toastEl.id = 'fbToast';
+        toastEl.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:64px;z-index:99999;' +
+          'max-width:92%;padding:10px 14px;border-radius:8px;color:#fff;font-size:12.5px;font-weight:700;' +
+          'line-height:1.45;text-align:center;letter-spacing:-.2px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25)';
+        toastEl.onclick = function(){ try { flush(); syncBoth(); } catch (e) {} toastEl.style.display = 'none'; };
+        document.body.appendChild(toastEl);
+      }
+      toastEl.style.background = (kind === 'bad' ? '#b91c1c' : (kind === 'warn' ? '#b45309' : '#047857'));
+      toastEl.innerHTML = text;
+      toastEl.style.display = 'block';
+      clearTimeout(toastT);
+      toastT = setTimeout(function(){ if (toastEl) toastEl.style.display = 'none'; }, kind === 'ok' ? 2400 : 8000);
+    } catch (e) {}
+  }
+  var watchT = null;
+  function verdict(){
+    if (isFile)                  return ['이 기기에만 저장되었습니다<br>PC에 저장된 사본(file://)은 공유되지 않습니다 — https 주소로 접속하세요', 'bad'];
+    if (typeof firebase === 'undefined') return ['이 기기에만 저장되었습니다<br>Firebase 연결 파일을 불러오지 못했습니다(인터넷·사내망 차단)', 'bad'];
+    if (!inited)                 return ['이 기기에만 저장되었습니다<br>클라우드 미연결 — 연결되면 자동 전송됩니다', 'warn'];
+    if (blocked === 'auth')      return ['클라우드 업로드 실패 — 로그인 거부(' + (authErr || '?') + ')<br>이 기록은 다른 기기에서 보이지 않습니다. 눌러서 재시도', 'bad'];
+    if (blocked === 'permission')return ['클라우드 업로드 거부 — 보안 규칙<br>이 기록은 다른 기기에서 보이지 않습니다. 눌러서 재시도', 'bad'];
+    if (!connected)              return ['오프라인 — 이 기기에 보관 중<br>연결되면 자동 전송됩니다', 'warn'];
+    if (qsize())                 return ['업로드 대기 ' + qsize() + '건 — 눌러서 지금 전송', 'warn'];
+    return ['클라우드 저장 완료 · 다른 기기에도 반영됨', 'ok'];
+  }
+  function watch(){
+    if (Date.now() - bootAt < 4000) return;      /* 앱 시작 직후의 자동 저장은 통보 제외 */
+    clearTimeout(watchT);
+    watchT = setTimeout(function(){
+      var r = verdict();
+      toast(r[0], r[1]);
+    }, 2500);
+  }
+
   /* ── 쓰기 후킹 : 미전송함 기록을 "먼저" 한다 ──────────────── */
   localStorage.setItem = function (k, v) {
     var ok = true;
@@ -172,9 +225,14 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     if (!applyingRemote && shareable(k)) {
       stamps[k] = now(); saveStamps();
       if (tombs[k]) { delete tombs[k]; saveTombs(); }
-      if (preSync) pre[k] = 1;       /* 클라우드 확인 전 기록 → 임시 취급 */
+      /* [v10] '임시' 표시는 사용자가 화면을 만지기 전(앱이 스스로 쓰는 기본값/SEED)에만 건다.
+         v8/v9 는 클라우드 읽기가 느린 모바일에서 preSync 가 true 로 남아,
+         사용자가 직접 작성한 내용까지 '임시'가 되어 재대조 때 클라우드 옛 값으로
+         덮어써지고 전송 큐에서도 제거됐다(= 작성분 소멸 + PC 미반영). */
+      if (preSync && !userTouched) pre[k] = 1;
       enqueue(k, v, false);          /* ← 앱이 즉시 종료돼도 유실되지 않음 */
       pushKey(k, v, false);
+      watch();                       /* 2.5초 뒤 업로드 성공/실패를 화면으로 통보 */
     }
     if (!ok) emit();
   };
@@ -343,7 +401,9 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     if (!document.body) return;
     var el = document.getElementById('fbBlockBar');
     var n = qsize(), old = qOldest(), txt = '', red = true;
-    if (blocked === 'permission') txt = '클라우드 저장 거부됨(보안 규칙) — 지금 기록은 이 기기에만 남습니다. 눌러서 재시도';
+    if (isFile) txt = '이 파일은 기기에 저장된 사본(file://)입니다 — 다른 기기와 절대 공유되지 않습니다. 인터넷 주소(https)로 접속하세요.';
+    else if (blocked === 'auth') txt = '클라우드 로그인 실패(' + (authErr || '?') + ') — 이 기기 기록은 공유되지 않습니다. 눌러서 재시도';
+    else if (blocked === 'permission') txt = '클라우드 저장 거부됨(보안 규칙) — 지금 기록은 이 기기에만 남습니다. 눌러서 재시도';
     else if (auxFail) txt = '기기 저장공간 부족 — 전송 대기 목록을 기록할 수 없습니다. 사진/오래된 자료를 정리하세요.';
     else if (!inited) txt = '클라우드 미연결 — 기록은 이 기기에만 저장되며 연결되면 자동 전송됩니다.';
     else if (writeFail) txt = '이 기기 저장 실패 ' + writeFail + '건 — 저장공간(약 5MB) 초과입니다. 사진/오래된 자료를 정리하세요.';
@@ -380,7 +440,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         recovered: recovered, recon: reconInfo,
         tracked: Object.keys(stamps).length,
         lastRecv: lastRecv, lastPush: lastPush, err: lastErr,
-        auth: authState, root: ROOT,
+        auth: authState, authErr: authErr, isFile: isFile, root: ROOT,
         dbUrl: (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL) || '',
         uid: (auth && auth.currentUser) ? auth.currentUser.uid : ''
       };
@@ -451,6 +511,48 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         cb(null, n);
       }).catch(function(e){ lastErr = (e && (e.code || e.message)) || 'pull 실패'; emit(); cb(e); });
     },
+    /* ── 동기화 자가진단 : 어디서 막히는지 한 번에 판정 ────── */
+    selftest: function(cb){
+      cb = cb || function(){};
+      var out = [];
+      function add(name, ok, note){ out.push({ name: name, ok: !!ok, note: String(note == null ? '' : note) }); }
+      var where = '';
+      try { where = String(location.protocol) + '//' + String(location.host || '(로컬)'); } catch (e) {}
+      add('접속 방식', !isFile, isFile ? 'file:// 기기에 저장된 사본 — 공유 불가' : where);
+      add('앱 버전', true, (window.APP_VER || '?'));
+      add('Firebase 파일(SDK)', typeof firebase !== 'undefined', (typeof firebase === 'undefined') ? '불러오지 못함 — 인터넷/사내망 차단 의심' : '정상');
+      add('DB 초기화', !!inited, inited ? ((window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL) || '') : (lastErr || '실패'));
+      add('실시간 연결', !!connected, connected ? '온라인' : '오프라인 또는 차단');
+      add('익명 로그인', !!(auth && auth.currentUser), (auth && auth.currentUser) ? ('UID ' + String(auth.currentUser.uid).slice(0, 10)) : (authErr || authState));
+      add('기기 저장공간', usageKB() < 4200, usageKB() + 'KB / 약 5,000KB');
+      add('미전송 대기', qsize() === 0, qsize() + '건');
+      if (!db || !inited) return cb(null, out);
+      var t = Date.now(), ref;
+      try { ref = db.ref(ROOT + '/_health/' + devId()); } catch (e) { add('클라우드 쓰기', false, '경로 오류'); return cb(null, out); }
+      ref.set({ at: Date.now(), ver: (window.APP_VER || '?'), ua: String(navigator.userAgent || '').slice(0, 90) })
+        .then(function(){ add('클라우드 쓰기', true, (Date.now() - t) + 'ms'); blocked = (blocked === 'permission' ? '' : blocked); return ref.once('value'); })
+        .then(function(s){ add('되읽기 확인', !!(s && s.val()), (s && s.val()) ? '정상' : '값이 비어 있음'); emit(); cb(null, out); })
+        .catch(function(e){
+          var c = (e && (e.code || e.message)) || 'error';
+          if (/permission/i.test(String(c))) blocked = 'permission';
+          add('클라우드 쓰기', false, String(c));
+          lastErr = String(c); emit(); cb(null, out);
+        });
+    },
+    /* ── 기기 간 왕복 테스트 : 이 기기에서 보내고 다른 기기에서 확인 ── */
+    ping: function(cb){
+      cb = cb || function(){};
+      var k = 'tos_synctest_v1';
+      var o = { dev: devId(), ver: (window.APP_VER || '?'), who: who(), at: Date.now(),
+                ua: String(navigator.userAgent || '').slice(0, 70) };
+      try { localStorage.setItem(k, JSON.stringify(o)); }
+      catch (e) { return cb('local-write-fail'); }
+      setTimeout(function(){ cb(queue[k] ? 'pending' : null, o); }, 1800);
+    },
+    lastPing: function(){
+      try { return JSON.parse(origGet('tos_synctest_v1') || 'null'); } catch (e) { return null; }
+    },
+    myDev: function(){ return devId(); },
     boot: function (done) {
       done = done || function(){};
       var finished = false;
@@ -458,7 +560,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
 
       var cfg = window.FIREBASE_CONFIG;
       if (typeof firebase === 'undefined' || !cfg || !cfg.apiKey || cfg.apiKey.indexOf('여기에') === 0) {
-        lastErr = 'Firebase SDK/설정 없음';
+        lastErr = 'Firebase SDK/설정 없음'; preSync = false; pre = {};
         console.warn('[FB] Firebase 설정 없음 → 로컬(localStorage) 전용 모드로 동작합니다.');
         emit();
         return go();
@@ -470,7 +572,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         inited = true;
         devPing();
       } catch (e) {
-        lastErr = '초기화 실패';
+        lastErr = '초기화 실패'; preSync = false; pre = {};
         console.warn('[FB] 초기화 실패 → 로컬 모드', e);
         emit();
         return go();
@@ -493,12 +595,51 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         });
       } catch (e) {}
 
-      var authStep = (auth && auth.signInAnonymously)
-        ? auth.signInAnonymously().then(function(){ authState = '익명 로그인'; })
-            .catch(function(e){ authState = '익명 로그인 실패(' + ((e && e.code) || '') + ')'; console.warn('[FB] 익명로그인 생략', e && e.code); })
-        : Promise.resolve();
+      /* ── 익명 로그인: 실패를 '조용히' 넘기지 않는다 ─────────────
+         규칙이 auth != null 이면 로그인 실패 = 업로드 전면 거부이므로
+         실패 코드를 보관하고 화면에 원인과 조치 방법을 표시한다. */
+      function authName(c){
+        c = String(c || '');
+        if (/operation-not-allowed/.test(c))    return '익명 로그인 꺼져 있음';
+        if (/unauthorized-domain/.test(c))      return '승인된 도메인 아님';
+        if (/configuration-not-found/.test(c))  return 'Authentication 미설정';
+        if (/api-key/.test(c))                  return 'API 키 오류';
+        if (/network/.test(c))                  return '네트워크 차단';
+        return c || '원인 불명';
+      }
+      try {
+        if (auth && auth.onAuthStateChanged) auth.onAuthStateChanged(function(u){
+          if (u) {
+            authErr = ''; authState = '익명 로그인';
+            if (blocked === 'auth') blocked = '';
+            flush();
+          }
+          emit();
+        });
+      } catch (e) {}
+      function tryAuth(n){
+        if (!(auth && auth.signInAnonymously)) return Promise.resolve();
+        return auth.signInAnonymously().then(function(){ authErr = ''; authState = '익명 로그인'; })
+          .catch(function(e){
+            var c = (e && e.code) || '';
+            authErr = String(c);
+            authState = '익명 로그인 실패(' + authName(c) + ')';
+            blocked = 'auth'; lastErr = authState;
+            console.warn('[FB] 익명 로그인 실패 →', c);
+            emit();
+            if (n > 0 && /network|internal|timeout/i.test(String(c))) {
+              return new Promise(function(r){ setTimeout(function(){ tryAuth(n - 1).then(r, r); }, 1500); });
+            }
+          });
+      }
+      var authStep = tryAuth(1);
 
-      var guard = setTimeout(function(){ ready = true; attachLive(); flush(); emit(); go(); }, 6000);
+      var guard = setTimeout(function(){
+        /* [v10] 클라우드 읽기가 6초 안에 안 끝나도 '임시' 상태를 반드시 해제한다.
+           (여기서 preSync 가 true 로 남아 이후 저장분이 전부 되돌려지던 경로) */
+        preSync = false; pre = {};
+        ready = true; attachLive(); flush(); emit(); go();
+      }, 6000);
 
       authStep.then(function(){
         return db.ref(ROOT).once('value');
@@ -516,6 +657,7 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
         clearTimeout(guard);
         lastErr = (e && (e.code || e.message)) || '초기 동기화 실패';
         if (/permission/i.test(String(lastErr))) blocked = 'permission';
+        preSync = false; pre = {};          /* [v10] 실패해도 '임시' 상태로 남기지 않음 */
         ready = true;
         attachLive();
         flush();
@@ -584,6 +726,15 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
   window.addEventListener('offline', function(){ connected = false; emit(); });
   setInterval(function(){ if (inited && connected && qsize()) flush(); banner(); }, 7000);
   window.addEventListener('pageshow', function(){ if (inited) { flush(); } });
+  /* [v10] 화면 끄기·앱 전환·탭 종료 순간: 디바운스를 기다리지 않고 즉시 전송 */
+  function flushNow(){
+    try { Object.keys(pending).forEach(function(k){ clearTimeout(pending[k]); }); } catch (e) {}
+    pending = {};
+    try { flush(); } catch (e) {}
+  }
+  window.addEventListener('pagehide', flushNow);
+  window.addEventListener('beforeunload', flushNow);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') flushNow(); });
   document.addEventListener('DOMContentLoaded', function(){ banner(); });
 
   /* 사용자가 입력/편집 중이면 화면 새로고침을 미뤄 입력 내용 보호 */
@@ -602,7 +753,16 @@ window.APP_VER = "v8";   /* 기기별 버전 확인용 */
     var keySite = key.indexOf('__') >= 0 ? key.split('__')[1] : '대전LGES';
     var COMMON  = ['tos_eng_v4', 'tos_fixpresets_v1', 'tos_matches_v1', 'tos_logo_v1', 'tos_asdb_v1'];
     var curSite = (typeof SITE !== 'undefined' ? SITE : '대전LGES');
-    if (base.indexOf('tos_att_') === 0 || base.indexOf('tos_chq_') === 0 || base.indexOf('tos_tbm_') === 0) return;   /* 출퇴근·점검확인서는 각 모듈이 자체 갱신 */
+    if (base === 'tos_synctest_v1') return;                                                                          /* 왕복 테스트 키는 화면과 무관 */
+    if (base.indexOf('tos_att_') === 0 || base.indexOf('tos_chq_') === 0 || base.indexOf('tos_tbm_') === 0) {
+      /* [v10] 이전 버전은 여기서 아무 것도 하지 않고 끝나, 데이터는 도착했는데
+         화면이 그대로여서 '안 넘어왔다'로 보였다. 각 모듈에 갱신 신호를 보낸다. */
+      try { window.dispatchEvent(new CustomEvent('fbremote', { detail: { key: key, base: base } })); }
+      catch (e) {
+        try { var ev2 = document.createEvent('Event'); ev2.initEvent('fbremote', false, false); window.dispatchEvent(ev2); } catch (e2) {}
+      }
+      return;
+    }
     var affects = (keySite === curSite) || COMMON.indexOf(base) >= 0;
     if (!affects) return;
     if (userBusy()) return;
@@ -6024,7 +6184,18 @@ window.CHAEUM=(function(){
    }
   });
  }
- return {open:open,close:close,login:login,logout:logout,save:save,receive:receive,detail:detail,closeModal:closeModal,setTab:setTab,reopen:reopen,reassign:reassign,setMine:setMine,users:function(){return U.slice();},admins:function(){return ADM.slice();},byReq:byReq,refresh:function(){if(me)render();}};
+ 
+  /* [v10] 다른 기기의 변경이 도착하면 이 모듈 화면을 다시 그린다.
+     (이전 버전은 수신만 하고 화면을 갱신하지 않아 '안 넘어왔다'로 보였다) */
+  try {
+    var __fbT = 0;
+    window.addEventListener('fbremote', function(){
+      var n = Date.now(); if (n - __fbT < 800) return; __fbT = n;
+      try { if (typeof render === 'function') render(); } catch (e) {}
+      try { if (typeof paint  === 'function') paint();  } catch (e) {}
+    });
+  } catch (e) {}
+  return {open:open,close:close,login:login,logout:logout,save:save,receive:receive,detail:detail,closeModal:closeModal,setTab:setTab,reopen:reopen,reassign:reassign,setMine:setMine,users:function(){return U.slice();},admins:function(){return ADM.slice();},byReq:byReq,refresh:function(){if(me)render();}};
 })();
 </script>
 <script>
@@ -6982,6 +7153,17 @@ window.ATT = (function(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
   else boot();
 
+  
+  /* [v10] 다른 기기의 변경이 도착하면 이 모듈 화면을 다시 그린다.
+     (이전 버전은 수신만 하고 화면을 갱신하지 않아 '안 넘어왔다'로 보였다) */
+  try {
+    var __fbT = 0;
+    window.addEventListener('fbremote', function(){
+      var n = Date.now(); if (n - __fbT < 800) return; __fbT = n;
+      try { if (typeof render === 'function') render(); } catch (e) {}
+      try { if (typeof paint  === 'function') paint();  } catch (e) {}
+    });
+  } catch (e) {}
   return {
     showPortal:showPortal, goTOS:goTOS, goATT:goATT,
     workers:workerNames, admins:adminNames, isAdminName:isAdminName,
@@ -7228,17 +7410,37 @@ window.FBDIAG=(function(){
     return n;
   }
   function visible(el){ el=document.getElementById(el); return !!(el&&el.style.display&&el.style.display!=='none'); }
+  function dEsc(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function whereTxt(){
+    try{
+      if(String(location.protocol)==='file:') return '<b style="color:#dc2626">이 기기에 저장된 사본(file://)</b><br>다른 기기와 공유되지 않습니다. 인터넷 주소(https)로 접속하세요.';
+      return dEsc(String(location.protocol)+'//'+String(location.host||''))+dEsc(String(location.pathname||''));
+    }catch(e){ return '-'; }
+  }
+  function pingRow(){
+    var p=null;
+    try{ p=(window.FBSync&&FBSync.lastPing)?FBSync.lastPing():null; }catch(e){}
+    if(!p||!p.at) return '기록 없음 — 한 기기에서 아래 「왕복 테스트 전송」을 누르고, 다른 기기에서 이 줄을 확인하세요.';
+    var mine='';
+    try{ mine=(window.FBSync&&FBSync.myDev)?FBSync.myDev():''; }catch(e){}
+    var self=(mine&&p.dev===mine);
+    return (self?'<span style="color:#64748b">[이 기기에서 보낸 것]</span> ':'<b style="color:#059669">[다른 기기에서 수신]</b> ')+
+           dEsc(p.who||'')+' · '+dEsc(p.ver||'')+'<br>'+new Date(p.at).toLocaleString()+' ('+ago(p.at)+')';
+  }
   function onMobileScreen(){ return window.innerWidth<=900; }
 
   /* ── 상태 배지 ─────────────────────────────────────────── */
   function paint(){
     var b=document.getElementById('fbBadge'), t=document.getElementById('fbBadgeTxt');
     if(!b||!t) return;
-    var show = visible('attPortal')||visible('attApp')||visible('chaeumApp')||onMobileScreen();
+    var s0=st();
+    var trouble = !s0 || s0.isFile || !s0.inited || !s0.connected || s0.queue || s0.blocked;
+    var show = trouble || visible('attPortal')||visible('attApp')||visible('chaeumApp')||onMobileScreen();
     b.style.display = show?'inline-flex':'none';
     var s=st();
     b.className='';
-    if(!s||!s.inited){ t.textContent='연결 안 됨 · 이 기기에만 저장'; b.className='off'; }
+    if(s&&s.isFile){ t.textContent='PC 사본(file://) · 공유 안 됨 — 눌러서 확인'; b.className='off'; }
+    else if(!s||!s.inited){ t.textContent='연결 안 됨 · 이 기기에만 저장'; b.className='off'; }
     else if(!s.connected){ t.textContent='오프라인'+(s.queue?' · 대기 '+s.queue+'건':'')+' · 눌러서 진단'; b.className='off'; }
     else if(s.queue){ t.textContent='전송 대기 '+s.queue+'건 · 눌러서 전송'; b.className='wait'; }
     else { t.textContent='동기화 정상'+(s.lastPush?' · 전송 '+ago(s.lastPush):''); b.className='ok'; }
@@ -7260,9 +7462,10 @@ window.FBDIAG=(function(){
   function fill(){
     var s=st()||{};
     var rows=''+
+      '<tr><th>접속 방식</th><td>'+whereTxt()+'</td></tr>'+
       '<tr><th>앱 버전</th><td>'+(window.APP_VER||'?')+' · 캐시 '+((window.FBSync&&FBSync.usageKB)?FBSync.usageKB()+'KB':lsSize())+'</td></tr>'+
       '<tr><th>연결 상태</th><td>'+(!s.inited?'초기화 실패 / SDK 미로드':(s.connected?'온라인(실시간 연결됨)':'오프라인'))+'</td></tr>'+
-      '<tr><th>로그인</th><td>'+(s.auth||'-')+(s.uid?'<br>UID '+s.uid:'')+'</td></tr>'+
+      '<tr><th>로그인</th><td>'+(s.authErr?'<b style="color:#dc2626">'+dEsc(s.auth||'실패')+'</b>':dEsc(s.auth||'-'))+(s.uid?'<br>UID '+dEsc(s.uid):'')+'</td></tr>'+
       '<tr><th>DB 주소</th><td>'+(s.dbUrl||'-')+'</td></tr>'+
       '<tr><th>저장 경로</th><td>'+(s.root||'-')+'</td></tr>'+
       '<tr><th>미전송 대기</th><td>'+(s.queue||0)+'건'+((s.queue&&s.queueAge)?' (가장 오래된 건 '+Math.round(s.queueAge/1000)+'초 경과)':'')+
@@ -7275,7 +7478,8 @@ window.FBDIAG=(function(){
       '<tr><th>이 기기 데이터</th><td>출퇴근 '+cntPfx('tos_att_r_')+'건 · 명단 '+cntPfx('tos_att_m_')+'명 · 점검 '+cntPfx('tos_chq_')+'건<br>캐시 사용량 '+lsSize()+'</td></tr>'+
       '<tr><th>보호 조치</th><td>'+(s.preSync?'<b style="color:#b45309">클라우드 확인 전 — 이 기기 기록은 임시로 보관 중</b>':'정상(대조 완료)')+
         (s.conflicts?'<br>밀려난 로컬 값 백업 '+s.conflicts+'건':'')+'</td></tr>'+
-      '<tr><th>마지막 오류</th><td>'+(s.err||'없음')+'</td></tr>';
+      '<tr><th>기기 간 왕복 테스트</th><td>'+pingRow()+'</td></tr>'+
+      '<tr><th>마지막 오류</th><td>'+dEsc(s.err||'없음')+'</td></tr>';
     document.getElementById('fbDiagSheet').innerHTML=
       '<h4>동기화 진단<button onclick="FBDIAG.close()">닫기</button></h4>'+
       '<table>'+rows+'</table>'+
@@ -7284,6 +7488,8 @@ window.FBDIAG=(function(){
       '<button onclick="FBDIAG.pull()">다시 받기</button>'+
       '<button onclick="FBDIAG.reconnect()">연결 재시도</button>'+
       '<button onclick="FBDIAG.health()">쓰기 권한 테스트</button>'+
+      '<button class="wide" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="FBDIAG.selftest()">동기화 자가진단 — 어디서 막히는지 찾기</button>'+
+      '<button class="wide" onclick="FBDIAG.ping()">이 기기 → 왕복 테스트 전송(다른 기기에서 확인)</button>'+
       '<button class="wide" onclick="FBDIAG.recon()">로컬↔클라우드 전체 재대조(유실분 복구)</button>'+
       '<button class="wide" onclick="FBDIAG.devices()">기기별 접속 버전 확인(PC·모바일 같은 버전인지)</button>'+
       '<button class="wide" onclick="FBDIAG.reload()">앱 새로고침(캐시 우회)</button>'+
@@ -7384,6 +7590,54 @@ window.FBDIAG=(function(){
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', paint);
   else paint();
 
+  function fixHint(bad){
+    var h='';
+    if(bad.indexOf('접속 방식')>=0)
+      h+='· <b>이 기기는 저장된 사본을 열고 있습니다.</b> 브라우저 주소창에 배포 주소(https://…/WONIKPNE/)를 직접 입력해 접속하세요.<br>';
+    if(bad.indexOf('Firebase 파일(SDK)')>=0)
+      h+='· 인터넷 연결 또는 사내망/보안프로그램이 <b>gstatic.com</b> 을 막고 있습니다. 모바일 데이터(LTE)로 한 번 시도해 보세요.<br>';
+    if(bad.indexOf('익명 로그인')>=0)
+      h+='· Firebase 콘솔 → <b>Authentication → 로그인 방법 → 익명</b> 을 「사용 설정」하고, <b>설정 → 승인된 도메인</b> 에 <b>scw9595.github.io</b> 를 추가하세요.<br>';
+    if(bad.indexOf('클라우드 쓰기')>=0)
+      h+='· Firebase 콘솔 → <b>Realtime Database → 규칙</b> 이 만료·거부 상태입니다. (테스트 모드 규칙은 기간이 지나면 자동 차단됩니다)<br>';
+    if(bad.indexOf('실시간 연결')>=0)
+      h+='· 네트워크가 끊겨 있습니다. 연결 후 「연결 재시도」를 누르세요.<br>';
+    if(bad.indexOf('기기 저장공간')>=0)
+      h+='· 이 기기 캐시가 한도에 근접했습니다. TBM 증빙사진 등 오래된 자료를 정리하세요.<br>';
+    if(bad.indexOf('미전송 대기')>=0)
+      h+='· 올라가지 못한 기록이 남아 있습니다. 「지금 전송」 후 대기 건수가 0이 되는지 확인하세요.<br>';
+    return h;
+  }
+  function selftest(){
+    if(!(window.FBSync&&FBSync.selftest)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    say('자가진단 실행 중...');
+    FBSync.selftest(function(e,list){
+      if(!list||!list.length){ say('자가진단을 실행할 수 없습니다.'); return; }
+      var s='', bad=[];
+      list.forEach(function(r){
+        if(!r.ok) bad.push(r.name);
+        s+=(r.ok?'<span style="color:#059669;font-weight:800">정상</span>':'<span style="color:#dc2626;font-weight:800">문제</span>')+
+           ' · <b>'+dEsc(r.name)+'</b> — '+dEsc(r.note)+'<br>';
+      });
+      var head=bad.length
+        ? '<b style="color:#dc2626">문제 '+bad.length+'건 발견 — 아래가 동기화가 안 되는 원인입니다.</b><br>'
+        : '<b style="color:#059669">이 기기는 정상입니다.</b> 이 기기에서 저장한 내용은 클라우드에 올라갑니다.<br>'+
+          '반영이 안 되는 기기가 따로 있다면 <b>그 기기</b>에서 이 자가진단을 실행하세요.<br>';
+      var tail=bad.length?('<br><b>조치 방법</b><br>'+fixHint(bad)):'';
+      say(head+'<br>'+s+tail);
+    });
+  }
+  function ping(){
+    if(!(window.FBSync&&FBSync.ping)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    say('테스트 전송 중...');
+    FBSync.ping(function(e,o){
+      if(e==='local-write-fail'){ say('이 기기에 저장조차 되지 않았습니다 — 저장공간 부족입니다. 사진/오래된 자료를 정리하세요.'); return; }
+      if(e==='pending'){ say('<b style="color:#dc2626">클라우드 업로드가 막혀 있습니다.</b><br>「동기화 자가진단」을 실행해 원인을 확인하세요.'); return; }
+      say('<b style="color:#059669">테스트 전송 성공</b> ('+new Date(o.at).toLocaleTimeString()+')<br>'+
+          '이제 <b>반영이 안 되던 기기</b>에서 앱을 열고 이 진단 화면의 「기기 간 왕복 테스트」 줄에 위 시각이 보이는지 확인하세요.<br>'+
+          '보이지 않으면 그 기기는 <b>수신이 막힌 상태</b>이므로, 그 기기에서 자가진단을 실행하십시오.');
+    });
+  }
   function devices(){
     if(!(window.FBSync&&FBSync.devices)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
     say('확인 중...');
@@ -7399,7 +7653,7 @@ window.FBDIAG=(function(){
       say('접속 기기 '+list.length+'대 (이 기기 '+mine+')<br>'+s+(bad?'<b style="color:#dc2626">구버전 기기가 있습니다. 그 기기에서 「앱 새로고침(캐시 우회)」을 실행하세요.</b>':'모든 기기가 같은 버전입니다.'));
     });
   }
-  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload, recon:recon, devices:devices };
+  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload, recon:recon, devices:devices, selftest:selftest, ping:ping };
 })();
 </script>
 
@@ -8265,6 +8519,17 @@ window.TBM=(function(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,300);});
   else setTimeout(boot,300);
 
+  
+  /* [v10] 다른 기기의 변경이 도착하면 이 모듈 화면을 다시 그린다.
+     (이전 버전은 수신만 하고 화면을 갱신하지 않아 '안 넘어왔다'로 보였다) */
+  try {
+    var __fbT = 0;
+    window.addEventListener('fbremote', function(){
+      var n = Date.now(); if (n - __fbT < 800) return; __fbT = n;
+      try { if (typeof render === 'function') render(); } catch (e) {}
+      try { if (typeof paint  === 'function') paint();  } catch (e) {}
+    });
+  } catch (e) {}
   return {
     open:open, close:close, login:login, logout:logout, setTab:setTab, setMon:setMon,
     wkAdd:wkAdd, wkDel:wkDel, wkLoad:wkLoad, hcSync:hcSync,
