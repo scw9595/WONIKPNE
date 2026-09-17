@@ -380,7 +380,7 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     var keySite = key.indexOf('__') >= 0 ? key.split('__')[1] : '대전LGES';
     var COMMON  = ['tos_eng_v4', 'tos_fixpresets_v1', 'tos_matches_v1', 'tos_logo_v1', 'tos_asdb_v1'];
     var curSite = (typeof SITE !== 'undefined' ? SITE : '대전LGES');
-    if (base.indexOf('tos_att_') === 0 || base.indexOf('tos_chq_') === 0) return;   /* 출퇴근·점검확인서는 각 모듈이 자체 갱신 */
+    if (base.indexOf('tos_att_') === 0 || base.indexOf('tos_chq_') === 0 || base.indexOf('tos_tbm_') === 0) return;   /* 출퇴근·점검확인서는 각 모듈이 자체 갱신 */
     var affects = (keySite === curSite) || COMMON.indexOf(base) >= 0;
     if (!affects) return;
     if (userBusy()) return;
@@ -5918,6 +5918,12 @@ function CHAEUM_REOPEN(o){if(typeof DB==='undefined')return;var q=DB.find(functi
         <h3>채움 점검확인서</h3>
         <p>신종엽 · 박경호 · 심우민 · 서정우 로그인<br>배정받은 점검건 · 수리내용 · 자재 · S/N 작성</p>
       </div>
+      <div class="pt-card" onclick="TBM.open()">
+        <div class="pt-ico" style="background:#b45309">TBM</div>
+        <h3>일일 안전 TBM</h3>
+        <p>매일 09:00 이전 작성 · 전자결재<br>작성(채움) → 심우민 1차 → 서정우 최종</p>
+        <div id="ptTbmBadge">금일 상태 확인 중…</div>
+      </div>
     </div>
     <div class="pt-warn" id="attFbWarn">Firebase 연결이 확인되지 않습니다. 기록이 이 기기에만 저장될 수 있으니 새로고침 후 다시 시도하세요.</div>
   </div>
@@ -6131,13 +6137,22 @@ window.ATT = (function(){
   function punch(kind){
     if(me&&me.admin){alert('관리자 계정은 출퇴근 기록 대상이 아닙니다.\n근태 정정·대리입력은 [근태] 탭에서 처리하십시오.');return;}
     var d=new Date(), date=ymd(d), t=hm(d);
+    if(kind==='in'&&window.TBM&&TBM.todayStatus){
+      try{
+        var ts=TBM.todayStatus();
+        if(ts.warn){
+          if(!confirm('[안전 확인] 금일 일일 안전 TBM 보고서가 아직 「'+ts.label+'」 상태입니다.\n원칙상 TBM 제출·결재 완료 전에는 작업을 개시할 수 없습니다.\n\n그래도 출근을 기록하시겠습니까? (기록에 남습니다)'))return;
+        }
+      }catch(e){}
+    }
     var r=getRec(me.name,date)||{name:me.name,date:date,in:'',out:'',hist:[]};
     if(kind==='in'&&r.in){alert('오늘 출근은 이미 '+r.in+' 으로 기록되어 있습니다.\n수정은 관리자만 가능합니다.');return;}
     if(kind==='out'&&r.out){alert('오늘 퇴근은 이미 '+r.out+' 으로 기록되어 있습니다.\n수정은 관리자만 가능합니다.');return;}
     if(kind==='out'&&!r.in){if(!confirm('출근 기록이 없습니다. 퇴근만 기록할까요?'))return;}
     if(!confirm((kind==='in'?'출근':'퇴근')+' 시각 '+t+' 으로 기록합니다.\n기록 후에는 본인이 수정·삭제할 수 없습니다.'))return;
     if(kind==='in'){r.in=t;r.inAt=nowStamp();}else{r.out=t;r.outAt=nowStamp();}
-    r.hist=(r.hist||[]).concat([{t:nowStamp(),who:me.name,act:(kind==='in'?'출근 기록':'퇴근 기록')+' '+t}]);
+    var tbmTag='';try{if(kind==='in'&&window.TBM&&TBM.todayStatus){var _t=TBM.todayStatus();tbmTag=' · TBM '+_t.label;}}catch(e){}
+    r.hist=(r.hist||[]).concat([{t:nowStamp(),who:me.name,act:(kind==='in'?'출근 기록':'퇴근 기록')+' '+t+tbmTag}]);
     saveRec(r);
     alert((kind==='in'?'출근':'퇴근')+' 기록 완료 · '+date+' '+t);
     render();
@@ -6738,6 +6753,7 @@ window.ATT = (function(){
 
   return {
     showPortal:showPortal, goTOS:goTOS, goATT:goATT,
+    workers:workerNames, admins:adminNames, isAdminName:isAdminName,
     login:login, loginBox:loginBox, logout:logout,
     punch:punch, adminSetTime:adminSetTime, adminSaveTime:adminSaveTime, adminAdd:adminAdd,
     adminLogin:adminLogin, memAdd:memAdd, memRole:memRole, memDel:memDel, memRestore:memRestore, memPurge:memPurge, memRename:memRename,
@@ -7062,6 +7078,7 @@ window.FBDIAG=(function(){
       if(e){ say('받기 실패: '+((e&&(e.code||e.message))||e)); return; }
       try{ if(window.ATT&&ATT.render)ATT.render(); }catch(x){}
       try{ chqRefresh(true); }catch(x){}
+      try{ if(window.TBM&&TBM.render)TBM.render(); }catch(x){}
       say('클라우드에서 '+n+'건을 받았습니다.');
     });
   }
@@ -7120,4 +7137,853 @@ window.FBDIAG=(function(){
   return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload };
 })();
 </script>
+
+<!-- ===================== 일일 안전 TBM 시스템 ===================== -->
+
+<style id="tbm-style">
+#tbmApp{position:fixed;inset:0;z-index:1999600;background:#f4f5fa;overflow:auto;display:none;font-family:Pretendard,-apple-system,"Segoe UI",sans-serif;color:#0f1729;font-size:14px;-webkit-overflow-scrolling:touch}
+#tbmApp .tb-wrap{max-width:900px;margin:0 auto;padding:0 12px 90px}
+#tbmApp .tb-hd{position:sticky;top:0;z-index:5;background:#b45309;color:#fff;margin:0 -12px 12px;padding:12px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#tbmApp .tb-hd b{font-size:15px}
+#tbmApp .tb-hd .sp{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+#tbmApp .tb-hd button{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+#tbmApp .tb-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+#tbmApp .tb-tabs button{font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid #e2d5c3;background:#fff;color:#7c4a02;border-radius:999px;padding:8px 14px}
+#tbmApp .tb-tabs button.on{background:#b45309;border-color:#b45309;color:#fff}
+#tbmApp .tb-card{background:#fff;border:1px solid #e6e8ee;border-radius:14px;padding:13px;margin-bottom:10px}
+#tbmApp .tb-card h4{margin:0 0 8px;font-size:13.5px;font-weight:800;color:#0f1729;display:flex;align-items:center;gap:6px}
+#tbmApp .tb-card h4 i{font-style:normal;font-size:10.5px;background:#fef3c7;color:#92400e;border-radius:5px;padding:2px 6px;font-weight:800}
+#tbmApp .tb-mut{color:#64748b;font-size:12px;line-height:1.65}
+#tbmApp .tb-g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#tbmApp .tb-g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+@media(max-width:620px){#tbmApp .tb-g2,#tbmApp .tb-g3{grid-template-columns:1fr}}
+#tbmApp label.fl{display:block;font-size:11.5px;color:#64748b;font-weight:700;margin-bottom:3px}
+#tbmApp input,#tbmApp select,#tbmApp textarea{font-family:inherit;font-size:16px;border:1px solid #d7dbe3;border-radius:8px;padding:9px;background:#fff;color:#0f1729;width:100%;box-sizing:border-box}
+@media(min-width:760px){#tbmApp input,#tbmApp select,#tbmApp textarea{font-size:13.5px}}
+#tbmApp textarea{min-height:62px;resize:vertical}
+#tbmApp input[type=checkbox]{width:18px;height:18px;min-height:18px;margin:0;flex:none}
+#tbmApp .tb-btn{background:#b45309;color:#fff;border:0;border-radius:9px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;min-height:42px}
+#tbmApp .tb-btn.gray{background:#64748b}
+#tbmApp .tb-btn.line{background:#fff;color:#0f1729;border:1px solid #d7dbe3}
+#tbmApp .tb-btn.green{background:#10b981}
+#tbmApp .tb-btn.red{background:#ef4444}
+#tbmApp .tb-btn.sm{padding:6px 10px;font-size:11.5px;min-height:34px;border-radius:7px}
+#tbmApp .tb-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#tbmApp .tb-chk{display:flex;align-items:center;gap:8px;border:1px solid #e2e8f0;border-radius:9px;padding:9px 10px;font-size:13px;background:#fff;cursor:pointer}
+#tbmApp .tb-chk.on{border-color:#b45309;background:#fffbeb}
+#tbmApp .tb-chks{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+@media(max-width:620px){#tbmApp .tb-chks{grid-template-columns:1fr 1fr}}
+#tbmApp table{width:100%;border-collapse:collapse;font-size:12.5px}
+#tbmApp th,#tbmApp td{border-bottom:1px solid #eef0f4;padding:7px 6px;text-align:left;vertical-align:middle}
+#tbmApp th{background:#f8fafc;font-size:11.5px;color:#64748b;font-weight:700;white-space:nowrap}
+#tbmApp .tb-sc{overflow-x:auto}
+#tbmApp .bd{display:inline-block;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap}
+#tbmApp .b-ok{background:#dcfce7;color:#166534}
+#tbmApp .b-wait{background:#fef3c7;color:#92400e}
+#tbmApp .b-rej{background:#fee2e2;color:#991b1b}
+#tbmApp .b-draft{background:#e2e8f0;color:#475569}
+#tbmApp .b-no{background:#f1f5f9;color:#64748b}
+#tbmApp .b-late{background:#ffedd5;color:#9a3412}
+#tbmApp .tb-ban{border-radius:12px;padding:11px 12px;margin-bottom:10px;font-size:12.5px;line-height:1.6;font-weight:700}
+#tbmApp .tb-ban.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
+#tbmApp .tb-ban.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+#tbmApp .tb-ban.bad{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}
+#tbmApp .tb-login{max-width:400px;margin:0 auto;padding-top:26px}
+#tbmApp .tb-names{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+#tbmApp .tb-names button{min-height:52px;font-size:16px;font-weight:800;border-radius:12px;border:1px solid #e2d5c3;background:#fff;color:#0f1729;cursor:pointer;font-family:inherit}
+#tbmApp .tb-names button.apv{background:#fff7ed;border-color:#fed7aa}
+#tbmApp .tb-vw th{width:104px;background:#f8fafc;border:1px solid #e5e7eb;color:#475569;font-size:11.5px}
+#tbmApp .tb-vw td{border:1px solid #e5e7eb;font-size:12.5px}
+#tbmApp .tb-sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+@media(max-width:620px){#tbmApp .tb-sign{grid-template-columns:1fr}}
+#tbmApp .tb-sign div{border:1px solid #e5e7eb;border-radius:10px;padding:10px;font-size:12px;min-height:74px}
+#tbmApp .tb-sign b{display:block;font-size:11px;color:#64748b;margin-bottom:4px}
+#ptTbmBadge{display:inline-block;margin-top:8px;font-size:11.5px;font-weight:700;color:#334155;background:#f8fafc;border:1px solid #e6e8ee;border-radius:999px;padding:4px 10px}
+#tbmPrint{display:none}
+@media print{
+  body>*{display:none !important}
+  #tbmPrint{display:block !important;font-family:Pretendard,-apple-system,"Segoe UI",sans-serif;color:#000;font-size:11px}
+  #tbmPrint table{width:100%;border-collapse:collapse;margin-bottom:7px}
+  #tbmPrint th,#tbmPrint td{border:1px solid #333;padding:4px 5px;text-align:left;vertical-align:top;font-size:10.5px}
+  #tbmPrint th{background:#f1f1f1;width:92px}
+  #tbmPrint h2{font-size:15px;margin:0 0 3px}
+  #tbmPrint h3{font-size:11.5px;margin:9px 0 4px;border-left:3px solid #333;padding-left:6px}
+  @page{size:A4;margin:12mm}
+}
+</style>
+
+<div id="tbmApp"><div class="tb-wrap" id="tbmRoot"></div></div>
+<div id="tbmPrint"></div>
+
+<script>
+/* ============================================================
+   일일 안전 TBM 보고서 시스템  ·  WONIK PNE 통합 SYSTEM
+   - 작성(채움 현장대리인 신종엽) -> 1차 결재(심우민) -> 최종 결재(서정우)
+   - 저장: 기존 FBSync 레이어 재사용 (localStorage 'tos_' 키 -> RTDB wonikpne_tos)
+     => Firebase 규칙/경로 변경 없음.  키: tos_tbm_d_<YYYY-MM-DD>__TBM / tos_tbm_cfg_v1__TBM
+   ============================================================ */
+window.TBM=(function(){
+  var SUF='__TBM', DPR='tos_tbm_d_', CKEY='tos_tbm_cfg_v1'+SUF, MEK='tbm_me_v1';
+  var DEF={dl:'09:00', a1:'심우민', a2:'서정우', pin1:'1357', pin2:'2580',
+           writers:['신종엽','박경호'], pne:'서정우', pneHp:'', smHp:'', lges:'',
+           site:'대전 LGES 상주 현장', vendor:'채움', owner:'원익피앤이', proj:'25PCYCSM012'};
+  var me='', tab='write', mon='';
+
+  /* ---------- 유틸 ---------- */
+  function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function pad(n){return (n<10?'0':'')+n;}
+  function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function hm(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
+  function now(){var d=new Date();return ymd(d)+' '+hm(d);}
+  function today(){return ymd(new Date());}
+  function toMin(t){if(!t)return 0;var p=String(t).split(':');return (+p[0])*60+(+p[1]);}
+  function rd(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
+  function wr(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){alert('저장 실패: '+e);return false;}}
+  function V(id){var e=document.getElementById(id);return e?String(e.value==null?'':e.value).trim():'';}
+  function C(id){var e=document.getElementById(id);return !!(e&&e.checked);}
+  function nl(t){return esc(t).replace(/\n/g,'<br>');}
+
+  /* ---------- 설정 ---------- */
+  function cfg(){var c=rd(CKEY)||{},o={},k;for(k in DEF)o[k]=DEF[k];for(k in c){if(c[k]!==undefined&&c[k]!==null&&c[k]!=='')o[k]=c[k];}return o;}
+  function setCfg(o){var c=rd(CKEY)||{},k;for(k in o)c[k]=o[k];wr(CKEY,c);}
+
+  /* ---------- 데이터 ---------- */
+  function key(id){return DPR+id+SUF;}
+  function rec(id){return rd(key(id));}
+  function save(r){r.upAt=now();wr(key(r.id),r);}
+  function all(){
+    var a=[],i,k,v;
+    for(i=0;i<localStorage.length;i++){
+      k=localStorage.key(i);
+      if(k&&k.indexOf(DPR)===0&&k.slice(-SUF.length)===SUF){v=rd(k);if(v&&v.id)a.push(v);}
+    }
+    a.sort(function(x,y){return x.id<y.id?1:(x.id>y.id?-1:0);});
+    return a;
+  }
+  function prevRec(id){var a=all(),i;for(i=0;i<a.length;i++){if(a[i].id<id&&a[i].status)return a[i];}return null;}
+
+  /* ---------- 인원 ---------- */
+  function writers(){
+    var c=cfg(), out=[];
+    try{ if(window.ATT&&ATT.workers){ ATT.workers().forEach(function(n){ if(out.indexOf(n)<0)out.push(n); }); } }catch(e){}
+    (c.writers||[]).forEach(function(n){ if(out.indexOf(n)<0)out.push(n); });
+    return out.filter(function(n){ return n!==c.a1&&n!==c.a2; });
+  }
+  function isApv(n){var c=cfg();return n===c.a1||n===c.a2;}
+  function isBoss(n){return n===cfg().a2;}
+
+  /* ---------- 상태 ---------- */
+  function st(r){
+    var c=cfg();
+    if(!r||!r.status)return {c:'none',l:'미작성',b:'b-no'};
+    if(r.status==='done')return {c:'done',l:'최종승인 완료',b:'b-ok'};
+    if(r.status==='wait2')return {c:'wait2',l:c.a2+' 최종결재 대기',b:'b-wait'};
+    if(r.status==='wait1')return {c:'wait1',l:c.a1+' 1차결재 대기',b:'b-wait'};
+    if(r.status==='rej')return {c:'rej',l:'반려 · 수정 후 재상신',b:'b-rej'};
+    return {c:'draft',l:'작성중(임시저장)',b:'b-draft'};
+  }
+  function todayStatus(){
+    var r=rec(today()), o=st(r), d=new Date();
+    var left=toMin(cfg().dl)-(d.getHours()*60+d.getMinutes());
+    return {code:o.c, label:o.l, warn:(o.c!=='done'), late:(left<0&&o.c!=='done'), left:left, rec:r};
+  }
+  function submittedToday(){return todayStatus().code==='done';}
+
+  /* ---------- 포털 배지 ---------- */
+  function paint(){
+    var el=document.getElementById('ptTbmBadge');
+    if(!el)return;
+    var t=todayStatus(), col='#64748b';
+    if(t.code==='done')col='#10b981';
+    else if(t.code==='wait1'||t.code==='wait2')col='#f59e0b';
+    else if(t.late)col='#ef4444';
+    var tail='';
+    if(t.code!=='done')tail=t.late?(' · 마감 '+cfg().dl+' 경과'):(' · 마감까지 '+t.left+'분');
+    el.innerHTML='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:6px;vertical-align:middle"></span>금일 '+esc(t.label)+esc(tail);
+  }
+
+  /* ---------- 화면 전환 ---------- */
+  function hideOthers(){
+    ['attPortal','attApp','chaeumApp'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
+    var sb=document.getElementById('attSysBtn'); if(sb)sb.style.display='none';
+  }
+  function open(){
+    hideOthers();
+    try{ if(window.CHAEUM&&CHAEUM.close&&document.querySelector('.chq-mask'))CHAEUM.close(); }catch(e){}
+    var e=document.getElementById('tbmApp'); e.style.display='block'; e.scrollTop=0;
+    document.body.style.overflow='hidden';
+    me=localStorage.getItem(MEK)||'';
+    if(me&&!isApv(me)&&writers().indexOf(me)<0){me='';localStorage.removeItem(MEK);}
+    tab=(me&&isApv(me)&&writers().indexOf(me)<0)?'box':'write';
+    render();
+  }
+  function close(){
+    var e=document.getElementById('tbmApp'); if(e)e.style.display='none';
+    document.body.style.overflow='';
+    if(window.ATT&&ATT.showPortal)ATT.showPortal();
+    paint();
+  }
+  function login(n){ me=n; localStorage.setItem(MEK,n); tab=(isApv(n)&&writers().indexOf(n)<0)?'box':'write'; render(); }
+  function logout(){ me=''; try{localStorage.removeItem(MEK);}catch(e){} render(); }
+  function setTab(t){ tab=t; render(); var e=document.getElementById('tbmApp'); if(e)e.scrollTop=0; }
+  function setMon(v){ mon=v; render(); }
+
+  /* ---------- 로그인 화면 ---------- */
+  function loginHtml(){
+    var c=cfg();
+    var w=writers().map(function(n){return '<button onclick="TBM.login(\''+esc(n)+'\')">'+esc(n)+'</button>';}).join('');
+    var a=[c.a1,c.a2].map(function(n){return '<button class="apv" onclick="TBM.login(\''+esc(n)+'\')">'+esc(n)+'<span style="display:block;font-size:11px;color:#9a3412;font-weight:700">'+(n===c.a1?'1차 결재':'최종 결재')+'</span></button>';}).join('');
+    var t=todayStatus();
+    return '<div class="tb-login">'+
+      '<div style="text-align:center"><div style="font-size:19px;font-weight:800">일일 안전 TBM 보고서</div>'+
+      '<div class="tb-mut" style="margin-top:5px">'+esc(c.site)+' · 협력사 '+esc(c.vendor)+' · 발주사 '+esc(c.owner)+'</div></div>'+
+      '<div class="tb-ban '+(t.code==='done'?'ok':(t.late?'bad':'warn'))+'" style="margin-top:14px">금일('+today()+') 상태 : '+esc(t.label)+
+        (t.code==='done'?'':(t.late?'<br>제출 마감 '+esc(c.dl)+' 이 경과했습니다. (지연 사유 기재 필요)':'<br>제출 마감 '+esc(c.dl)+' · 남은 시간 '+t.left+'분'))+'</div>'+
+      '<div class="tb-mut" style="margin-top:12px;font-weight:700">작성자 (채움)</div>'+
+      '<div class="tb-names">'+(w||'<div class="tb-mut">등록된 작성자가 없습니다.</div>')+'</div>'+
+      '<div class="tb-mut" style="margin-top:14px;font-weight:700">결재자</div>'+
+      '<div class="tb-names">'+a+'</div>'+
+      '<div class="tb-mut" style="margin-top:14px">· 결재자는 입장 후 <b>결재 PIN</b> 으로 전자서명합니다.<br>· 소급 작성 방지를 위해 작성일은 <b>당일로 고정</b>되며, 상신 시각이 자동 기록됩니다.</div>'+
+      '<div style="text-align:center;margin-top:16px"><button class="tb-btn line" onclick="TBM.close()">시스템 선택으로</button></div></div>';
+  }
+
+  /* ---------- 작성 폼 ---------- */
+  function o2(id,v,list){
+    return list.map(function(x){return '<option'+(v===x?' selected':'')+'>'+esc(x)+'</option>';}).join('');
+  }
+  function wkRow(w,i){
+    w=w||{};
+    return '<tr class="wkrow"><td style="width:26px;color:#64748b">'+(i+1)+'</td>'+
+      '<td><input class="wk-nm" value="'+esc(w.n||'')+'" placeholder="성명"></td>'+
+      '<td><input class="wk-tt" value="'+esc(w.t||'')+'" placeholder="직책"></td>'+
+      '<td><input class="wk-hp" value="'+esc(w.h||'')+'" placeholder="연락처"></td>'+
+      '<td><select class="wk-hs"><option'+((w.hs||'양호')==='양호'?' selected':'')+'>양호</option><option'+(w.hs==='이상'?' selected':'')+'>이상</option></select></td>'+
+      '<td style="text-align:center"><input type="checkbox" class="wk-sg"'+(w.sg?' checked':'')+'></td>'+
+      '<td style="text-align:right"><button class="tb-btn line sm" onclick="TBM.wkDel(this)">삭제</button></td></tr>';
+  }
+  function wkAdd(){
+    var tb=document.getElementById('tbWk'); if(!tb)return;
+    var n=tb.querySelectorAll('.wkrow').length;
+    var d=document.createElement('tbody'); d.innerHTML=wkRow({},n);
+    tb.appendChild(d.firstChild); hcSync();
+  }
+  function wkDel(btn){
+    var tr=btn; while(tr&&tr.tagName!=='TR')tr=tr.parentNode;
+    if(tr&&tr.parentNode)tr.parentNode.removeChild(tr);
+    renum(); hcSync();
+  }
+  function wkLoad(){
+    var ns=[]; try{ if(window.ATT&&ATT.workers)ns=ATT.workers(); }catch(e){}
+    if(!ns.length){alert('출퇴근 시스템의 인원 명단이 비어 있습니다.');return;}
+    var tb=document.getElementById('tbWk'); if(!tb)return;
+    var cur={}, rows=tb.querySelectorAll('.wkrow'), i;
+    for(i=0;i<rows.length;i++){var v=rows[i].querySelector('.wk-nm').value.trim();if(v)cur[v]=1;}
+    var add=ns.filter(function(n){return !cur[n];});
+    if(!add.length){alert('이미 모두 반영되어 있습니다.');return;}
+    var htm='';
+    var base=rows.length;
+    add.forEach(function(n,k){htm+=wkRow({n:n},base+k);});
+    var d=document.createElement('tbody'); d.innerHTML=htm;
+    while(d.firstChild)tb.appendChild(d.firstChild);
+    renum(); hcSync();
+  }
+  function renum(){
+    var tb=document.getElementById('tbWk'); if(!tb)return;
+    var rows=tb.querySelectorAll('.wkrow'),i;
+    for(i=0;i<rows.length;i++)rows[i].firstChild.innerHTML=(i+1);
+  }
+  function hcSync(){
+    var tb=document.getElementById('tbWk'); if(!tb)return;
+    var rows=tb.querySelectorAll('.wkrow'),i,n=0;
+    for(i=0;i<rows.length;i++){if(rows[i].querySelector('.wk-nm').value.trim())n++;}
+    var e=document.getElementById('tb_hc'); if(e)e.value=n;
+    var p=prevRec(today()), d=document.getElementById('tb_delta');
+    if(d)d.value=(p&&p.hc!=null)?((n-p.hc>0?'+':'')+(n-p.hc)+' (전일 '+p.hc+'명)'):'(전일 기록 없음)';
+  }
+
+  var HAZ=['감전','끼임·협착','열폭주·화재','추락','전도·충돌','중량물 낙하','전해액 누출','분진·소음','기타'];
+  var MODELS=['PNE-075-116','PNE-150-252','PNE-400-409','PNE-200-115','PNE-200-391','PNE-200-006'];
+
+  function formHtml(r){
+    var c=cfg(); r=r||{};
+    var w=r.work||{}, b=r.brief||{}, g=r.emg||{}, p=r.ppe||{}, l=r.loto||{}, ph=r.photo||{};
+    var haz=r.haz||[];
+    var wkList=(r.workers&&r.workers.length)?r.workers:[{n:me}];
+    var d=new Date(), late=(d.getHours()*60+d.getMinutes())>toMin(c.dl);
+    var rows=wkList.map(function(x,i){return wkRow(x,i);}).join('');
+    var hazHtml=HAZ.map(function(h){return '<label class="tb-chk"><input type="checkbox" class="hz" value="'+esc(h)+'"'+(haz.indexOf(h)>=0?' checked':'')+'>'+esc(h)+'</label>';}).join('');
+    function ppeBox(id,no,nm,dsc,v){
+      return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:10px">'+
+        '<div style="font-weight:800;font-size:13px">'+no+'. '+esc(nm)+'</div>'+
+        '<div class="tb-mut" style="font-size:11px;margin:3px 0 6px">'+esc(dsc)+'</div>'+
+        '<select id="'+id+'">'+o2(id,v||'착용 확인',['착용 확인','미착용'])+'</select></div>';
+    }
+    return ''+
+    '<div class="tb-card"><h4>기본 정보 <i>BASIC</i></h4>'+
+      '<div class="tb-g3">'+
+        '<div><label class="fl">작성일 (당일 고정)</label><input value="'+today()+'" readonly style="background:#f8fafc"></div>'+
+        '<div><label class="fl">작성 시간 (24시 기준)</label><input id="tb_time" type="time" value="'+esc(r.time||hm(d))+'"></div>'+
+        '<div><label class="fl">근무 형태</label><select id="tb_shift">'+o2('s',r.shift||'주간',['주간','야간','연장·특근'])+'</select></div>'+
+      '</div>'+
+      '<div class="tb-g3" style="margin-top:8px">'+
+        '<div><label class="fl">작성자 (채움 현장대리인)</label><input value="'+esc(me)+'" readonly style="background:#f8fafc"></div>'+
+        '<div><label class="fl">직책</label><input id="tb_wtitle" value="'+esc(r.wtitle||'현장대리인')+'"></div>'+
+        '<div><label class="fl">연락처 H.P</label><input id="tb_whp" value="'+esc(r.whp||'')+'" placeholder="010-0000-0000"></div>'+
+      '</div>'+
+      '<div class="tb-g2" style="margin-top:8px">'+
+        '<div><label class="fl">투입인원 (자동)</label><input id="tb_hc" value="'+esc(String(r.hc||wkList.length))+'" readonly style="background:#f8fafc"></div>'+
+        '<div><label class="fl">전일 대비 증감 (자동)</label><input id="tb_delta" value="" readonly style="background:#f8fafc"></div>'+
+      '</div></div>'+
+
+    '<div class="tb-card"><h4>출근자 명단 및 건강상태 <i>ATTENDANCE</i></h4>'+
+      '<div class="tb-row" style="margin-bottom:7px"><button class="tb-btn line sm" onclick="TBM.wkAdd()">행 추가</button>'+
+      '<button class="tb-btn line sm" onclick="TBM.wkLoad()">출퇴근 명단 불러오기</button></div>'+
+      '<div class="tb-sc"><table><thead><tr><th>No</th><th>성명</th><th>직책</th><th>연락처</th><th>건강</th><th style="text-align:center">본인확인</th><th></th></tr></thead>'+
+      '<tbody id="tbWk">'+rows+'</tbody></table></div>'+
+      '<div class="tb-mut" style="margin-top:6px">※ 건강 이상(발열·수면부족·음주·복약 등) 신고자는 당일 작업 배제 후 원청 담당자에게 즉시 통보. 신규 투입자는 사전 안전교육 이수 후 투입.</div></div>'+
+
+    '<div class="tb-card"><h4>금일 작업 계획 <i>WORK PLAN</i></h4>'+
+      '<div class="tb-g2">'+
+        '<div><label class="fl">작업명</label><input id="tb_wkname" value="'+esc(w.name||'')+'" placeholder="예) 충방전기 CH 점검 및 배선 보수"></div>'+
+        '<div><label class="fl">작업 위치 (동/층/실)</label><input id="tb_loc" value="'+esc(w.loc||'')+'" placeholder="예) 2동 3층 화성화 A룸"></div>'+
+      '</div>'+
+      '<div class="tb-g3" style="margin-top:8px">'+
+        '<div><label class="fl">설비 모델</label><input id="tb_model" list="tbmModels" value="'+esc(w.model||'')+'" placeholder="예) PNE-200-391">'+
+          '<datalist id="tbmModels">'+MODELS.map(function(m){return '<option value="'+m+'">';}).join('')+'</datalist></div>'+
+        '<div><label class="fl">작업 시작</label><input id="tb_from" type="time" value="'+esc(w.from||'')+'"></div>'+
+        '<div><label class="fl">작업 종료</label><input id="tb_to" type="time" value="'+esc(w.to||'')+'"></div>'+
+      '</div>'+
+      '<label class="fl" style="margin-top:9px">작업 구분</label>'+
+      '<div class="tb-chks">'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_permit"'+(w.permit?' checked':'')+'>안전작업허가서 발급</label>'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_high"'+(w.high?' checked':'')+'>고소작업</label>'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_live"'+(w.live?' checked':'')+'>활선·충전부 근접</label>'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_heavy"'+(w.heavy?' checked':'')+'>중량물 취급</label>'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_none"'+(w.none?' checked':'')+'>해당 없음</label>'+
+        '<div><input id="tb_permitno" value="'+esc(w.permitNo||'')+'" placeholder="허가서 No."></div>'+
+      '</div></div>'+
+
+    '<div class="tb-card"><h4>작업 위험요인 및 저감대책 <i>HAZARD</i></h4>'+
+      '<div class="tb-chks">'+hazHtml+'</div>'+
+      '<div style="margin-top:8px"><label class="fl">기타 위험요인</label><input id="tb_hazetc" value="'+esc(r.hazEtc||'')+'" placeholder="기타 선택 시 내용 기재"></div>'+
+      '<div style="margin-top:8px"><label class="fl">저감대책 (필수)</label><textarea id="tb_meas" placeholder="예) 작업 전 전원 차단 및 LOTO, 검전기로 0V 확인 후 착수 / 2인 1조 작업">'+esc(r.meas||'')+'</textarea></div></div>'+
+
+    '<div class="tb-card"><h4>필수 안전보호구 4종 착용 확인 <i>PPE</i></h4>'+
+      '<div class="tb-g2">'+
+        ppeBox('tb_ppe1',1,'팔토시','단자·모서리 접촉에 의한 열상·찰과 방지',p.a)+
+        ppeBox('tb_ppe2',2,'안전화','중량물 낙하·전도 시 발 보호 (절연 안전화 권장)',p.b)+
+        ppeBox('tb_ppe3',3,'절연장갑','충전부 접촉 감전 방지 / 사용 전 파손·내압 확인',p.c)+
+        ppeBox('tb_ppe4',4,'작업중 표찰','오조작 방지 / 전원반·설비 조작부에 부착',p.d)+
+      '</div>'+
+      '<div class="tb-ban bad" style="margin:9px 0 0">[필수] 4종 중 1건이라도 <b>미착용</b> 이면 결재 상신이 차단됩니다. 시정 완료 후 상신하십시오.</div></div>'+
+
+    '<div class="tb-card"><h4>전원 차단 · 공구 · 설비 점검 <i>LOTO</i></h4>'+
+      '<div class="tb-g2">'+
+        '<div><label class="fl">전원 차단 및 LOTO (잠금·표찰)</label><select id="tb_lo1">'+o2('a',l.lo||'실시',['실시','해당없음'])+'</select></div>'+
+        '<div><label class="fl">검전기 무전압 확인 (0V)</label><select id="tb_lo2">'+o2('b',l.volt||'확인',['확인','해당없음'])+'</select></div>'+
+        '<div><label class="fl">공구·측정기 절연 및 외관</label><select id="tb_lo3">'+o2('c',l.tool||'양호',['양호','이상'])+'</select></div>'+
+        '<div><label class="fl">케이블·단자 체결부 손상</label><select id="tb_lo4">'+o2('d',l.cab||'양호',['양호','이상'])+'</select></div>'+
+      '</div>'+
+      '<div style="margin-top:8px"><label class="fl">이상 시 조치 내용 (이상 선택 시 필수)</label><textarea id="tb_loact">'+esc(l.act||'')+'</textarea></div></div>'+
+
+    '<div class="tb-card"><h4>비상 대응 체계 <i>EMERGENCY</i></h4>'+
+      '<div class="tb-g2">'+
+        '<div><label class="fl">채움 안전책임자 성명</label><input id="tb_sm" value="'+esc(g.sm||'')+'"></div>'+
+        '<div><label class="fl">채움 안전책임자 연락처</label><input id="tb_smhp" value="'+esc(g.smHp||c.smHp||'')+'"></div>'+
+        '<div><label class="fl">원익피앤이 담당 ('+esc(c.pne)+') 연락처</label><input id="tb_pnehp" value="'+esc(g.pneHp||c.pneHp||'')+'"></div>'+
+        '<div><label class="fl">LGES 현장 상황실 (내선/연락처)</label><input id="tb_lges" value="'+esc(g.lges||c.lges||'')+'"></div>'+
+        '<div><label class="fl">대피경로·집결지 확인</label><select id="tb_evac">'+o2('e',g.evac||'확인 완료',['확인 완료','미확인'])+'</select></div>'+
+        '<div><label class="fl">소화기·구급함 위치 확인</label><select id="tb_fire">'+o2('f',g.fire||'확인 완료',['확인 완료','미확인'])+'</select></div>'+
+      '</div></div>'+
+
+    '<div class="tb-card"><h4>오전 TBM 교육 실시 내역 <i>BRIEFING</i></h4>'+
+      '<div class="tb-g3">'+
+        '<div><label class="fl">교육 시작</label><input id="tb_bf" type="time" value="'+esc(b.from||'')+'"></div>'+
+        '<div><label class="fl">교육 종료</label><input id="tb_bt" type="time" value="'+esc(b.to||'')+'"></div>'+
+        '<div><label class="fl">장소</label><input id="tb_place" value="'+esc(b.place||'')+'"></div>'+
+      '</div>'+
+      '<div class="tb-g2" style="margin-top:8px">'+
+        '<div><label class="fl">참석 인원 (명)</label><input id="tb_att" type="number" value="'+esc(String(b.att||''))+'"></div>'+
+        '<div style="display:flex;align-items:flex-end"><label class="tb-chk" style="width:100%"><input type="checkbox" id="tb_allin"'+(b.all?' checked':'')+'>전원 참석</label></div>'+
+      '</div>'+
+      '<label class="fl" style="margin-top:9px">교육 주요 내용 (금일 위험요인·준수사항·전일 지적사항 재발방지 · 2건 이상 필수)</label>'+
+      '<input id="tb_e1" style="margin-bottom:6px" value="'+esc((b.e&&b.e[0])||'')+'" placeholder="1.">'+
+      '<input id="tb_e2" style="margin-bottom:6px" value="'+esc((b.e&&b.e[1])||'')+'" placeholder="2.">'+
+      '<input id="tb_e3" style="margin-bottom:6px" value="'+esc((b.e&&b.e[2])||'')+'" placeholder="3.">'+
+      '<input id="tb_e4" value="'+esc((b.e&&b.e[3])||'')+'" placeholder="4."></div>'+
+
+    '<div class="tb-card"><h4>특이사항 · 원청 전달사항 · 개선 요청 <i>REMARKS</i></h4>'+
+      '<textarea id="tb_rm">'+esc(r.remark||'')+'</textarea></div>'+
+
+    '<div class="tb-card"><h4>증빙 사진 첨부 확인 <i>PHOTO</i></h4>'+
+      '<div class="tb-chks">'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_p1"'+(ph.ppe?' checked':'')+'>PPE 착용 (전원 단체)</label>'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_p2"'+(ph.site?' checked':'')+'>작업 위치 전경</label>'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_p3"'+(ph.loto?' checked':'')+'>LOTO 시건·표찰</label>'+
+        '<label class="tb-chk"><input type="checkbox" id="tb_p4"'+(ph.clean?' checked':'')+'>작업 완료 후 정리</label>'+
+      '</div>'+
+      '<div style="margin-top:8px"><label class="fl">사진 전송 방법 / 메모</label><input id="tb_pmemo" value="'+esc(ph.memo||'')+'" placeholder="예) 08:55 카카오톡 전송 완료"></div>'+
+      '<div class="tb-mut" style="margin-top:6px">※ 사진 원본은 모바일 저장공간 보호를 위해 앱에 저장하지 않습니다. 촬영 후 담당자에게 전송하고 위 항목에 체크하십시오.</div></div>'+
+
+    '<div class="tb-card"><h4>서약 및 서명 <i>DECLARATION</i></h4>'+
+      '<div class="tb-mut" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:10px">본인 및 금일 투입 인원은 상기 작업계획과 위험요인을 TBM 을 통해 공유받았으며, 필수 안전보호구 4종(팔토시·안전화·절연장갑·작업중 표찰) 착용을 포함한 '+esc(c.site)+' 안전수칙을 준수하여 작업할 것을 서약합니다. 위반 사실 확인 시 작업 중지 및 제재 조치에 이의를 제기하지 않습니다.</div>'+
+      '<label class="tb-chk" style="margin-top:9px"><input type="checkbox" id="tb_dec"'+(r.dec?' checked':'')+'>위 서약 내용에 동의합니다. (필수)</label>'+
+      '<div class="tb-g2" style="margin-top:8px">'+
+        '<div><label class="fl">작성자 전자서명 (본인 성명 입력)</label><input id="tb_sign" value="'+esc(r.sign||'')+'" placeholder="'+esc(me)+'"></div>'+
+        '<div><label class="fl">채움 안전담당자 성명</label><input id="tb_sfname" value="'+esc(r.sfName||'')+'"></div>'+
+      '</div>'+
+      '<label class="tb-chk" style="margin-top:8px"><input type="checkbox" id="tb_sfsign"'+(r.sfSign?' checked':'')+'>채움 안전담당자 확인 완료</label>'+
+      (late?'<div style="margin-top:9px"><label class="fl" style="color:#b91c1c">지연 제출 사유 (마감 '+esc(c.dl)+' 경과 · 필수)</label><textarea id="tb_late">'+esc(r.lateMemo||'')+'</textarea></div>':'')+
+    '</div>'+
+
+    '<div class="tb-row" style="justify-content:flex-end;margin-bottom:24px">'+
+      '<button class="tb-btn line" onclick="TBM.saveDraft()">임시저장</button>'+
+      '<button class="tb-btn" onclick="TBM.submit()">결재 상신 ('+esc(c.a1)+' → '+esc(c.a2)+')</button></div>';
+  }
+
+  /* ---------- 수집 / 검증 / 상신 ---------- */
+  function collect(){
+    var r=rec(today())||{id:today(),createdAt:now(),by:me,hist:[]};
+    r.id=today(); r.by=r.by||me; r.wname=me;
+    r.time=V('tb_time'); r.wtitle=V('tb_wtitle'); r.whp=V('tb_whp'); r.shift=V('tb_shift');
+    r.workers=[];
+    var rows=document.querySelectorAll('#tbWk .wkrow'), i, q, nm;
+    for(i=0;i<rows.length;i++){
+      q=rows[i]; nm=q.querySelector('.wk-nm').value.trim();
+      if(!nm)continue;
+      r.workers.push({n:nm,t:q.querySelector('.wk-tt').value.trim(),h:q.querySelector('.wk-hp').value.trim(),hs:q.querySelector('.wk-hs').value,sg:q.querySelector('.wk-sg').checked});
+    }
+    r.hc=r.workers.length;
+    var p=prevRec(today()); r.delta=(p&&p.hc!=null)?(r.hc-p.hc):null;
+    r.work={name:V('tb_wkname'),loc:V('tb_loc'),model:V('tb_model'),from:V('tb_from'),to:V('tb_to'),
+            permit:C('tb_permit'),permitNo:V('tb_permitno'),high:C('tb_high'),live:C('tb_live'),heavy:C('tb_heavy'),none:C('tb_none')};
+    r.haz=[];
+    var hz=document.querySelectorAll('#tbmApp .hz');
+    for(i=0;i<hz.length;i++){if(hz[i].checked)r.haz.push(hz[i].value);}
+    r.hazEtc=V('tb_hazetc'); r.meas=V('tb_meas');
+    r.ppe={a:V('tb_ppe1'),b:V('tb_ppe2'),c:V('tb_ppe3'),d:V('tb_ppe4')};
+    r.loto={lo:V('tb_lo1'),volt:V('tb_lo2'),tool:V('tb_lo3'),cab:V('tb_lo4'),act:V('tb_loact')};
+    r.emg={sm:V('tb_sm'),smHp:V('tb_smhp'),pne:cfg().pne,pneHp:V('tb_pnehp'),lges:V('tb_lges'),evac:V('tb_evac'),fire:V('tb_fire')};
+    r.brief={from:V('tb_bf'),to:V('tb_bt'),place:V('tb_place'),att:V('tb_att'),all:C('tb_allin'),e:[V('tb_e1'),V('tb_e2'),V('tb_e3'),V('tb_e4')]};
+    r.remark=V('tb_rm');
+    r.photo={ppe:C('tb_p1'),site:C('tb_p2'),loto:C('tb_p3'),clean:C('tb_p4'),memo:V('tb_pmemo')};
+    r.dec=C('tb_dec'); r.sign=V('tb_sign'); r.sfName=V('tb_sfname'); r.sfSign=C('tb_sfsign');
+    r.lateMemo=V('tb_late');
+    return r;
+  }
+  function validate(r){
+    var c=cfg(), e=[];
+    if(!r.whp)e.push('작성자 연락처');
+    if(!r.workers.length)e.push('출근자 명단 (1명 이상)');
+    var unsig=r.workers.filter(function(x){return !x.sg;});
+    if(unsig.length)e.push('출근자 본인확인 체크 ('+unsig.map(function(x){return x.n;}).join(', ')+')');
+    if(!r.work.name)e.push('작업명');
+    if(!r.work.loc)e.push('작업 위치');
+    if(!r.work.from||!r.work.to)e.push('작업 시간');
+    if(r.work.permit&&!r.work.permitNo)e.push('안전작업허가서 No.');
+    if(!r.haz.length)e.push('위험요인 (1개 이상)');
+    if(r.haz.indexOf('기타')>=0&&!r.hazEtc)e.push('기타 위험요인 내용');
+    if(!r.meas)e.push('저감대책');
+    if(r.loto.tool==='이상'||r.loto.cab==='이상'){ if(!r.loto.act)e.push('LOTO/공구 이상 시 조치 내용'); }
+    if(!r.emg.sm)e.push('채움 안전책임자 성명');
+    if(!r.emg.smHp)e.push('채움 안전책임자 연락처');
+    if(!r.brief.from||!r.brief.to)e.push('TBM 교육 시간');
+    if(!r.brief.place)e.push('TBM 교육 장소');
+    if(!r.brief.att)e.push('TBM 참석 인원');
+    var ed=r.brief.e.filter(function(x){return !!x;});
+    if(ed.length<2)e.push('교육 주요 내용 2건 이상');
+    if(!r.dec)e.push('서약 동의 체크');
+    if(r.sign!==me)e.push('작성자 전자서명 (본인 성명 "'+me+'" 정확히 입력)');
+    if(!r.sfName)e.push('채움 안전담당자 성명');
+    if(!r.sfSign)e.push('채움 안전담당자 확인 체크');
+    var d=new Date();
+    if((d.getHours()*60+d.getMinutes())>toMin(c.dl)&&!r.lateMemo)e.push('지연 제출 사유');
+    return e;
+  }
+  function saveDraft(){
+    if(!me){alert('로그인이 필요합니다.');return;}
+    var r=collect();
+    if(!r.status||r.status==='draft')r.status='draft';
+    r.hist=(r.hist||[]).concat([{t:now(),who:me,act:'임시저장'}]);
+    save(r); alert('임시저장했습니다. 상신 전까지는 결재자에게 보이지 않습니다.'); render();
+  }
+  function submit(){
+    if(!me){alert('로그인이 필요합니다.');return;}
+    var c=cfg(), r=collect();
+    var bad=[];
+    if(r.ppe.a==='미착용')bad.push('팔토시');
+    if(r.ppe.b==='미착용')bad.push('안전화');
+    if(r.ppe.c==='미착용')bad.push('절연장갑');
+    if(r.ppe.d==='미착용')bad.push('작업중 표찰');
+    if(bad.length){
+      alert('[상신 차단] 필수 보호구 미착용 : '+bad.join(', ')+'\n\n즉시 작업을 중지하고 시정 완료 후 다시 상신하십시오.');
+      r.status=r.status==='rej'?'rej':'draft'; save(r); return;
+    }
+    var err=validate(r);
+    if(err.length){alert('아래 항목을 확인하십시오.\n\n· '+err.join('\n· '));return;}
+    var ill=r.workers.filter(function(x){return x.hs==='이상';});
+    if(ill.length){
+      if(!confirm('건강 이상 신고자가 있습니다 : '+ill.map(function(x){return x.n;}).join(', ')+'\n해당 인원은 당일 작업에서 배제하고 원청 담당자에게 통보해야 합니다.\n계속 상신할까요?'))return;
+    }
+    if(!confirm('결재를 상신합니다.\n\n결재선 : '+me+' (작성) → '+c.a1+' (1차) → '+c.a2+' (최종)\n상신 후에는 반려 전까지 수정할 수 없습니다.'))return;
+    var t=now(), d=new Date();
+    r.status='wait1'; r.submitAt=t; r.submitBy=me;
+    r.late=(d.getHours()*60+d.getMinutes())>toMin(c.dl);
+    r.a1=null; r.a2=null; r.rej=null;
+    r.hist=(r.hist||[]).concat([{t:t,who:me,act:'결재 상신'+(r.late?' (지연 제출)':'')}]);
+    save(r);
+    alert('상신 완료 · '+t+(r.late?'\n※ 마감 '+c.dl+' 경과 건으로 기록되었습니다.':'')+'\n\n'+c.a1+' 님의 1차 결재를 기다립니다.');
+    render(); paint();
+  }
+
+  /* ---------- 결재 ---------- */
+  function apv(id){
+    var c=cfg(), r=rec(id);
+    if(!r){alert('문서를 찾을 수 없습니다.');return;}
+    var step=(r.status==='wait1')?1:((r.status==='wait2')?2:0);
+    if(!step){alert('결재 대상이 아닙니다. (현재 상태 : '+st(r).l+')');return;}
+    var who=(step===1)?c.a1:c.a2;
+    if(me!==who){alert('['+who+'] 님만 결재할 수 있습니다.');return;}
+    var pin=prompt(who+' 결재 PIN 을 입력하십시오. (전자서명)','');
+    if(pin===null)return;
+    if(String(pin).trim()!==String(step===1?c.pin1:c.pin2)){alert('PIN 이 일치하지 않습니다.');return;}
+    var memo=prompt('결재 의견 (없으면 비워두고 확인)','');
+    if(memo===null)return;
+    var t=now();
+    if(step===1){ r.a1={by:who,at:t,res:'승인',memo:memo}; r.status='wait2'; }
+    else { r.a2={by:who,at:t,res:'승인',memo:memo}; r.status='done'; r.doneAt=t; }
+    r.hist=(r.hist||[]).concat([{t:t,who:who,act:(step===1?'1차 결재 승인':'최종 결재 승인')+(memo?' ('+memo+')':'')}]);
+    save(r);
+    alert(step===1?('1차 결재 완료 · '+c.a2+' 님의 최종 결재로 넘어갑니다.'):'최종 결재 완료 · 금일 TBM 보고서가 확정되었습니다.');
+    render(); paint();
+  }
+  function rej(id){
+    var c=cfg(), r=rec(id);
+    if(!r){alert('문서를 찾을 수 없습니다.');return;}
+    var step=(r.status==='wait1')?1:((r.status==='wait2')?2:0);
+    if(!step){alert('결재 대상이 아닙니다.');return;}
+    var who=(step===1)?c.a1:c.a2;
+    if(me!==who){alert('['+who+'] 님만 결재할 수 있습니다.');return;}
+    var why=prompt('반려 사유를 입력하십시오. (작성자에게 표시됩니다)','');
+    if(why===null)return;
+    why=why.trim();
+    if(!why){alert('반려 사유는 필수입니다.');return;}
+    var t=now();
+    r.status='rej'; r.rej={by:who,at:t,step:step,memo:why};
+    r.hist=(r.hist||[]).concat([{t:t,who:who,act:(step===1?'1차':'최종')+' 결재 반려 ('+why+')'}]);
+    save(r);
+    alert('반려 처리했습니다. 작성자가 수정 후 재상신할 수 있습니다.');
+    render(); paint();
+  }
+  function cancelDone(id){
+    var c=cfg(), r=rec(id);
+    if(!r||r.status!=='done'){alert('최종승인 건이 아닙니다.');return;}
+    if(me!==c.a2){alert('['+c.a2+'] 님만 승인 취소가 가능합니다.');return;}
+    var pin=prompt(c.a2+' PIN 을 입력하십시오.','');
+    if(pin===null)return;
+    if(String(pin).trim()!==String(c.pin2)){alert('PIN 이 일치하지 않습니다.');return;}
+    var why=prompt('승인 취소 사유 (기록에 남습니다)','');
+    if(why===null||!why.trim()){alert('사유는 필수입니다.');return;}
+    var t=now();
+    r.status='rej'; r.rej={by:c.a2,at:t,step:2,memo:'승인 취소 · '+why.trim()}; r.a1=null; r.a2=null; r.doneAt='';
+    r.hist=(r.hist||[]).concat([{t:t,who:c.a2,act:'최종승인 취소 ('+why.trim()+')'}]);
+    save(r); alert('승인이 취소되었습니다. 작성자 재상신이 필요합니다.'); render(); paint();
+  }
+  function recall(id){
+    var r=rec(id);
+    if(!r||r.status!=='wait1'){alert('1차 결재 대기 상태에서만 상신을 취소할 수 있습니다.');return;}
+    if(me!==r.submitBy&&me!==r.by){alert('작성자만 상신을 취소할 수 있습니다.');return;}
+    if(!confirm('상신을 취소하고 작성중 상태로 되돌립니다.'))return;
+    var t=now();
+    r.status='draft';
+    r.hist=(r.hist||[]).concat([{t:t,who:me,act:'상신 취소 (작성중으로 복귀)'}]);
+    save(r); render(); paint();
+  }
+
+  /* ---------- 열람(읽기전용) ---------- */
+  function yn(v){return v?'O':'-';}
+  function viewHtml(r,forPrint){
+    var c=cfg();
+    var w=r.work||{}, b=r.brief||{}, g=r.emg||{}, p=r.ppe||{}, l=r.loto||{}, ph=r.photo||{};
+    var cls=forPrint?'':' class="tb-vw"';
+    var flags=[];
+    if(w.permit)flags.push('안전작업허가서 발급'+(w.permitNo?'(No. '+esc(w.permitNo)+')':''));
+    if(w.high)flags.push('고소작업'); if(w.live)flags.push('활선·충전부 근접');
+    if(w.heavy)flags.push('중량물 취급'); if(w.none)flags.push('해당 없음');
+    var wkr=(r.workers||[]).map(function(x,i){
+      return '<tr><td>'+(i+1)+'</td><td>'+esc(x.n)+'</td><td>'+esc(x.t||'')+'</td><td>'+esc(x.h||'')+'</td><td>'+esc(x.hs||'')+'</td><td>'+(x.sg?'서명 완료':'미서명')+'</td></tr>';
+    }).join('');
+    var edu=(b.e||[]).filter(function(x){return !!x;}).map(function(x,i){return (i+1)+'. '+esc(x);}).join('<br>');
+    var sg=(r.status==='done')?'최종승인':st(r).l;
+    return ''+
+    '<h3>기본 정보</h3><table'+cls+'><tr><th>작성일</th><td>'+esc(r.id)+'</td><th>작성시간</th><td>'+esc(r.time||'')+'</td></tr>'+
+      '<tr><th>작성자</th><td>'+esc(r.wname||r.by||'')+' / '+esc(r.wtitle||'')+'</td><th>연락처</th><td>'+esc(r.whp||'')+'</td></tr>'+
+      '<tr><th>근무형태</th><td>'+esc(r.shift||'')+'</td><th>투입인원</th><td>'+esc(String(r.hc||0))+'명'+(r.delta==null?'':' (전일 대비 '+(r.delta>0?'+':'')+r.delta+')')+'</td></tr>'+
+      '<tr><th>상태</th><td colspan="3">'+esc(sg)+(r.submitAt?' · 상신 '+esc(r.submitAt):'')+(r.late?' <b>[지연 제출]</b>':'')+'</td></tr>'+
+      (r.late&&r.lateMemo?'<tr><th>지연 사유</th><td colspan="3">'+nl(r.lateMemo)+'</td></tr>':'')+
+    '</table>'+
+    '<h3>출근자 명단 및 건강상태</h3><table'+cls+'><tr><th>No</th><th>성명</th><th>직책</th><th>연락처</th><th>건강</th><th>본인확인</th></tr>'+(wkr||'<tr><td colspan="6">-</td></tr>')+'</table>'+
+    '<h3>금일 작업 계획</h3><table'+cls+'><tr><th>작업명</th><td>'+esc(w.name||'')+'</td><th>작업위치</th><td>'+esc(w.loc||'')+'</td></tr>'+
+      '<tr><th>설비모델</th><td>'+esc(w.model||'')+'</td><th>작업시간</th><td>'+esc(w.from||'')+' ~ '+esc(w.to||'')+'</td></tr>'+
+      '<tr><th>작업구분</th><td colspan="3">'+esc(flags.join(' · ')||'-')+'</td></tr></table>'+
+    '<h3>위험요인 및 저감대책</h3><table'+cls+'><tr><th>위험요인</th><td colspan="3">'+esc((r.haz||[]).join(' · ')||'-')+(r.hazEtc?' ('+esc(r.hazEtc)+')':'')+'</td></tr>'+
+      '<tr><th>저감대책</th><td colspan="3">'+nl(r.meas||'')+'</td></tr></table>'+
+    '<h3>필수 안전보호구 4종</h3><table'+cls+'><tr><th>팔토시</th><td>'+esc(p.a||'')+'</td><th>안전화</th><td>'+esc(p.b||'')+'</td></tr>'+
+      '<tr><th>절연장갑</th><td>'+esc(p.c||'')+'</td><th>작업중 표찰</th><td>'+esc(p.d||'')+'</td></tr></table>'+
+    '<h3>전원 차단 · 공구 · 설비 점검</h3><table'+cls+'><tr><th>LOTO</th><td>'+esc(l.lo||'')+'</td><th>검전기 0V</th><td>'+esc(l.volt||'')+'</td></tr>'+
+      '<tr><th>공구·측정기</th><td>'+esc(l.tool||'')+'</td><th>케이블·단자</th><td>'+esc(l.cab||'')+'</td></tr>'+
+      '<tr><th>이상 시 조치</th><td colspan="3">'+nl(l.act||'-')+'</td></tr></table>'+
+    '<h3>비상 대응 체계</h3><table'+cls+'><tr><th>채움 안전책임자</th><td>'+esc(g.sm||'')+' / '+esc(g.smHp||'')+'</td><th>원익피앤이 담당</th><td>'+esc(g.pne||c.pne)+' / '+esc(g.pneHp||'')+'</td></tr>'+
+      '<tr><th>LGES 상황실</th><td>'+esc(g.lges||'')+'</td><th>대피경로/소화기</th><td>'+esc(g.evac||'')+' / '+esc(g.fire||'')+'</td></tr></table>'+
+    '<h3>오전 TBM 교육 실시 내역</h3><table'+cls+'><tr><th>교육시간</th><td>'+esc(b.from||'')+' ~ '+esc(b.to||'')+'</td><th>장소</th><td>'+esc(b.place||'')+'</td></tr>'+
+      '<tr><th>참석</th><td colspan="3">'+esc(String(b.att||''))+'명'+(b.all?' · 전원 참석':'')+'</td></tr>'+
+      '<tr><th>주요 내용</th><td colspan="3">'+(edu||'-')+'</td></tr></table>'+
+    '<h3>특이사항 · 증빙</h3><table'+cls+'><tr><th>특이사항</th><td colspan="3">'+nl(r.remark||'-')+'</td></tr>'+
+      '<tr><th>증빙사진</th><td colspan="3">PPE '+yn(ph.ppe)+' · 작업전경 '+yn(ph.site)+' · LOTO '+yn(ph.loto)+' · 정리상태 '+yn(ph.clean)+(ph.memo?' ('+esc(ph.memo)+')':'')+'</td></tr></table>'+
+    '<h3>서약 및 결재</h3><table'+cls+'><tr><th>작성자 서명</th><td>'+esc(r.sign||'')+(r.submitAt?' / '+esc(r.submitAt):'')+'</td>'+
+      '<th>채움 안전담당자</th><td>'+esc(r.sfName||'')+(r.sfSign?' / 확인':'')+'</td></tr>'+
+      '<tr><th>1차 결재 ('+esc(c.a1)+')</th><td>'+(r.a1?esc(r.a1.res)+' / '+esc(r.a1.at)+(r.a1.memo?' ('+esc(r.a1.memo)+')':''):'대기')+'</td>'+
+      '<th>최종 결재 ('+esc(c.a2)+')</th><td>'+(r.a2?esc(r.a2.res)+' / '+esc(r.a2.at)+(r.a2.memo?' ('+esc(r.a2.memo)+')':''):'대기')+'</td></tr>'+
+      (r.rej?'<tr><th>반려</th><td colspan="3">'+esc(r.rej.by)+' / '+esc(r.rej.at)+' · '+esc(r.rej.memo)+'</td></tr>':'')+
+    '</table>';
+  }
+
+  /* ---------- 인쇄 ---------- */
+  function print1(id){
+    var r=rec(id); if(!r){alert('문서를 찾을 수 없습니다.');return;}
+    var c=cfg(), el=document.getElementById('tbmPrint');
+    el.innerHTML='<h2>일일 안전 TBM 보고서</h2>'+
+      '<div style="font-size:10.5px;margin-bottom:6px">'+esc(c.site)+' | 협력사 '+esc(c.vendor)+' | 발주사 '+esc(c.owner)+' | 프로젝트 No. '+esc(c.proj)+' | 작성일 '+esc(r.id)+'</div>'+
+      viewHtml(r,true)+
+      '<div style="font-size:9.5px;margin-top:8px">※ 본 문서는 WONIK PNE 통합 SYSTEM 전자결재본입니다. 상신·결재 시각은 시스템이 자동 기록하며 소급 작성이 불가합니다.</div>';
+    window.print();
+  }
+  function csv(){
+    var rows=[['작성일','상태','상신시각','지연','작성자','투입인원','작업명','1차결재','최종결재','반려사유']];
+    all().forEach(function(r){
+      var c=cfg();
+      rows.push([r.id, st(r).l, r.submitAt||'', r.late?'지연':'', r.wname||r.by||'', String(r.hc||0), (r.work&&r.work.name)||'',
+                 r.a1?(r.a1.by+' '+r.a1.at):'', r.a2?(r.a2.by+' '+r.a2.at):'', r.rej?r.rej.memo:'']);
+    });
+    var t=rows.map(function(a){return a.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n');
+    var b=new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8;'});
+    var u=URL.createObjectURL(b), a=document.createElement('a');
+    a.href=u; a.download='일일안전TBM_제출현황_'+today()+'.csv'; a.click();
+    setTimeout(function(){URL.revokeObjectURL(u);},800);
+  }
+
+  /* ---------- 탭 : 결재함 ---------- */
+  function boxHtml(){
+    var c=cfg(), mine=[], list=all();
+    list.forEach(function(r){
+      if(me===c.a1&&r.status==='wait1')mine.push(r);
+      else if(me===c.a2&&(r.status==='wait2'))mine.push(r);
+    });
+    var wait=mine.map(function(r){
+      return '<div class="tb-card" style="border-color:#fed7aa">'+
+        '<div class="tb-row"><b style="font-size:15px">'+esc(r.id)+'</b> <span class="bd '+st(r).b+'">'+esc(st(r).l)+'</span>'+
+        (r.late?' <span class="bd b-late">지연 제출</span>':'')+'</div>'+
+        '<div class="tb-mut" style="margin-top:5px">작성 '+esc(r.wname||r.by||'')+' · 상신 '+esc(r.submitAt||'')+' · 투입 '+esc(String(r.hc||0))+'명 · '+esc((r.work&&r.work.name)||'')+'</div>'+
+        (r.late&&r.lateMemo?'<div class="tb-mut" style="color:#b91c1c;margin-top:3px">지연 사유 : '+nl(r.lateMemo)+'</div>':'')+
+        '<div class="tb-row" style="margin-top:8px">'+
+          '<button class="tb-btn line sm" onclick="TBM.view(\''+r.id+'\')">전문 보기</button>'+
+          '<button class="tb-btn green sm" onclick="TBM.apv(\''+r.id+'\')">승인 (PIN)</button>'+
+          '<button class="tb-btn red sm" onclick="TBM.rej(\''+r.id+'\')">반려</button>'+
+        '</div></div>';
+    }).join('');
+    var done=list.filter(function(r){return r.status==='done'||r.status==='rej'||r.status==='wait2';}).slice(0,12).map(function(r){
+      return '<tr><td>'+esc(r.id)+'</td><td><span class="bd '+st(r).b+'">'+esc(st(r).l)+'</span>'+(r.late?' <span class="bd b-late">지연</span>':'')+'</td>'+
+        '<td>'+esc(r.submitAt||'')+'</td><td>'+esc(r.a1?r.a1.at:'-')+'</td><td>'+esc(r.a2?r.a2.at:'-')+'</td>'+
+        '<td style="text-align:right"><button class="tb-btn line sm" onclick="TBM.view(\''+r.id+'\')">보기</button></td></tr>';
+    }).join('');
+    return '<div class="tb-ban '+(mine.length?'warn':'ok')+'">'+(mine.length?('결재 대기 '+mine.length+'건 · 승인 시 PIN 전자서명이 필요합니다.'):'결재 대기 건이 없습니다.')+'</div>'+
+      (wait||'')+
+      '<div class="tb-card"><h4>최근 결재 이력</h4><div class="tb-sc"><table><thead><tr><th>작성일</th><th>상태</th><th>상신</th><th>1차</th><th>최종</th><th></th></tr></thead><tbody>'+
+      (done||'<tr><td colspan="6" class="tb-mut">이력이 없습니다.</td></tr>')+'</tbody></table></div></div>';
+  }
+
+  /* ---------- 탭 : 제출 현황 ---------- */
+  function listHtml(){
+    var c=cfg();
+    if(!mon)mon=today().slice(0,7);
+    var y=+mon.slice(0,4), m=+mon.slice(5,7);
+    var last=new Date(y,m,0).getDate(), i, rows='', nSub=0,nLate=0,nDone=0,nMiss=0;
+    var td=today();
+    var months=[], dd=new Date();
+    for(i=0;i<6;i++){months.push(ymd(new Date(dd.getFullYear(),dd.getMonth()-i,1)).slice(0,7));}
+    for(i=1;i<=last;i++){
+      var id=y+'-'+pad(m)+'-'+pad(i);
+      if(id>td)continue;
+      var r=rec(id), o=st(r), dow=new Date(y,m-1,i).getDay();
+      var wk=['일','월','화','수','목','금','토'][dow];
+      if(r&&r.status&&r.status!=='draft'){nSub++;if(r.late)nLate++;if(r.status==='done')nDone++;}
+      else if(dow!==0&&dow!==6)nMiss++;
+      rows+='<tr><td>'+esc(id)+' ('+wk+')</td>'+
+        '<td><span class="bd '+o.b+'">'+esc(o.l)+'</span>'+((r&&r.late)?' <span class="bd b-late">지연</span>':'')+'</td>'+
+        '<td>'+esc((r&&r.submitAt)||'-')+'</td><td>'+esc((r&&r.wname)||(r&&r.by)||'-')+'</td>'+
+        '<td>'+esc(String((r&&r.hc)||'-'))+'</td>'+
+        '<td style="text-align:right">'+(r?'<button class="tb-btn line sm" onclick="TBM.view(\''+id+'\')">보기</button>':'')+'</td></tr>';
+    }
+    return '<div class="tb-card"><div class="tb-row"><label class="fl" style="margin:0">조회 월</label>'+
+      '<select style="max-width:150px" onchange="TBM.setMon(this.value)">'+months.map(function(x){return '<option value="'+x+'"'+(x===mon?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
+      '<button class="tb-btn line sm" onclick="TBM.csv()">CSV 내보내기</button></div></div>'+
+      '<div class="tb-card"><h4>'+esc(mon)+' 제출 현황</h4>'+
+      '<div class="tb-g3"><div><div class="tb-mut">제출</div><b style="font-size:20px">'+nSub+'</b></div>'+
+      '<div><div class="tb-mut">최종승인</div><b style="font-size:20px">'+nDone+'</b></div>'+
+      '<div><div class="tb-mut">지연 / 미제출(평일)</div><b style="font-size:20px;color:#b45309">'+nLate+' / '+nMiss+'</b></div></div></div>'+
+      '<div class="tb-card"><div class="tb-sc"><table><thead><tr><th>일자</th><th>상태</th><th>상신시각</th><th>작성자</th><th>인원</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  }
+
+  /* ---------- 탭 : 설정 ---------- */
+  function cfgHtml(){
+    var c=cfg();
+    return '<div class="tb-card"><h4>제출 기한 · 결재선</h4>'+
+      '<div class="tb-g3">'+
+        '<div><label class="fl">제출 마감 시각</label><input id="cf_dl" type="time" value="'+esc(c.dl)+'"></div>'+
+        '<div><label class="fl">1차 결재자</label><input id="cf_a1" value="'+esc(c.a1)+'"></div>'+
+        '<div><label class="fl">최종 결재자</label><input id="cf_a2" value="'+esc(c.a2)+'"></div>'+
+      '</div>'+
+      '<div class="tb-g3" style="margin-top:8px">'+
+        '<div><label class="fl">1차 결재 PIN</label><input id="cf_p1" value="'+esc(c.pin1)+'"></div>'+
+        '<div><label class="fl">최종 결재 PIN</label><input id="cf_p2" value="'+esc(c.pin2)+'"></div>'+
+        '<div><label class="fl">작성자 추가 명단 (쉼표)</label><input id="cf_wr" value="'+esc((c.writers||[]).join(', '))+'"></div>'+
+      '</div>'+
+      '<div class="tb-g3" style="margin-top:8px">'+
+        '<div><label class="fl">원익피앤이 담당 연락처</label><input id="cf_ph" value="'+esc(c.pneHp||'')+'"></div>'+
+        '<div><label class="fl">채움 안전책임자 연락처</label><input id="cf_sh" value="'+esc(c.smHp||'')+'"></div>'+
+        '<div><label class="fl">LGES 상황실</label><input id="cf_lg" value="'+esc(c.lges||'')+'"></div>'+
+      '</div>'+
+      '<div class="tb-row" style="margin-top:10px"><button class="tb-btn" onclick="TBM.cfgSave()">설정 저장</button></div>'+
+      '<div class="tb-mut" style="margin-top:7px">· 출퇴근 시스템 [인원] 탭의 작업자는 자동으로 작성자 후보에 포함됩니다.<br>· 설정은 '+esc(c.a2)+' (최종 결재자) 만 변경할 수 있습니다.</div></div>';
+  }
+  function cfgSave(){
+    if(me!==cfg().a2){alert('최종 결재자만 설정을 변경할 수 있습니다.');return;}
+    var pin=prompt('최종 결재 PIN 을 입력하십시오.','');
+    if(pin===null)return;
+    if(String(pin).trim()!==String(cfg().pin2)){alert('PIN 이 일치하지 않습니다.');return;}
+    var wr2=V('cf_wr').split(',').map(function(x){return x.trim();}).filter(function(x){return !!x;});
+    setCfg({dl:V('cf_dl')||'09:00', a1:V('cf_a1'), a2:V('cf_a2'), pin1:V('cf_p1'), pin2:V('cf_p2'),
+            writers:wr2, pneHp:V('cf_ph'), smHp:V('cf_sh'), lges:V('cf_lg')});
+    alert('설정을 저장했습니다.'); render(); paint();
+  }
+
+  /* ---------- 전문 보기 ---------- */
+  var viewId='';
+  function view(id){ viewId=id; tab='view'; render(); var e=document.getElementById('tbmApp'); if(e)e.scrollTop=0; }
+  function viewTab(){
+    var r=rec(viewId);
+    if(!r)return '<div class="tb-card">문서를 찾을 수 없습니다.</div>';
+    var c=cfg(), o=st(r);
+    var btn='';
+    if((me===c.a1&&r.status==='wait1')||(me===c.a2&&r.status==='wait2')){
+      btn='<button class="tb-btn green sm" onclick="TBM.apv(\''+r.id+'\')">승인 (PIN)</button><button class="tb-btn red sm" onclick="TBM.rej(\''+r.id+'\')">반려</button>';
+    }
+    if(me===c.a2&&r.status==='done')btn+='<button class="tb-btn line sm" onclick="TBM.cancelDone(\''+r.id+'\')">승인 취소</button>';
+    if(r.status==='wait1'&&(me===r.submitBy||me===r.by))btn+='<button class="tb-btn line sm" onclick="TBM.recall(\''+r.id+'\')">상신 취소</button>';
+    var hist=(r.hist||[]).slice().reverse().map(function(h){return '<div class="tb-mut">'+esc(h.t)+' · '+esc(h.who)+' · '+esc(h.act)+'</div>';}).join('');
+    return '<div class="tb-card"><div class="tb-row"><b style="font-size:16px">'+esc(r.id)+' 일일 안전 TBM 보고서</b> <span class="bd '+o.b+'">'+esc(o.l)+'</span>'+(r.late?' <span class="bd b-late">지연 제출</span>':'')+'</div>'+
+      '<div class="tb-row" style="margin-top:8px">'+btn+'<button class="tb-btn line sm" onclick="TBM.print1(\''+r.id+'\')">인쇄 / PDF 저장</button>'+
+      '<button class="tb-btn gray sm" onclick="TBM.setTab(\''+(isApv(me)?'box':'list')+'\')">목록으로</button></div></div>'+
+      '<div class="tb-card">'+viewHtml(r,false)+'</div>'+
+      '<div class="tb-card"><h4>처리 이력</h4>'+(hist||'<div class="tb-mut">-</div>')+'</div>';
+  }
+
+  /* ---------- 작성 탭 ---------- */
+  function writeTab(){
+    var c=cfg(), r=rec(today()), o=st(r), t=todayStatus();
+    var head='<div class="tb-ban '+(o.c==='done'?'ok':(t.late?'bad':'warn'))+'">금일 '+today()+' · '+esc(o.l)+
+      (o.c==='done'?'':(t.late?(' · 마감 '+esc(c.dl)+' 경과 (지연 사유 필수)'):(' · 마감 '+esc(c.dl)+' 까지 '+t.left+'분 남음')))+
+      '<br><span style="font-weight:500">결재선 : 작성('+esc(me)+') → 1차 '+esc(c.a1)+' → 최종 '+esc(c.a2)+'</span></div>';
+    if(r&&(r.status==='wait1'||r.status==='wait2'||r.status==='done')){
+      var extra='';
+      if(r.status==='wait1'&&(me===r.submitBy||me===r.by))extra='<button class="tb-btn line sm" onclick="TBM.recall(\''+r.id+'\')">상신 취소</button>';
+      return head+'<div class="tb-card"><h4>상신 완료 · 수정 불가</h4>'+
+        '<div class="tb-mut">상신 '+esc(r.submitAt||'')+' · 반려되면 이 화면에서 다시 수정할 수 있습니다.</div>'+
+        '<div class="tb-row" style="margin-top:8px">'+extra+'<button class="tb-btn line sm" onclick="TBM.print1(\''+r.id+'\')">인쇄 / PDF 저장</button></div></div>'+
+        '<div class="tb-card">'+viewHtml(r,false)+'</div>';
+    }
+    var rj=(r&&r.status==='rej'&&r.rej)?'<div class="tb-ban bad">반려됨 · '+esc(r.rej.by)+' ('+esc(r.rej.at)+')<br>사유 : '+nl(r.rej.memo)+'<br><span style="font-weight:500">아래 내용을 수정한 뒤 다시 상신하십시오.</span></div>':'';
+    return head+rj+formHtml(r);
+  }
+
+  /* ---------- 렌더 ---------- */
+  function render(){
+    var root=document.getElementById('tbmRoot'); if(!root)return;
+    var c=cfg();
+    if(!me){root.innerHTML=loginHtml();paint();return;}
+    var tabs=[];
+    if(writers().indexOf(me)>=0||!isApv(me))tabs.push(['write','작성']);
+    if(isApv(me)){
+      var n=all().filter(function(r){return (me===c.a1&&r.status==='wait1')||(me===c.a2&&r.status==='wait2');}).length;
+      tabs.push(['box','결재함'+(n?' ('+n+')':'')]);
+    }
+    tabs.push(['list','제출 현황']);
+    if(me===c.a2)tabs.push(['cfg','설정']);
+    if(tab==='write'&&!(writers().indexOf(me)>=0||!isApv(me)))tab='box';
+    var tb=tabs.map(function(x){return '<button class="'+(tab===x[0]?'on':'')+'" onclick="TBM.setTab(\''+x[0]+'\')">'+esc(x[1])+'</button>';}).join('');
+    var body = (tab==='write')?writeTab():(tab==='box')?boxHtml():(tab==='list')?listHtml():(tab==='cfg')?cfgHtml():viewTab();
+    root.innerHTML=
+      '<div class="tb-hd"><b>일일 안전 TBM</b><span style="font-size:12px;opacity:.9">'+esc(c.vendor)+' · '+esc(c.site)+'</span>'+
+      '<span class="sp"><span style="font-size:12px;align-self:center">'+esc(me)+(isApv(me)?(me===c.a1?' · 1차 결재':' · 최종 결재'):' · 작성자')+'</span>'+
+      '<button onclick="TBM.logout()">로그아웃</button><button onclick="TBM.close()">시스템 선택</button></span></div>'+
+      '<div class="tb-tabs">'+tb+'</div>'+body;
+    if(tab==='write')hcSync();
+    paint();
+  }
+
+  /* ---------- 자동 갱신 (다른 기기 변경 반영) ---------- */
+  var snap='';
+  function snapshot(){
+    var a=[],i,k;
+    for(i=0;i<localStorage.length;i++){k=localStorage.key(i);if(k&&k.indexOf('tos_tbm_')===0)a.push(k+':'+((localStorage.getItem(k)||'').length));}
+    return a.sort().join('|');
+  }
+  setInterval(function(){
+    try{
+      var s2=snapshot();
+      if(s2===snap){paint();return;}
+      snap=s2;
+      var vis=document.getElementById('tbmApp');
+      if(vis&&vis.style.display==='block'){
+        var a=document.activeElement;
+        if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)){paint();return;}
+        if(tab==='write'&&(!rec(today())||['draft','rej'].indexOf((rec(today())||{}).status)>=0)){paint();return;}
+        render();
+      } else paint();
+    }catch(e){}
+  },4000);
+  setInterval(paint,60000);
+
+  /* ---------- 부팅 ---------- */
+  function boot(){
+    paint();
+    try{
+      if(window.ATT&&ATT.showPortal&&!ATT.__tbmPatched){
+        ATT.__tbmPatched=true;
+        var sp=ATT.showPortal, gt=ATT.goTOS, ga=ATT.goATT;
+        function hideTbm(){var e=document.getElementById('tbmApp');if(e)e.style.display='none';}
+        ATT.showPortal=function(){hideTbm();return sp.apply(null,arguments);};
+        ATT.goTOS=function(){hideTbm();return gt.apply(null,arguments);};
+        ATT.goATT=function(){hideTbm();return ga.apply(null,arguments);};
+      }
+      if(window.CHAEUM&&CHAEUM.open&&!CHAEUM.__tbmPatched){
+        CHAEUM.__tbmPatched=true;
+        var co=CHAEUM.open;
+        CHAEUM.open=function(){var e=document.getElementById('tbmApp');if(e)e.style.display='none';return co.apply(null,arguments);};
+      }
+    }catch(e){}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,300);});
+  else setTimeout(boot,300);
+
+  return {
+    open:open, close:close, login:login, logout:logout, setTab:setTab, setMon:setMon,
+    wkAdd:wkAdd, wkDel:wkDel, wkLoad:wkLoad, hcSync:hcSync,
+    saveDraft:saveDraft, submit:submit, apv:apv, rej:rej, recall:recall, cancelDone:cancelDone,
+    view:view, print1:print1, csv:csv, cfgSave:cfgSave,
+    todayStatus:todayStatus, submittedToday:submittedToday, render:render, paint:paint, cfg:cfg
+  };
+})();
+</script>
+
 </body></html>
