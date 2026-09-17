@@ -121,7 +121,8 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
     catch (e) {
       /* 용량 초과 → 오래된 '저장시각' 기록부터 버려서 미전송함은 반드시 살린다 */
       try {
-        var ks = Object.keys(stamps).sort(function(a, b){ return (+stamps[a] || 0) - (+stamps[b] || 0); });
+        var ks = Object.keys(stamps).filter(function(x){ return !queue[x]; })
+                   .sort(function(a, b){ return (+stamps[a] || 0) - (+stamps[b] || 0); });
         ks.slice(0, Math.max(1, Math.floor(ks.length / 4))).forEach(function(x){ delete stamps[x]; });
         origSet(STAMPK, JSON.stringify(stamps));
         origSet(k, JSON.stringify(o));
@@ -142,11 +143,15 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
   function stampOf(k){ return +(stamps[k] || 0); }
   function tombOf(k){ return +(tombs[k] || 0); }
 
-  function enqueue(k, v, isDel){
+  function enqueue(k, v, isDel, keepVal){
     /* 값(v)은 복사해 두지 않는다 — 전송 시점에 localStorage 에서 다시 읽는다.
        (v7 처럼 값을 함께 저장하면 캐시 사용량이 2배가 되어 모바일 저장 한도(약 5MB)를
         넘기고, 그 순간부터 저장 자체가 실패한다) */
     queue[k] = { del: !!isDel, at: now() };
+    /* [v13] 로컬 저장이 실패(저장공간 부족)한 경우에만 값을 함께 보관한다.
+       그렇지 않으면 flush() 가 origGet(k)==null 을 보고 전송을 '포기'해
+       모바일에서 작성한 기록이 조용히 사라진다(= PC 미반영의 직접 원인). */
+    if (keepVal && v != null) { try { queue[k].v = String(v); } catch (e) {} }
     saveQueue();
   }
   function dequeue(k){
@@ -231,7 +236,7 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
          사용자가 직접 작성한 내용까지 '임시'가 되어 재대조 때 클라우드 옛 값으로
          덮어써지고 전송 큐에서도 제거됐다(= 작성분 소멸 + PC 미반영). */
       if (preSync && !userTouched) pre[k] = 1;
-      enqueue(k, v, false);          /* ← 앱이 즉시 종료돼도 유실되지 않음 */
+      enqueue(k, v, false, !ok);     /* ← 앱이 즉시 종료돼도 유실되지 않음 */
       pushKey(k, v, false);
       watch();                       /* 2.5초 뒤 업로드 성공/실패를 화면으로 통보 */
     }
@@ -271,6 +276,7 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
     try {
       if (isDel) { ref.remove().then(ack(k)).catch(fail(k)); return; }
       if (v == null) v = origGet(k);
+      if (v == null && queue[k] && queue[k].v != null) v = queue[k].v;   /* [v13] */
       if (v == null) return;
       ref.set({ v: v, at: now(), by: who() }).then(ack(k)).catch(fail(k));
     } catch (e) { lastErr = String(e && e.message || e); }
@@ -286,7 +292,8 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
       if (it.del) sendNow(k, null, true);
       else {
         var v = origGet(k);
-        if (v == null) { dequeue(k); n--; return; }   /* 로컬에도 없으면 보낼 것이 없음 */
+        if (v == null) v = (it.v != null ? it.v : null);   /* [v13] 보관본으로 대체 */
+        if (v == null) { dequeue(k); n--; return; }        /* 정말로 보낼 것이 없을 때만 포기 */
         sendNow(k, v, false);
       }
     });
@@ -324,6 +331,10 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
         var key = dec(ek); seen[key] = 1;
         var loc = origGet(key), rat = +(rec.at || 0), lst = stampOf(key);
         if (lst > now() + 300000) lst = 0;               /* 기기 시계가 미래로 틀어진 경우 무시 */
+        /* [v13] 아직 못 올린 로컬 변경분이 있으면 시각 비교 없이 '올린다'.
+           (저장시각 기록이 용량 부족으로 버려진 경우 lst=0 이 되어
+            클라우드의 옛 값이 로컬 최신본을 덮어쓰던 경로를 차단) */
+        if (queue[key] && !queue[key].del) { pushed++; return; }
         if (loc === rec.v) { dequeue(key); if (rat > lst) stamps[key] = rat; same++; return; }
         if (loc == null) {
           if (tombOf(key) > rat) return;                /* 이 기기에서 지운 것이 더 최신 */
@@ -340,19 +351,6 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
           delete pre[key]; dequeue(key);
           applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || now(); applied++;
           return;
-        }
-        if (queue[key] && !queue[key].del) {
-          /* [v13] 이 기기에서 저장했지만 아직 클라우드로 못 올린 값이다.
-             기기 시계가 조금 느리면 lst <= rat 이 되어 아래 비교에서 '클라우드가 최신'으로
-             판정되고, 사용자가 방금 모바일에서 작성한 내용이 클라우드 옛 값으로 덮어써진 뒤
-             그 옛 값이 다시 올라가 버렸다(= 모바일 작성분이 PC에 영원히 안 올라감).
-             미전송분이 남아 있으면 시각 비교 없이 '올리기'를 택한다. */
-          try {
-            var cfq = jget(CONFK);
-            cfq['(원격보관)' + key] = { v: String(rec.v).slice(0, 4000), at: rat };
-            jset(CONFK, cfq);
-          } catch (e) {}
-          enqueue(key, loc, false); pushed++; return;
         }
         if (lst > rat) {                                 /* 로컬이 더 최신 → 올린다 */
           enqueue(key, loc, false); pushed++;
@@ -759,23 +757,16 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
     if (origGet(key) === rec.v) { dequeue(key); emit(); return; }   /* 내가 쓴 것이면 무시 */
     var rat = +(rec.at || 0);
     if (queue[key] && !queue[key].del) {
-      /* [v13] 이 기기의 미전송 작성분 보호.
-         (구버전 조건) stampOf(key) > rat 이었기 때문에 기기 시계가 몇 초라도 느리면
-         보호 대상에서 빠져 모바일 작성분이 즉시 원격 값으로 덮어써졌다.
-         (구버전 조건) 8초만 지나면 미전송분을 버렸기 때문에, 화면잠금·앱전환·약전계로
-         업로드가 잠깐 지연되는 모바일에서는 작성분이 그대로 사라졌다.
-         → 시각 비교를 걷어내고, '실제로 업로드가 거부된 상태'가 5분 넘게 계속될 때에만
-            포기한다. 포기하더라도 로컬 값을 백업해 둔다. */
-      var qage = now() - (+queue[key].at || 0);
-      var hardBlocked = (blocked === 'permission') || (blocked === 'auth' && !authOptional);
-      var stuck = hardBlocked && qage > 300000;
-      if (!stuck) { sendNow(key, null, false); emit(); return; }
-      try {
-        var cfr = jget(CONFK);
-        cfr[key] = { v: String(origGet(key) || '').slice(0, 4000), at: stampOf(key) };
-        jset(CONFK, cfr);
-      } catch (e) {}
-      console.warn('[FB] 업로드 거부 5분 경과 — 원격 값을 받습니다(로컬 값은 백업):', key);
+      /* [v13] 아직 못 올린 로컬 최신본은 '무조건' 보호한다.
+         v12 는 (a) 기기 시계가 조금만 느려도 stampOf(key) > rat 가 거짓이 되고
+                 (b) 업로드가 8초만 지연돼도 미전송분을 폐기했다.
+         모바일은 화면잠금·앱전환·약전계로 8초 지연이 일상이므로,
+         그 사이 PC 변경이 수신되면 방금 작성한 내용이 스스로 폐기됐다. */
+      var hard = (blocked === 'permission') || (blocked === 'auth' && !authOptional);
+      var age  = now() - (+queue[key].at || 0);
+      if (!(hard && age > 300000)) { sendNow(key, null, false); emit(); return; }
+      try { var cf0 = jget(CONFK); cf0[key] = { v: String(origGet(key) || '').slice(0, 4000), at: stampOf(key) }; jset(CONFK, cf0); } catch (e) {}
+      console.warn('[FB] 업로드 거부 5분 경과 — 백업 후 원격 값을 받습니다:', key);
       dequeue(key);
     }
     applyRemote(key, rec.v, rat, false);
@@ -800,7 +791,7 @@ window.APP_VER = "v13";   /* 기기별 버전 확인용 */
     emit();
   });
   window.addEventListener('offline', function(){ connected = false; emit(); });
-  setInterval(function(){ if (inited && qsize()) flush(); banner(); }, 7000);
+  setInterval(function(){ if (inited && qsize()) flush(); banner(); }, 7000);   /* [v13] connected 오판에도 재시도 */
   window.addEventListener('pageshow', function(){ if (inited) { flush(); } });
   /* [v10] 화면 끄기·앱 전환·탭 종료 순간: 디바운스를 기다리지 않고 즉시 전송 */
   function flushNow(){
