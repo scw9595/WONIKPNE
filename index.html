@@ -23,43 +23,42 @@ window.FIREBASE_CONFIG = {
 window.FIREBASE_ROOT = "wonikpne_tos";
 </script>
 <script>
-/* ============================================================
-   firebase-sync.js  ·  WONIK PNE 접수 SYSTEM 공유 DB 동기화 레이어
-   ────────────────────────────────────────────────────────────
-   - localStorage = 로컬 캐시(앱은 기존처럼 즉시 읽기/쓰기)
-   - Firebase Realtime Database = 모든 사용자가 공유하는 실제 DB
-   - localStorage.setItem 을 후킹하여 'tos_'로 시작하는 모든 데이터를
-     자동으로 Firebase에 미러링하고, 다른 사용자의 변경을 실시간 반영.
-   - Firebase 미설정/오류 시 자동으로 "로컬 전용 모드"로 동작(기존과 동일).
-   ※ 앱(HTML) 코드는 거의 수정하지 않습니다(부팅 1곳 + head 스크립트만).
-   ============================================================ */
 (function () {
   /* ============================================================
-     firebase-sync v2  ·  모바일 동기화 안정화판
+     firebase-sync v3  ·  "저장했는데 다른 기기에 안 보임" 완전 차단판
      ────────────────────────────────────────────────────────────
-     [v1 문제점]
-      1) ready 플래그가 true 가 되기 전(초기 내려받기 완료 전)에 저장한 내용은
-         Firebase 로 올라가지 않고 그대로 유실됨 → 모바일(느린 회선)에서 빈번.
-      2) 초기 내려받기 루프에서 localStorage 저장이 1건이라도 실패하면(모바일 용량 초과 등)
-         예외가 밖으로 튀어 ready=false, applyingRemote=true 로 남아 동기화가 영구 중단됨.
-      3) 오프라인 상태에서 저장한 내용의 재전송 수단이 없음(새로고침하면 사라짐).
-     [v2 대응]
-      - 미전송함(outbox)에 보관 → 연결되면 자동 재전송(앱을 닫았다 열어도 유지)
-      - 내려받기 실패/저장 실패는 건별로 흡수, 동기화는 계속 진행
-      - .info/connected 로 실시간 연결상태 감시, 화면 복귀·네트워크 전환 시 자동 재연결
+     [v2 에서 실제로 데이터가 유실되던 경로]
+      1) 저장 -> 150ms 디바운스 후에야 미전송함에 기록.
+         그 사이에 화면을 끄거나 앱을 전환하면(모바일은 즉시 타이머 정지/탭 폐기)
+         Firebase 전송도, 미전송함 기록도 남지 않아 그 기록은 이 기기에만 남음.
+      2) 한 번 놓친 키를 다시 올릴 수단이 전혀 없음(부팅 시 클라우드->로컬 단방향만 수행).
+      3) 부팅 시 클라우드 값을 무조건 로컬에 덮어씀 -> 아직 못 올린 로컬 최신본이 사라짐.
+     [v3 대응]
+      - 저장 즉시(동기) 미전송함 기록 -> 앱이 바로 죽어도 다음 실행 때 자동 전송
+      - 키별 로컬 저장시각(stamp) 보관 -> 부팅/복귀 시 로컬↔클라우드 양방향 대조
+        · 로컬이 더 최신이면 올리고, 클라우드가 더 최신이면 내려받음(무조건 덮어쓰기 금지)
+      - v3 최초 실행 시 클라우드에 없는 로컬 데이터를 전부 1회 복구 전송(과거 유실분 회수)
+      - 삭제는 tombstone 으로 구분하여 재대조 때 되살아나지 않게 처리
+      - 권한 거부/미전송 적체 시 화면 상단에 붉은 경고 띠 표시(조용한 실패 제거)
      ============================================================ */
-  var ROOT     = window.FIREBASE_ROOT || 'wonikpne_tos';
-  var PREFIX   = 'tos_';
-  var EXCLUDE  = ['tos_site_v1', 'tos_lastsave_v1', 'tos_changelog_v1'];
-  var OUTBOX   = 'fb_outbox_v1';   /* tos_ 접두어가 아니므로 공유 대상 아님 */
+  var ROOT    = window.FIREBASE_ROOT || 'wonikpne_tos';
+  var PREFIX  = 'tos_';
+  var EXCLUDE = ['tos_site_v1', 'tos_lastsave_v1', 'tos_changelog_v1'];
+  var OUTBOX  = 'fb_outbox_v1';    /* 미전송함            (tos_ 아님 → 공유 대상 아님) */
+  var STAMPK  = 'fb_stamp_v1';     /* 키별 로컬 저장시각  */
+  var TOMBK   = 'fb_tomb_v1';      /* 삭제 표식           */
+  var RECK    = 'fb_recover_v3';   /* 최초 복구 전송 완료 표식 */
 
   var origSet    = localStorage.setItem.bind(localStorage);
   var origRemove = localStorage.removeItem.bind(localStorage);
+  var origGet    = localStorage.getItem.bind(localStorage);
 
   var db = null, auth = null;
-  var inited = false, ready = false, connected = false, applyingRemote = false;
-  var pending = {}, queue = {}, lastRecv = 0, lastPush = 0;
+  var inited = false, ready = false, connected = false, applyingRemote = false, liveOn = false;
+  var pending = {}, queue = {}, stamps = {}, tombs = {};
+  var lastRecv = 0, lastPush = 0, lastRecon = 0;
   var writeFail = 0, pullCount = null, lastErr = '', authState = '미시도';
+  var blocked = '', recovered = 0, reconInfo = null;
 
   function enc(k){ return k.replace(/[.#$\[\]\/]/g, function(c){ return '~' + c.charCodeAt(0).toString(16) + '~'; }); }
   function dec(k){ return k.replace(/~([0-9a-f]{2})~/gi, function(_, h){ return String.fromCharCode(parseInt(h, 16)); }); }
@@ -76,69 +75,91 @@ window.FIREBASE_ROOT = "wonikpne_tos";
   }
   function emit(){
     try { window.dispatchEvent(new Event('fbstate')); } catch (e) {}
+    try { banner(); } catch (e) {}
   }
 
-  /* ── 미전송함(outbox) ─────────────────────────────────────── */
-  function loadQueue(){
-    try { return JSON.parse(localStorage.getItem(OUTBOX) || '{}') || {}; }
-    catch (e) { return {}; }
-  }
-  function saveQueue(){
-    try { origSet(OUTBOX, JSON.stringify(queue)); } catch (e) {}
-  }
+  /* ── 로컬 보조 저장소(미전송함 / 저장시각 / 삭제표식) ────── */
+  function jget(k){ try { return JSON.parse(origGet(k) || '{}') || {}; } catch (e) { return {}; } }
+  function jset(k, o){ try { origSet(k, JSON.stringify(o)); } catch (e) {} }
+  queue  = jget(OUTBOX);
+  stamps = jget(STAMPK);
+  tombs  = jget(TOMBK);
+  function saveQueue(){ jset(OUTBOX, queue); }
+  function saveStamps(){ jset(STAMPK, stamps); }
+  function saveTombs(){ jset(TOMBK, tombs); }
+  function stampOf(k){ return +(stamps[k] || 0); }
+  function tombOf(k){ return +(tombs[k] || 0); }
+
   function enqueue(k, v, isDel){
     queue[k] = { v: (v == null ? '' : v), del: !!isDel, at: Date.now() };
     saveQueue();
-    emit();
   }
   function dequeue(k){
-    if (queue.hasOwnProperty(k)) { delete queue[k]; saveQueue(); emit(); }
+    if (queue.hasOwnProperty(k)) { delete queue[k]; saveQueue(); }
   }
   function qsize(){ return Object.keys(queue).length; }
-  queue = loadQueue();
+  function qOldest(){
+    var t = 0;
+    Object.keys(queue).forEach(function(k){ var a = +(queue[k] && queue[k].at || 0); if (a && (!t || a < t)) t = a; });
+    return t;
+  }
 
-  /* 로컬 저장은 실패해도 전체 흐름을 멈추지 않는다(모바일 용량 초과 대비) */
   function safeSet(k, v){
     try { origSet(k, v); return true; }
     catch (e) { writeFail++; console.warn('[FB] 로컬 저장 실패(용량?)', k, e && (e.name || e)); return false; }
   }
 
-  /* ── localStorage 쓰기 후킹 → Firebase 미러 ───────────────── */
+  /* ── 쓰기 후킹 : 미전송함 기록을 "먼저" 한다 ──────────────── */
   localStorage.setItem = function (k, v) {
     var ok = true;
     try { origSet(k, v); } catch (e) { ok = false; writeFail++; console.warn('[FB] 로컬 저장 실패', k, e && (e.name || e)); }
-    if (!applyingRemote && shareable(k)) pushKey(k, v);   /* ready 여부와 무관하게 항상 전송 시도 */
+    if (!applyingRemote && shareable(k)) {
+      stamps[k] = Date.now(); saveStamps();
+      if (tombs[k]) { delete tombs[k]; saveTombs(); }
+      enqueue(k, v, false);          /* ← 앱이 즉시 종료돼도 유실되지 않음 */
+      pushKey(k, v, false);
+    }
     if (!ok) emit();
   };
   localStorage.removeItem = function (k) {
     origRemove(k);
     if (!applyingRemote && shareable(k)) {
-      if (!db || !inited) { enqueue(k, '', true); return; }
-      try {
-        db.ref(ROOT + '/' + enc(k)).remove()
-          .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
-          .catch(function(e){ enqueue(k, '', true); });
-      } catch (e) { enqueue(k, '', true); }
+      tombs[k] = Date.now(); saveTombs();
+      if (stamps[k]) { delete stamps[k]; saveStamps(); }
+      enqueue(k, '', true);
+      pushKey(k, null, true);
     }
   };
 
-  function pushKey(k, v){
+  /* ── 전송 ─────────────────────────────────────────────────── */
+  function pushKey(k, v, isDel){
     clearTimeout(pending[k]);
-    pending[k] = setTimeout(function(){ sendNow(k, v); }, 150);
+    pending[k] = setTimeout(function(){ sendNow(k, v, isDel); }, 60);
   }
-  function sendNow(k, v){
-    if (v == null) v = localStorage.getItem(k);
-    if (v == null) return;
-    if (!db || !inited) { enqueue(k, v); return; }
-    if (!connected) enqueue(k, v);          /* 오프라인이면 먼저 큐에 기록(성공 시 제거) */
+  function ack(k){
+    return function(){ dequeue(k); lastPush = Date.now(); blocked = ''; emit(); };
+  }
+  function fail(k){
+    return function(e){
+      var c = (e && (e.code || e.message)) || '업로드 실패';
+      lastErr = c;
+      if (/permission/i.test(String(c))) blocked = 'permission';
+      console.warn('[FB] 업로드 실패:', k, c);
+      emit();                                   /* 큐에 남아 있으므로 자동 재시도됨 */
+    };
+  }
+  function sendNow(k, v, isDel){
+    if (!db || !inited) return;                 /* 미전송함에 있으므로 연결 시 자동 전송 */
+    var ref;
+    try { ref = db.ref(ROOT + '/' + enc(k)); } catch (e) { return; }
     try {
-      db.ref(ROOT + '/' + enc(k)).set({ v: v, at: Date.now(), by: who() })
-        .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
-        .catch(function(e){ lastErr = (e && (e.code || e.message)) || '업로드 실패'; enqueue(k, v); console.warn('[FB] 업로드 실패:', k, lastErr); });
-    } catch (e) { enqueue(k, v); }
+      if (isDel) { ref.remove().then(ack(k)).catch(fail(k)); return; }
+      if (v == null) v = origGet(k);
+      if (v == null) return;
+      ref.set({ v: v, at: Date.now(), by: who() }).then(ack(k)).catch(fail(k));
+    } catch (e) { lastErr = String(e && e.message || e); }
   }
 
-  /* 미전송함 일괄 재전송 */
   function flush(){
     if (!db || !inited) return 0;
     var ks = Object.keys(queue), n = 0;
@@ -146,40 +167,126 @@ window.FIREBASE_ROOT = "wonikpne_tos";
       var it = queue[k];
       if (!it) return;
       n++;
-      if (it.del) {
-        try {
-          db.ref(ROOT + '/' + enc(k)).remove()
-            .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
-            .catch(function(){});
-        } catch (e) {}
-      } else {
-        var v = localStorage.getItem(k);
+      if (it.del) sendNow(k, null, true);
+      else {
+        var v = origGet(k);
         if (v == null) v = it.v;
-        try {
-          db.ref(ROOT + '/' + enc(k)).set({ v: v, at: Date.now(), by: who() })
-            .then(function(){ dequeue(k); lastPush = Date.now(); emit(); })
-            .catch(function(e){ lastErr = (e && (e.code || e.message)) || '업로드 실패'; });
-        } catch (e) {}
+        sendNow(k, v, false);
       }
     });
     return n;
   }
 
-  /* ── 내려받은 레코드를 로컬에 반영 ────────────────────────── */
+  /* ── 수신 반영 ────────────────────────────────────────────── */
+  function applyRemote(key, val, at, bulk){
+    applyingRemote = true;
+    var ok = safeSet(key, val);
+    applyingRemote = false;
+    if (ok) {
+      stamps[key] = at || Date.now();
+      if (tombs[key]) { delete tombs[key]; if (!bulk) saveTombs(); }
+      if (!bulk) saveStamps();
+    }
+    return ok;
+  }
+  function eachLocalShared(cb){
+    var i, k, list = [];
+    for (i = 0; i < localStorage.length; i++) { k = localStorage.key(i); if (shareable(k)) list.push(k); }
+    list.forEach(function(k){ cb(k, origGet(k)); });
+  }
+
+  /* 클라우드 스냅샷을 로컬과 "양방향" 대조 */
+  function reconcile(all, firstBoot){
+    var applied = 0, pushed = 0, same = 0, seen = {};
+    var recover = firstBoot && !origGet(RECK);
+    applyingRemote = true;
+    try {
+      Object.keys(all || {}).forEach(function(ek){
+        if (ek.charAt(0) === '_') return;
+        var rec = all[ek];
+        if (!rec || typeof rec.v !== 'string') return;
+        var key = dec(ek); seen[key] = 1;
+        var loc = origGet(key), rat = +(rec.at || 0), lst = stampOf(key);
+        if (loc === rec.v) { dequeue(key); if (rat > lst) stamps[key] = rat; same++; return; }
+        if (loc == null) {
+          if (tombOf(key) > rat) return;                /* 이 기기에서 지운 것이 더 최신 */
+          applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || Date.now(); applied++; return;
+        }
+        if (lst > rat) {                                 /* 로컬이 더 최신 → 올린다 */
+          enqueue(key, loc, false); pushed++;
+        } else {                                         /* 클라우드가 더 최신 → 받는다 */
+          applyingRemote = true; safeSet(key, rec.v); stamps[key] = rat || Date.now(); applied++;
+        }
+      });
+      eachLocalShared(function(key, val){
+        if (seen[key]) return;                           /* 클라우드에 없는 로컬 전용 키 */
+        var lst = stampOf(key);
+        if (recover || (lst && lst > tombOf(key))) {
+          enqueue(key, val, false); pushed++;
+          if (recover && !lst) { stamps[key] = Date.now(); recovered++; }
+        }
+      });
+    } catch (e) { console.warn('[FB] 대조 중 오류', e); lastErr = '대조 오류'; }
+    applyingRemote = false;
+    saveStamps(); saveTombs(); saveQueue();
+    if (recover) { try { origSet(RECK, String(Date.now())); } catch (e) {} }
+    lastRecv = Date.now(); lastRecon = Date.now();
+    reconInfo = { applied: applied, pushed: pushed, same: same, at: Date.now() };
+    flush();
+    emit();
+    return reconInfo;
+  }
+  function syncBoth(cb){
+    cb = cb || function(){};
+    if (!db || !inited) return cb('offline');
+    db.ref(ROOT).once('value').then(function(snap){
+      var r = reconcile(snap.val() || {}, false);
+      cb(null, r);
+    }).catch(function(e){
+      lastErr = (e && (e.code || e.message)) || '대조 실패';
+      if (/permission/i.test(String(lastErr))) blocked = 'permission';
+      emit(); cb(e);
+    });
+  }
+  /* 사용자가 명시적으로 누른 "다시 받기" = 클라우드 우선 적용 */
   function applyAll(all){
     var n = 0;
     applyingRemote = true;
     try {
       Object.keys(all).forEach(function(ek){
-        if (ek.charAt(0) === '_') return;              /* _health 등 내부 노드 제외 */
+        if (ek.charAt(0) === '_') return;
         var rec = all[ek];
         if (!rec || typeof rec.v !== 'string') return;
-        if (safeSet(dec(ek), rec.v)) n++;
+        var key = dec(ek);
+        if (safeSet(key, rec.v)) { stamps[key] = +(rec.at || Date.now()); n++; }
       });
     } catch (e) { console.warn('[FB] 반영 중 오류', e); }
-    applyingRemote = false;                            /* 어떤 경우에도 반드시 해제 */
+    applyingRemote = false;
+    saveStamps();
     lastRecv = Date.now();
     return n;
+  }
+
+  /* ── 상단 경고 띠(조용한 실패 방지) ───────────────────────── */
+  function banner(){
+    if (!document.body) return;
+    var el = document.getElementById('fbBlockBar');
+    var n = qsize(), old = qOldest(), txt = '', red = true;
+    if (blocked === 'permission') txt = '클라우드 저장 거부됨(보안 규칙) — 지금 기록은 이 기기에만 남습니다. 눌러서 재시도';
+    else if (!inited) txt = '클라우드 미연결 — 기록은 이 기기에만 저장되며 연결되면 자동 전송됩니다.';
+    else if (n && old && (Date.now() - old) > 15000) { txt = '클라우드 미전송 ' + n + '건 — 눌러서 지금 전송'; red = false; }
+    if (!txt) { if (el) el.style.display = 'none'; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'fbBlockBar';
+      el.onclick = function(){ try { if (db) { firebase.database().goOnline(); } flush(); syncBoth(); } catch (e) {} };
+      el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99998;color:#fff;font-size:12.5px;font-weight:700;' +
+                         'padding:8px 12px;text-align:center;cursor:pointer;letter-spacing:-.2px';
+      document.body.appendChild(el);
+    }
+    el.style.background = red ? '#b91c1c' : '#b45309';
+    el.textContent = txt;
+    el.style.display = 'block';
   }
 
   window.FBSync = {
@@ -187,17 +294,21 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     online   : function(){ return connected; },
     queueSize: function(){ return qsize(); },
     flush    : function(){ return flush(); },
+    unsent   : function(){ return Object.keys(queue); },
+    reconcile: function(cb){ return syncBoth(cb); },
     state    : function(){
       return {
         inited: inited, ready: ready, connected: connected,
-        queue: qsize(), writeFail: writeFail, pullCount: pullCount,
+        queue: qsize(), queueAge: (qOldest() ? Date.now() - qOldest() : 0),
+        writeFail: writeFail, pullCount: pullCount, blocked: blocked,
+        recovered: recovered, recon: reconInfo,
+        tracked: Object.keys(stamps).length,
         lastRecv: lastRecv, lastPush: lastPush, err: lastErr,
         auth: authState, root: ROOT,
         dbUrl: (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL) || '',
         uid: (auth && auth.currentUser) ? auth.currentUser.uid : ''
       };
     },
-    /* 연결 재시도(모바일 절전으로 소켓이 끊긴 경우) */
     reconnect: function(){
       if (!db) return false;
       try { firebase.database().goOffline(); } catch (e) {}
@@ -207,11 +318,10 @@ window.FIREBASE_ROOT = "wonikpne_tos";
           auth.signInAnonymously().then(function(){ authState = '익명 로그인'; emit(); })
             .catch(function(e){ authState = '로그인 실패(' + ((e && e.code) || '') + ')'; emit(); });
         }
-        flush();
+        flush(); syncBoth();
       }, 400);
       return true;
     },
-    /* 쓰기/읽기 권한 자체 점검 → 네트워크 문제와 보안규칙 문제 구분 */
     health: function(cb){
       cb = cb || function(){};
       if (!db || !inited) return cb('not-inited');
@@ -220,20 +330,24 @@ window.FIREBASE_ROOT = "wonikpne_tos";
       var ref = db.ref(ROOT + '/_health/' + id);
       ref.set({ at: Date.now(), ua: String(navigator.userAgent || '').slice(0, 90) })
         .then(function(){ return ref.once('value'); })
-        .then(function(s){ cb(s && s.val() ? null : 'read-empty', Date.now() - t); })
-        .catch(function(e){ cb((e && (e.code || e.message)) || 'error', Date.now() - t); });
+        .then(function(s){ blocked = ''; emit(); cb(s && s.val() ? null : 'read-empty', Date.now() - t); })
+        .catch(function(e){
+          var c = (e && (e.code || e.message)) || 'error';
+          if (/permission/i.test(String(c))) blocked = 'permission';
+          emit(); cb(c, Date.now() - t);
+        });
     },
     forcePushAll: function(keys){
       if (!db || !inited) return 0;
       var n = 0;
       keys.forEach(function(k){
         if (!shareable(k)) return;
-        var v = localStorage.getItem(k);
+        var v = origGet(k);
         if (v == null) return;
-        try { db.ref(ROOT + '/' + enc(k)).set({ v: v, at: Date.now(), by: who() }); n++; } catch (e) {}
+        stamps[k] = Date.now();
+        enqueue(k, v, false); sendNow(k, v, false); n++;
       });
-      lastPush = Date.now();
-      emit();
+      saveStamps(); lastPush = Date.now(); emit();
       return n;
     },
     pull: function(cb){
@@ -271,7 +385,6 @@ window.FIREBASE_ROOT = "wonikpne_tos";
         return go();
       }
 
-      /* 연결상태 실시간 감시 → 연결되면 미전송함 자동 전송 */
       try {
         db.ref('.info/connected').on('value', function(s){
           var was = connected;
@@ -287,36 +400,34 @@ window.FIREBASE_ROOT = "wonikpne_tos";
             .catch(function(e){ authState = '익명 로그인 실패(' + ((e && e.code) || '') + ')'; console.warn('[FB] 익명로그인 생략', e && e.code); })
         : Promise.resolve();
 
-      /* 모바일에서 첫 내려받기가 늦어도 화면은 먼저 띄운다(최대 6초 대기) */
-      var guard = setTimeout(function(){ ready = true; attachLive(); emit(); go(); }, 6000);
+      var guard = setTimeout(function(){ ready = true; attachLive(); flush(); emit(); go(); }, 6000);
 
       authStep.then(function(){
         return db.ref(ROOT).once('value');
       }).then(function(snap){
         clearTimeout(guard);
-        var all = snap.val() || {};
-        pullCount = applyAll(all);
+        var r = reconcile(snap.val() || {}, true);
+        pullCount = r.applied;
         ready = true;
         attachLive();
         flush();
-        console.log('[FB] 공유 DB 동기화 완료 — 내려받은 항목:', pullCount, '· 로컬저장 실패:', writeFail);
+        console.log('[FB] 대조 완료 — 내려받음:', r.applied, '· 올림:', r.pushed, '· 동일:', r.same, '· 복구:', recovered, '· 로컬저장실패:', writeFail);
         emit();
         go();
       }).catch(function(e){
         clearTimeout(guard);
         lastErr = (e && (e.code || e.message)) || '초기 동기화 실패';
-        ready = true;                 /* 내려받기는 실패해도 업로드/실시간 수신은 계속 시도 */
+        if (/permission/i.test(String(lastErr))) blocked = 'permission';
+        ready = true;
         attachLive();
         flush();
-        console.warn('[FB] 초기 동기화 실패 → 업로드는 계속 시도합니다', e);
+        console.warn('[FB] 초기 동기화 실패 → 업로드/수신은 계속 시도합니다.', e);
         emit();
         go();
       });
     }
   };
 
-  /* ── 실시간 수신: 다른 사용자의 변경 반영 ─────────────────── */
-  var liveOn = false;
   function attachLive() {
     if (liveOn || !db) return;
     liveOn = true;
@@ -325,9 +436,11 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     db.ref(ROOT).on('child_removed', function (snap) {
       if (String(snap.key).charAt(0) === '_') return;
       var key = dec(snap.key);
+      if (queue[key] && !queue[key].del) return;      /* 내가 올릴 것이 남아 있으면 지우지 않음 */
       applyingRemote = true;
       try { origRemove(key); } catch (e) {}
       applyingRemote = false;
+      if (stamps[key]) { delete stamps[key]; saveStamps(); }
       lastRecv = Date.now();
       emit();
       rerenderIfCurrent(key);
@@ -339,10 +452,10 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     if (!rec || typeof rec.v !== 'string') return;
     var key = dec(snap.key);
     lastRecv = Date.now();
-    if (localStorage.getItem(key) === rec.v) { emit(); return; }   /* 내가 쓴 것이면 무시 */
-    applyingRemote = true;
-    safeSet(key, rec.v);
-    applyingRemote = false;
+    if (origGet(key) === rec.v) { dequeue(key); emit(); return; }   /* 내가 쓴 것이면 무시 */
+    var rat = +(rec.at || 0);
+    if (queue[key] && stampOf(key) > rat) { emit(); return; }       /* 아직 못 올린 로컬 최신본 보호 */
+    applyRemote(key, rec.v, rat, false);
     emit();
     rerenderIfCurrent(key);
   }
@@ -352,6 +465,8 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     if (document.visibilityState === 'visible' && inited) {
       try { firebase.database().goOnline(); } catch (e) {}
       flush();
+      /* 앱 복귀 시 최대 1분에 1회 로컬↔클라우드 재대조(미전송 유실분 자동 복구) */
+      if (Date.now() - lastRecon > 60000) { lastRecon = Date.now(); syncBoth(); }
       emit();
     }
   });
@@ -362,7 +477,9 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     emit();
   });
   window.addEventListener('offline', function(){ connected = false; emit(); });
-  setInterval(function(){ if (inited && connected && qsize()) flush(); }, 15000);
+  setInterval(function(){ if (inited && connected && qsize()) flush(); banner(); }, 7000);
+  window.addEventListener('pageshow', function(){ if (inited) { flush(); } });
+  document.addEventListener('DOMContentLoaded', function(){ banner(); });
 
   /* 사용자가 입력/편집 중이면 화면 새로고침을 미뤄 입력 내용 보호 */
   function userBusy() {
@@ -398,7 +515,6 @@ window.FIREBASE_ROOT = "wonikpne_tos";
     }, 150);
   }
 })();
-
 </script>
 <!-- ============================================ -->
 <style>
@@ -5629,7 +5745,7 @@ window.CHQPICK=function(opt){
 <script>
 window.CHAEUM=(function(){
  var P='tos_chq_',S='__CHQ',me='',tab='open',cur='';
- var U=['신종엽','박경호','심우민','서정우'],ADM=['서정우'],mineOnly=true;
+ var U=['신종엽','박경호','심우민','서정우'],ADM=['서정우'],PINU=['서정우','심우민'],PIN='2580',mineOnly=true;
  function E(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
  function K(){var a=[],i,k;for(i=0;i<localStorage.length;i++){k=localStorage.key(i);if(k&&k.indexOf(P)===0&&k.slice(-S.length)===S)a.push(k);}return a;}
  function R(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
@@ -5649,13 +5765,23 @@ window.CHAEUM=(function(){
   if(n==null||typeof n==='object'){var v=document.getElementById('chName');n=v?v.value:'';}
   n=String(n||'').trim();
   if(U.indexOf(n)<0){alert('등록된 인원만 로그인할 수 있습니다.\n'+U.join(' · '));return;}
+  if(PINU.indexOf(n)>=0){
+   var sk='';try{sk=sessionStorage.getItem('chq_pinok_v1')||'';}catch(e){}
+   if(sk!==n){
+    var p=prompt(n+' 님 로그인 PIN 을 입력하십시오.','');
+    if(p===null)return;
+    if(String(p).trim()!==PIN){alert('PIN 이 일치하지 않습니다.');return;}
+    try{sessionStorage.setItem('chq_pinok_v1',n);}catch(e){}
+   }
+  }
   me=n;tab='open';cur='';mineOnly=!isAdm(n);render();
  }
  function setMine(v){mineOnly=!!(v==1||v===true);render();}
- function logout(){me='';tab='open';cur='';mineOnly=true;closeModal();renderLogin();}
+ function logout(){me='';tab='open';cur='';mineOnly=true;try{sessionStorage.removeItem('chq_pinok_v1');}catch(e){}closeModal();renderLogin();}
  function renderLogin(){
   var btns=U.map(function(n){
-   return '<button class="cb'+(isAdm(n)?' gray':'')+'" style="width:100%;margin-top:8px;min-height:46px;font-size:15px;font-weight:600" onclick="CHAEUM.login(\''+n+'\')">'+E(n)+(isAdm(n)?' <span style="font-size:11px;font-weight:400">· 관리자(전체 조회)</span>':'')+'</button>';
+   var tagx=isAdm(n)?' <span style="font-size:11px;font-weight:400">· 관리자(전체 조회) · PIN</span>':(PINU.indexOf(n)>=0?' <span style="font-size:11px;font-weight:400">· PIN 입력</span>':'');
+   return '<button class="cb'+(isAdm(n)?' gray':'')+'" style="width:100%;margin-top:8px;min-height:46px;font-size:15px;font-weight:600" onclick="CHAEUM.login(\''+n+'\')">'+E(n)+tagx+'</button>';
   }).join('');
   document.getElementById('chaeumRoot').innerHTML='<div class="ch"><b>채움 점검확인서</b><span class="sp"></span><button onclick="CHAEUM.close()">시스템 선택</button></div>'+
    '<div class="card" style="max-width:390px;margin:35px auto"><h3>점검확인서 로그인</h3>'+
@@ -7033,7 +7159,10 @@ window.FBDIAG=(function(){
       '<tr><th>로그인</th><td>'+(s.auth||'-')+(s.uid?'<br>UID '+s.uid:'')+'</td></tr>'+
       '<tr><th>DB 주소</th><td>'+(s.dbUrl||'-')+'</td></tr>'+
       '<tr><th>저장 경로</th><td>'+(s.root||'-')+'</td></tr>'+
-      '<tr><th>미전송 대기</th><td>'+(s.queue||0)+'건</td></tr>'+
+      '<tr><th>미전송 대기</th><td>'+(s.queue||0)+'건'+((s.queue&&s.queueAge)?' (가장 오래된 건 '+Math.round(s.queueAge/1000)+'초 경과)':'')+
+        ((s.queue&&window.FBSync&&FBSync.unsent)?'<br><span style="font-size:11px;color:#64748b">'+FBSync.unsent().slice(0,6).join('<br>')+(s.queue>6?'<br>…':'')+'</span>':'')+'</td></tr>'+
+      '<tr><th>클라우드 쓰기</th><td>'+(s.blocked==='permission'?'<b style="color:#dc2626">거부됨(보안 규칙)</b>':'제한 없음')+'</td></tr>'+
+      '<tr><th>최근 재대조</th><td>'+(s.recon?('받음 '+s.recon.applied+'건 · 올림 '+s.recon.pushed+'건 · 동일 '+s.recon.same+'건'+(s.recovered?' · 유실복구 '+s.recovered+'건':'')):'-')+'</td></tr>'+
       '<tr><th>최근 전송 / 수신</th><td>'+ago(s.lastPush)+' / '+ago(s.lastRecv)+'</td></tr>'+
       '<tr><th>초기 내려받기</th><td>'+(s.pullCount==null?'-':s.pullCount+'건')+'</td></tr>'+
       '<tr><th>로컬 저장 실패</th><td>'+(s.writeFail||0)+'건'+((s.writeFail||0)?' (기기 저장공간 초과 의심)':'')+'</td></tr>'+
@@ -7047,6 +7176,7 @@ window.FBDIAG=(function(){
       '<button onclick="FBDIAG.pull()">다시 받기</button>'+
       '<button onclick="FBDIAG.reconnect()">연결 재시도</button>'+
       '<button onclick="FBDIAG.health()">쓰기 권한 테스트</button>'+
+      '<button class="wide" onclick="FBDIAG.recon()">로컬↔클라우드 전체 재대조(유실분 복구)</button>'+
       '<button class="wide" onclick="FBDIAG.reload()">앱 새로고침(캐시 우회)</button>'+
       '</div>'+
       (msg?'<div id="fbDiagMsg">'+msg+'</div>':'');
@@ -7105,6 +7235,17 @@ window.FBDIAG=(function(){
       location.replace(u+'?v='+Date.now());
     }catch(e){ location.reload(); }
   }
+  function recon(){
+    if(!(window.FBSync&&FBSync.reconcile)){ say('동기화 기능을 사용할 수 없습니다.'); return; }
+    say('로컬과 클라우드를 대조하는 중...');
+    FBSync.reconcile(function(e,r){
+      if(e){ say('재대조 실패: '+((e&&(e.code||e.message))||e)); return; }
+      try{ if(window.ATT&&ATT.render)ATT.render(); }catch(x){}
+      try{ chqRefresh(true); }catch(x){}
+      try{ if(window.TBM&&TBM.render)TBM.render(); }catch(x){}
+      say('재대조 완료 — 클라우드에서 받음 '+r.applied+'건 · 이 기기에서 올림 '+r.pushed+'건 · 이미 같음 '+r.same+'건.\n올린 건이 있으면 잠시 후 대기 건수가 0이 되는지 확인하세요.');
+    });
+  }
 
   /* ── 원격 변경 시 출퇴근 · 점검확인서 화면 자동 갱신 ────── */
   var chqSnap='';
@@ -7134,7 +7275,7 @@ window.FBDIAG=(function(){
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', paint);
   else paint();
 
-  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload };
+  return { open:open, close:close, flush:flush, pull:pull, reconnect:reconnect, health:health, reload:reload, recon:recon };
 })();
 </script>
 
@@ -7224,7 +7365,7 @@ window.FBDIAG=(function(){
    ============================================================ */
 window.TBM=(function(){
   var SUF='__TBM', DPR='tos_tbm_d_', CKEY='tos_tbm_cfg_v1'+SUF, MEK='tbm_me_v1';
-  var DEF={dl:'09:00', a1:'심우민', a2:'서정우', pin1:'1357', pin2:'2580',
+  var DEF={dl:'09:00', a1:'심우민', a2:'서정우', pin1:'2580', pin2:'2580',
            writers:['신종엽','박경호'], pne:'서정우', pneHp:'', smHp:'', lges:'',
            site:'대전 LGES 상주 현장', vendor:'채움', owner:'원익피앤이', proj:'25PCYCSM012'};
   var me='', tab='write', mon='';
@@ -7246,6 +7387,7 @@ window.TBM=(function(){
   /* ---------- 설정 ---------- */
   function cfg(){var c=rd(CKEY)||{},o={},k;for(k in DEF)o[k]=DEF[k];for(k in c){if(c[k]!==undefined&&c[k]!==null&&c[k]!=='')o[k]=c[k];}return o;}
   function setCfg(o){var c=rd(CKEY)||{},k;for(k in o)c[k]=o[k];wr(CKEY,c);}
+  function migPin(){try{var c=rd(CKEY)||{};if(c.pinv!=='v6'){c.pin1='2580';c.pin2='2580';c.pinv='v6';wr(CKEY,c);}}catch(e){}}
 
   /* ---------- 데이터 ---------- */
   function key(id){return DPR+id+SUF;}
@@ -7314,6 +7456,7 @@ window.TBM=(function(){
     document.body.style.overflow='hidden';
     me=localStorage.getItem(MEK)||'';
     if(me&&!isApv(me)&&writers().indexOf(me)<0){me='';localStorage.removeItem(MEK);}
+    if(me&&isApv(me)){var sk0='';try{sk0=sessionStorage.getItem('tbm_pinok_v1')||'';}catch(e){}if(sk0!==me)me='';}
     tab=(me&&isApv(me)&&writers().indexOf(me)<0)?'box':'write';
     render();
   }
@@ -7323,8 +7466,21 @@ window.TBM=(function(){
     if(window.ATT&&ATT.showPortal)ATT.showPortal();
     paint();
   }
-  function login(n){ me=n; localStorage.setItem(MEK,n); tab=(isApv(n)&&writers().indexOf(n)<0)?'box':'write'; render(); }
-  function logout(){ me=''; try{localStorage.removeItem(MEK);}catch(e){} render(); }
+  function login(n){
+    var c=cfg();
+    if(n===c.a1||n===c.a2){
+      var sk='';try{sk=sessionStorage.getItem('tbm_pinok_v1')||'';}catch(e){}
+      if(sk!==n){
+        var need=(n===c.a1)?c.pin1:c.pin2;
+        var p=prompt(n+' 님 로그인 PIN 을 입력하십시오.','');
+        if(p===null)return;
+        if(String(p).trim()!==String(need)){alert('PIN 이 일치하지 않습니다.');return;}
+        try{sessionStorage.setItem('tbm_pinok_v1',n);}catch(e){}
+      }
+    }
+    me=n; localStorage.setItem(MEK,n); tab=(isApv(n)&&writers().indexOf(n)<0)?'box':'write'; render();
+  }
+  function logout(){ me=''; try{localStorage.removeItem(MEK);}catch(e){} try{sessionStorage.removeItem('tbm_pinok_v1');}catch(e){} render(); }
   function setTab(t){ tab=t; render(); var e=document.getElementById('tbmApp'); if(e)e.scrollTop=0; }
   function setMon(v){ mon=v; render(); }
 
@@ -7343,7 +7499,7 @@ window.TBM=(function(){
       '<div class="tb-names">'+(w||'<div class="tb-mut">등록된 작성자가 없습니다.</div>')+'</div>'+
       '<div class="tb-mut" style="margin-top:14px;font-weight:700">결재자</div>'+
       '<div class="tb-names">'+a+'</div>'+
-      '<div class="tb-mut" style="margin-top:14px">· 결재자는 입장 후 <b>결재 PIN</b> 으로 전자서명합니다.<br>· 소급 작성 방지를 위해 작성일은 <b>당일로 고정</b>되며, 상신 시각이 자동 기록됩니다.</div>'+
+      '<div class="tb-mut" style="margin-top:14px">· 결재자(심우민·서정우)는 <b>입장 시 PIN</b> 을 입력해야 하며, 승인 시 PIN 으로 다시 전자서명합니다.<br>· 미기재 항목이 있어도 상신은 가능하며, 보고서에 미기재 내역이 표기됩니다.<br>· 소급 작성 방지를 위해 작성일은 <b>당일로 고정</b>되며, 상신 시각이 자동 기록됩니다.</div>'+
       '<div style="text-align:center;margin-top:16px"><button class="tb-btn line" onclick="TBM.close()">시스템 선택으로</button></div></div>';
   }
 
@@ -7475,7 +7631,7 @@ window.TBM=(function(){
         ppeBox('tb_ppe3',3,'절연장갑','충전부 접촉 감전 방지 / 사용 전 파손·내압 확인',p.c)+
         ppeBox('tb_ppe4',4,'작업중 표찰','오조작 방지 / 전원반·설비 조작부에 부착',p.d)+
       '</div>'+
-      '<div class="tb-ban bad" style="margin:9px 0 0">[필수] 4종 중 1건이라도 <b>미착용</b> 이면 결재 상신이 차단됩니다. 시정 완료 후 상신하십시오.</div></div>'+
+      '<div class="tb-ban bad" style="margin:9px 0 0">[필수] 4종 중 1건이라도 <b>미착용</b> 이면 즉시 작업을 중지하고 시정하십시오. 미착용 상태로도 상신은 가능하지만 보고서·결재화면에 <b>미착용 내역이 표기</b>됩니다.</div></div>'+
 
     '<div class="tb-card"><h4>전원 차단 · 공구 · 설비 점검 <i>LOTO</i></h4>'+
       '<div class="tb-g2">'+
@@ -7615,12 +7771,14 @@ window.TBM=(function(){
     if(r.ppe.b==='미착용')bad.push('안전화');
     if(r.ppe.c==='미착용')bad.push('절연장갑');
     if(r.ppe.d==='미착용')bad.push('작업중 표찰');
-    if(bad.length){
-      alert('[상신 차단] 필수 보호구 미착용 : '+bad.join(', ')+'\n\n즉시 작업을 중지하고 시정 완료 후 다시 상신하십시오.');
-      r.status=r.status==='rej'?'rej':'draft'; save(r); return;
-    }
     var err=validate(r);
-    if(err.length){alert('아래 항목을 확인하십시오.\n\n· '+err.join('\n· '));return;}
+    r.miss=err.slice(); r.ppeBad=bad.slice();
+    var w=[];
+    if(bad.length)w.push('필수 보호구 미착용 : '+bad.join(', '));
+    if(err.length)w.push('미기재 '+err.length+'건 : '+err.join(' / '));
+    if(w.length){
+      if(!confirm('아래 내용이 확인되었습니다.\n\n· '+w.join('\n· ')+'\n\n이대로 상신할까요?\n(보고서·결재화면·현황에 미기재/미착용 내역이 함께 표기됩니다)'))return;
+    }
     var ill=r.workers.filter(function(x){return x.hs==='이상';});
     if(ill.length){
       if(!confirm('건강 이상 신고자가 있습니다 : '+ill.map(function(x){return x.n;}).join(', ')+'\n해당 인원은 당일 작업에서 배제하고 원청 담당자에게 통보해야 합니다.\n계속 상신할까요?'))return;
@@ -7721,6 +7879,8 @@ window.TBM=(function(){
       '<tr><th>근무형태</th><td>'+esc(r.shift||'')+'</td><th>투입인원</th><td>'+esc(String(r.hc||0))+'명'+(r.delta==null?'':' (전일 대비 '+(r.delta>0?'+':'')+r.delta+')')+'</td></tr>'+
       '<tr><th>상태</th><td colspan="3">'+esc(sg)+(r.submitAt?' · 상신 '+esc(r.submitAt):'')+(r.late?' <b>[지연 제출]</b>':'')+'</td></tr>'+
       (r.late&&r.lateMemo?'<tr><th>지연 사유</th><td colspan="3">'+nl(r.lateMemo)+'</td></tr>':'')+
+      ((r.ppeBad&&r.ppeBad.length)?'<tr><th>보호구 미착용</th><td colspan="3" style="color:#b91c1c;font-weight:700">'+esc(r.ppeBad.join(', '))+'</td></tr>':'')+
+      ((r.miss&&r.miss.length)?'<tr><th>미기재 항목</th><td colspan="3" style="color:#b45309">'+esc(r.miss.join(' · '))+' <b>('+r.miss.length+'건)</b></td></tr>':'')+
     '</table>'+
     '<h3>출근자 명단 및 건강상태</h3><table'+cls+'><tr><th>No</th><th>성명</th><th>직책</th><th>연락처</th><th>건강</th><th>본인확인</th></tr>'+(wkr||'<tr><td colspan="6">-</td></tr>')+'</table>'+
     '<h3>금일 작업 계획</h3><table'+cls+'><tr><th>작업명</th><td>'+esc(w.name||'')+'</td><th>작업위치</th><td>'+esc(w.loc||'')+'</td></tr>'+
@@ -7759,11 +7919,12 @@ window.TBM=(function(){
     window.print();
   }
   function csv(){
-    var rows=[['작성일','상태','상신시각','지연','작성자','투입인원','작업명','1차결재','최종결재','반려사유']];
+    var rows=[['작성일','상태','상신시각','지연','작성자','투입인원','작업명','1차결재','최종결재','반려사유','보호구 미착용','미기재 항목']];
     all().forEach(function(r){
       var c=cfg();
       rows.push([r.id, st(r).l, r.submitAt||'', r.late?'지연':'', r.wname||r.by||'', String(r.hc||0), (r.work&&r.work.name)||'',
-                 r.a1?(r.a1.by+' '+r.a1.at):'', r.a2?(r.a2.by+' '+r.a2.at):'', r.rej?r.rej.memo:'']);
+                 r.a1?(r.a1.by+' '+r.a1.at):'', r.a2?(r.a2.by+' '+r.a2.at):'', r.rej?r.rej.memo:'',
+                 (r.ppeBad||[]).join(' / '), (r.miss||[]).join(' / ')]);
     });
     var t=rows.map(function(a){return a.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n');
     var b=new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8;'});
@@ -7785,6 +7946,8 @@ window.TBM=(function(){
         (r.late?' <span class="bd b-late">지연 제출</span>':'')+'</div>'+
         '<div class="tb-mut" style="margin-top:5px">작성 '+esc(r.wname||r.by||'')+' · 상신 '+esc(r.submitAt||'')+' · 투입 '+esc(String(r.hc||0))+'명 · '+esc((r.work&&r.work.name)||'')+'</div>'+
         (r.late&&r.lateMemo?'<div class="tb-mut" style="color:#b91c1c;margin-top:3px">지연 사유 : '+nl(r.lateMemo)+'</div>':'')+
+        ((r.ppeBad&&r.ppeBad.length)?'<div class="tb-mut" style="color:#b91c1c;margin-top:3px;font-weight:700">보호구 미착용 : '+esc(r.ppeBad.join(', '))+'</div>':'')+
+        ((r.miss&&r.miss.length)?'<div class="tb-mut" style="color:#b45309;margin-top:3px">미기재 '+r.miss.length+'건 : '+esc(r.miss.join(' · '))+'</div>':'')+
         '<div class="tb-row" style="margin-top:8px">'+
           '<button class="tb-btn line sm" onclick="TBM.view(\''+r.id+'\')">전문 보기</button>'+
           '<button class="tb-btn green sm" onclick="TBM.apv(\''+r.id+'\')">승인 (PIN)</button>'+
@@ -7822,6 +7985,7 @@ window.TBM=(function(){
         '<td><span class="bd '+o.b+'">'+esc(o.l)+'</span>'+((r&&r.late)?' <span class="bd b-late">지연</span>':'')+'</td>'+
         '<td>'+esc((r&&r.submitAt)||'-')+'</td><td>'+esc((r&&r.wname)||(r&&r.by)||'-')+'</td>'+
         '<td>'+esc(String((r&&r.hc)||'-'))+'</td>'+
+        '<td>'+((r&&r.ppeBad&&r.ppeBad.length)?'<span class="bd b-late">보호구 '+r.ppeBad.length+'</span> ':'')+((r&&r.miss&&r.miss.length)?'<span class="bd b-late">미기재 '+r.miss.length+'</span>':((r&&r.status&&r.status!=='draft')?'<span class="tb-mut">-</span>':'-'))+'</td>'+
         '<td style="text-align:right">'+(r?'<button class="tb-btn line sm" onclick="TBM.view(\''+id+'\')">보기</button>':'')+'</td></tr>';
     }
     return '<div class="tb-card"><div class="tb-row"><label class="fl" style="margin:0">조회 월</label>'+
@@ -7831,7 +7995,7 @@ window.TBM=(function(){
       '<div class="tb-g3"><div><div class="tb-mut">제출</div><b style="font-size:20px">'+nSub+'</b></div>'+
       '<div><div class="tb-mut">최종승인</div><b style="font-size:20px">'+nDone+'</b></div>'+
       '<div><div class="tb-mut">지연 / 미제출(평일)</div><b style="font-size:20px;color:#b45309">'+nLate+' / '+nMiss+'</b></div></div></div>'+
-      '<div class="tb-card"><div class="tb-sc"><table><thead><tr><th>일자</th><th>상태</th><th>상신시각</th><th>작성자</th><th>인원</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+      '<div class="tb-card"><div class="tb-sc"><table><thead><tr><th>일자</th><th>상태</th><th>상신시각</th><th>작성자</th><th>인원</th><th>미기재</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   }
 
   /* ---------- 탭 : 설정 ---------- */
@@ -7956,6 +8120,7 @@ window.TBM=(function(){
 
   /* ---------- 부팅 ---------- */
   function boot(){
+    migPin();
     paint();
     try{
       if(window.ATT&&ATT.showPortal&&!ATT.__tbmPatched){
