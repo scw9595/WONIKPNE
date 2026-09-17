@@ -21,7 +21,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos";
-window.APP_VER = "v10";   /* 기기별 버전 확인용 */
+window.APP_VER = "v11";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -696,8 +696,8 @@ window.APP_VER = "v10";   /* 기기별 버전 확인용 */
     var rat = +(rec.at || 0);
     if (queue[key] && !queue[key].del && stampOf(key) > rat) {
       /* 아직 못 올린 로컬 최신본 보호 — 단, 올릴 수 없는 상태(권한 거부)이거나
-         30초 넘게 막혀 있으면 이 기기만 과거에 머무는 것을 막기 위해 원격을 받는다. */
-      var stuck = (blocked === 'permission') || ((now() - (+queue[key].at || 0)) > 30000);
+         8초 넘게 막혀 있으면 이 기기만 과거에 머무는 것을 막기 위해 원격을 받는다. */
+      var stuck = (blocked === 'permission') || (blocked === 'auth') || ((now() - (+queue[key].at || 0)) > 8000);
       if (!stuck) { sendNow(key, null, false); emit(); return; }
       console.warn('[FB] 미전송 적체 — 원격 값을 받습니다:', key);
       dequeue(key);
@@ -6328,6 +6328,10 @@ function CHAEUM_REOPEN(o){if(typeof DB==='undefined')return;var q=DB.find(functi
       </div>
     </div>
     <div class="pt-warn" id="attFbWarn">Firebase 연결이 확인되지 않습니다. 기록이 이 기기에만 저장될 수 있으니 새로고침 후 다시 시도하세요.</div>
+    <div style="margin-top:10px;text-align:center">
+      <button id="attProofBtn" onclick="FBPROOF.run()" style="background:#0f1729;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:12.5px;font-weight:700;cursor:pointer">연동 실증 (원인 코드 확인)</button>
+    </div>
+    <div id="attProofBox" style="display:none;margin-top:10px;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;background:#fff;color:#0f1729;text-align:left"></div>
   </div>
 </div>
 <button id="attSysBtn" onclick="ATT.showPortal()">시스템 선택</button>
@@ -7145,13 +7149,50 @@ window.ATT = (function(){
   /* 부팅: 포털 먼저 노출 */
   function boot(){
     showPortal();
-    setTimeout(function(){
-      var w=document.getElementById('attFbWarn');
-      if(w)w.style.display=online()?'none':'block';
-    },3500);
+    /* [v11] 고정 3.5초 타이머 오경보 제거.
+       모바일은 클라우드 최초 읽기가 3.5초를 넘기는 경우가 흔해,
+       연결이 정상인데도 '연결이 확인되지 않습니다'가 떴다가 사라졌다.
+       이제 실제 상태를 근거로만 표시하고, 확인 중에는 중립 문구를 쓴다. */
+    ATT.__warnTick();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
   else boot();
+
+  /* [v11] 연결 안내 문구 — 상태 기반 (고정 타이머 오경보 제거) */
+  var __attBootAt = Date.now();
+  function __fbst(){ try{ return (window.FBSync&&FBSync.state)?FBSync.state():null; }catch(e){ return null; } }
+  function __warnTick(){
+    var w=document.getElementById('attFbWarn');
+    if(!w) return;
+    var s=__fbst();
+    var elapsed=Date.now()-__attBootAt;
+    function paintWarn(bad, html){
+      w.style.background = bad?'#fef2f2':'#f8fafc';
+      w.style.borderColor= bad?'#fecaca':'#e2e8f0';
+      w.style.color      = bad?'#b91c1c':'#475569';
+      w.innerHTML=html; w.style.display='block';
+    }
+    if(!s){ w.style.display='none'; return; }
+    if(s.isFile){
+      paintWarn(true,'이 파일은 기기에 저장된 <b>사본(file://)</b>입니다. 다른 기기와 절대 공유되지 않습니다 — 인터넷 주소(https://…/WONIKPNE/)로 접속하세요.');
+      return;
+    }
+    if(s.blocked==='auth' || s.blocked==='permission' || s.writeFail){
+      var why = (s.blocked==='auth') ? ('클라우드 로그인 거부 ('+(s.authErr||'?')+')')
+              : (s.blocked==='permission') ? '클라우드 저장 거부 (보안 규칙)'
+              : ('이 기기 저장 실패 '+s.writeFail+'건 — 저장공간 초과');
+      paintWarn(true, why+' — 지금 기록은 <b>이 기기에만</b> 남습니다. 아래 <b>연동 실증</b>을 눌러 원인 코드를 확인하세요.');
+      return;
+    }
+    if(s.inited && s.connected){ w.style.display='none'; return; }
+    if(elapsed < 12000){
+      paintWarn(false,'클라우드 연결을 확인하는 중입니다… (모바일은 몇 초 걸릴 수 있습니다)');
+      return;
+    }
+    paintWarn(true,'클라우드에 연결되지 않았습니다. 지금 기록하면 <b>이 기기에만</b> 저장되고, 연결되면 자동 전송됩니다. 아래 <b>연동 실증</b>으로 원인을 확인하세요.');
+  }
+  try{ window.addEventListener('fbstate', function(){ try{__warnTick();}catch(e){} }); }catch(e){}
+  setInterval(function(){ try{__warnTick();}catch(e){} }, 1500);
 
   
   /* [v10] 다른 기기의 변경이 도착하면 이 모듈 화면을 다시 그린다.
@@ -7165,6 +7206,7 @@ window.ATT = (function(){
     });
   } catch (e) {}
   return {
+    __warnTick:__warnTick,
     showPortal:showPortal, goTOS:goTOS, goATT:goATT,
     workers:workerNames, admins:adminNames, isAdminName:isAdminName,
     login:login, loginBox:loginBox, logout:logout,
@@ -8540,4 +8582,83 @@ window.TBM=(function(){
 })();
 </script>
 
+
+<script>
+/* ============================================================
+   [v11] 연동 실증 (FBPROOF)
+   - 결과가 자동으로 사라지지 않는다. 화면 캡처 한 장으로 원인 확정.
+   - 실제 공유 키(tos_synctest_v1)를 써서 PC에서도 확인 가능하게 한다.
+   ============================================================ */
+window.FBPROOF = (function(){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function box(){ return document.getElementById('attProofBox'); }
+  function show(html){ var b=box(); if(!b) return; b.innerHTML=html; b.style.display='block'; }
+  function row(name, ok, note){
+    var c = ok===true ? '#047857' : (ok===false ? '#b91c1c' : '#b45309');
+    var m = ok===true ? '정상'    : (ok===false ? '실패'    : '확인');
+    return '<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #f1f5f9">'+
+           '<span style="flex:0 0 96px;color:#64748b">'+esc(name)+'</span>'+
+           '<span style="flex:0 0 34px;font-weight:800;color:'+c+'">'+m+'</span>'+
+           '<span style="flex:1;word-break:break-all">'+esc(note)+'</span></div>';
+  }
+  function verdictOf(list){
+    function find(n){ for(var i=0;i<list.length;i++){ if(list[i].name===n) return list[i]; } return null; }
+    var f=find('접속 방식'), w=find('클라우드 쓰기'), a=find('익명 로그인'), sdk=find('Firebase 파일(SDK)'), st=find('기기 저장공간');
+    if(f && !f.ok)   return ['이 기기에 저장된 사본(file://)을 열고 있습니다 — 절대 공유되지 않습니다','#b91c1c','브라우저 주소창에 https://…/WONIKPNE/ 를 직접 입력해 접속하십시오.'];
+    if(sdk && !sdk.ok) return ['Firebase 연결 파일을 내려받지 못했습니다','#b91c1c','사내망/보안프로그램 차단 또는 인터넷 불가. 다른 회선(LTE 등)으로 시도해 보십시오.'];
+    if(a && !a.ok)   return ['클라우드 로그인이 거부되었습니다 — '+esc(a.note),'#b91c1c','Firebase 콘솔 > Authentication 에서 익명 로그인 사용, 승인된 도메인에 scw9595.github.io 추가가 필요합니다.'];
+    if(w && !w.ok)   return ['클라우드 쓰기가 거부되었습니다 — '+esc(w.note),'#b91c1c','Realtime Database > 규칙 이 만료/차단된 상태입니다. 규칙을 갱신해 게시해야 합니다.'];
+    if(st && !st.ok) return ['이 기기 저장공간이 한도에 도달했습니다','#b45309','사진/오래된 자료를 정리하십시오. 한도를 넘으면 저장 자체가 실패합니다.'];
+    return ['클라우드 쓰기·되읽기 모두 정상입니다','#047857','이 기기는 정상입니다. 반영이 안 보이면 <b>보는 쪽(PC)</b>을 새로고침하고 아래 기기 목록의 버전을 확인하십시오.'];
+  }
+  function run(){
+    var btn=document.getElementById('attProofBtn');
+    if(btn){ btn.disabled=true; btn.textContent='확인 중…'; }
+    show('<div style="color:#475569">확인 중입니다… (최대 10초)</div>');
+    if(!(window.FBSync&&FBSync.selftest)){
+      show('<div style="color:#b91c1c;font-weight:800">동기화 모듈이 로드되지 않았습니다 (구버전 파일일 수 있습니다).</div>');
+      if(btn){ btn.disabled=false; btn.textContent='연동 실증 (원인 코드 확인)'; }
+      return;
+    }
+    FBSync.selftest(function(err, list){
+      list = list || [];
+      var v = verdictOf(list);
+      var s = {}; try{ s = FBSync.state()||{}; }catch(e){}
+      var html = '<div style="font-weight:800;color:'+v[1]+';font-size:13px;margin-bottom:2px">'+v[0]+'</div>'+
+                 '<div style="color:#475569;margin-bottom:8px">'+v[2]+'</div>';
+      list.forEach(function(r){ html += row(r.name, !!r.ok, r.note); });
+      html += row('앱 버전', true, (window.APP_VER||'?')+' · 캐시 '+((FBSync.usageKB&&FBSync.usageKB())||'?')+'KB');
+      html += row('미전송', (s.queue||0)===0, (s.queue||0)+'건');
+
+      /* 실제 공유 키로 왕복 — PC 쪽에서도 같은 값이 보이는지 확인 가능 */
+      try{
+        var payload={ dev:(FBSync.myDev?FBSync.myDev():'?'), ver:(window.APP_VER||'?'), at:Date.now(),
+                      ua:String(navigator.userAgent||'').slice(0,70) };
+        localStorage.setItem('tos_synctest_v1', JSON.stringify(payload));
+        html += '<div style="margin-top:8px;padding:8px;background:#f8fafc;border-radius:8px;color:#475569">'+
+                '실증용 표식을 클라우드로 보냈습니다. <b>PC에서 같은 화면의 「연동 실증」</b>을 눌러 <b>기기 '+esc(payload.dev)+'</b> 시각이 보이면 양방향 정상입니다.</div>';
+      }catch(e){
+        html += '<div style="margin-top:8px;color:#b91c1c;font-weight:700">이 기기에 저장조차 실패했습니다 — 저장공간 부족입니다.</div>';
+      }
+
+      if(FBSync.devices) FBSync.devices(function(e2, ds){
+        if(!e2 && ds && ds.length){
+          var cur=String(window.APP_VER||''), t='';
+          ds.slice(0,8).forEach(function(d){
+            var old = (String(d.ver)!==cur);
+            t += '<div style="display:flex;gap:8px;padding:2px 0;color:'+(old?'#b91c1c':'#0f1729')+'">'+
+                 '<span style="flex:0 0 96px">'+esc(d.id)+(d.me?' (이 기기)':'')+'</span>'+
+                 '<span style="flex:0 0 46px;font-weight:800">'+esc(d.ver)+'</span>'+
+                 '<span style="flex:1">'+(old?'구버전 — 새로고침 필요':'최신')+'</span></div>';
+          });
+          show(html+'<div style="margin-top:8px;font-weight:800;color:#0f1729">접속 기기별 버전</div>'+t);
+        } else { show(html); }
+        if(btn){ btn.disabled=false; btn.textContent='연동 실증 다시 확인'; }
+      });
+      else { show(html); if(btn){ btn.disabled=false; btn.textContent='연동 실증 다시 확인'; } }
+    });
+  }
+  return { run: run };
+})();
+</script>
 </body></html>
