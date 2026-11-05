@@ -24,8 +24,8 @@ window.FIREBASE_CONFIG = {
   appId:             "1:908808313233:web:f2c04308099bec737c6230",
   measurementId:     "G-TKRDQ7TF4K"
 };
-window.FIREBASE_ROOT = "lges_dj_fault";   /* 기존 접수시스템(wonikpne_tos)과 분리된 저장 경로 */
-window.APP_VER = "LGES-v5.8";   /* 기기별 버전 확인용 */
+window.FIREBASE_ROOT = "wonikpne_tos/_lges_dj_fault";   /* [v5.8.1] 기존 규칙이 허용하는 wonikpne_tos 아래 하위 경로 (v16 데이터와 섞이지 않음: v16은 _ 로 시작하는 항목을 무시) */
+window.APP_VER = "LGES-v5.8.1";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -46,7 +46,7 @@ window.APP_VER = "LGES-v5.8";   /* 기기별 버전 확인용 */
       - 삭제는 tombstone 으로 구분하여 재대조 때 되살아나지 않게 처리
       - 권한 거부/미전송 적체 시 화면 상단에 붉은 경고 띠 표시(조용한 실패 제거)
      ============================================================ */
-  var ROOT    = window.FIREBASE_ROOT || 'lges_dj_fault';
+  var ROOT    = window.FIREBASE_ROOT || 'wonikpne_tos/_lges_dj_fault';
   var PREFIX  = 'ldj_';            /* [LGES] 공유 대상 키 접두어 */
   var EXCLUDE = [];
   var OUTBOX  = 'fb_outbox_v1';    /* 미전송함            (tos_ 아님 → 공유 대상 아님) */
