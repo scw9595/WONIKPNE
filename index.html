@@ -25,7 +25,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos/_lges_dj_fault";   /* [v5.8.1] 기존 규칙이 허용하는 wonikpne_tos 아래 하위 경로 (v16 데이터와 섞이지 않음: v16은 _ 로 시작하는 항목을 무시) */
-window.APP_VER = "LGES-v5.8.1";   /* 기기별 버전 확인용 */
+window.APP_VER = "LGES-v5.9";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -1340,6 +1340,18 @@ button.tag{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600}
  </div>
  <div id="cfg52"></div>
 </section>
+<!-- TOS 완료처리 -->
+<section class="page" id="p-tos">
+ <h2>TOS 완료처리 필요 <span class="muted" style="font-weight:400">접수관리에서 완료 저장한 건 · TOS에서도 완료 처리한 뒤 [삭제]를 누르세요</span></h2>
+ <div class="qcards" id="tosqc"></div>
+ <div class="toolbar">
+  <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="tosq" placeholder="TOS번호·장비명·내용 검색" style="width:260px" aria-label="검색"></div>
+  <span class="muted" id="toscnt"></span><span style="margin-left:auto"></span>
+  <span id="tosbtn" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+ </div>
+ <div class="mhint muted np" id="toshint"></div>
+ <div class="tw cw"><table id="tost" class="cards"></table></div>
+</section>
 <!-- 사용방법 -->
 <section class="page" id="p-help"><h2>사용방법 <span class="muted" style="font-weight:400">v5.2</span></h2><div class="panel" style="line-height:1.8">
 <h3>1. 기본 흐름</h3>
@@ -1348,6 +1360,7 @@ button.tag{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600}
 <b>③ 점검 요청</b> — 메인화면 체크박스로 대상을 고르고(최대 30건) 점검요청서에서 노란 칸을 채운 뒤 「인쇄 / PDF 저장」을 누릅니다.<br>
 <b>④ 완료 처리</b> — 접수관리에서 건을 고르고 오른쪽 입력창의 ① 완료 처리 · ② 작업 내용 · ③ 자재·비용을 입력합니다. ↑ ↓ 키로 다음 건으로 넘어갑니다.<br>
 <b>⑤ 작업완료보고서</b> — 작업완료보고서 메뉴에서 정산월(또는 기간)을 고르면 완료건이 자동으로 채워집니다. Comp. 압력과 사진을 넣고 인쇄 / PDF 또는 엑셀로 내보냅니다.<br>
+<b>⑤-1 TOS 완료처리</b> — 접수관리에서 완료 저장한 건은 「TOS 완료처리」 메뉴에 쌓입니다. TOS에서도 완료 처리한 뒤 체크하고 [TOS 완료 → 삭제]를 누르세요. 삭제한 건은 「TOS 처리 완료」 탭에서 되돌릴 수 있습니다.<br>
 <b>⑥ A/S리스트</b> — 접수관리 건 중 S/N이 등록된 장비는 A/S리스트에 자동으로 올라갑니다. 행을 눌러 crm접수번호·고장 유형·교체 부품 등을 채우고 엑셀로 내보냅니다.
 <h3 style="margin-top:14px">2. 작업완료보고서</h3>
 · <b>기간</b>: 현재 정산월(기본) / 정산월 선택 / 기간 직접 선택. 정산월은 설정의 정산 시작일 기준입니다(21일이면 전월 21일 ~ 해당월 20일).<br>
@@ -2806,6 +2819,89 @@ const _rCfg58=rCfg;rCfg=function(){_rCfg58();let el=document.getElementById("ldj
   ldjPanel();};
 setInterval(function(){ldjBadge();if(CUR==="cfg"&&!ldjBusy())ldjPanel();},7000);
 const _hdr58=hdr;hdr=function(){_hdr58();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v5\.\d 웹 UI/,"v5.8 웹 UI");}catch(e){}};
+
+/* ===== v5.9 TOS 완료처리 필요 목록 =====
+   접수관리에서 [저장 후 A/S 이관]한 건(r.asMv) 중 TOS에서 아직 완료 처리하지 않은 건을 모아 보여 준다.
+   TOS에서 완료 처리한 뒤 [삭제]하면 r.tosOk 에 처리일을 기록 → 접수 1건 단위(ldj_r_)로 클라우드 공유. 'TOS 처리 완료' 탭에서 되돌리기 가능. */
+PG.tos=["TOS 완료처리","접수관리 완료건 · TOS 완료 처리 후 삭제",'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'];
+const NAVG59=[["업무",["home","main","req","rec","tos"]],["보고 · 이력",["rpt","as"]],["기준정보",["eq","cfg"]],["도움말",["help"]]];
+document.getElementById("nav").innerHTML=NAVG59.map(function(g){return '<div class="grp">'+g[0]+'</div>'+g[1].map(function(p){return '<button data-p="'+p+'" onclick="go(\''+p+'\')">'+SVG(PG[p][2])+'<span>'+PG[p][0]+'</span><span class="nb" id="nb-'+p+'"></span></button>';}).join("");}).join("");
+if(CUR)document.querySelectorAll("nav button").forEach(function(b){b.classList.toggle("on",b.dataset.p===CUR);});
+let TOSF="need";const TOSSEL=new Set();
+function tosNeed(r){return !!(r&&r.asMv&&!r.tosOk);}
+function tosDoneR(r){return !!(r&&r.asMv&&r.tosOk);}
+function tosCount(){return S.recs.filter(tosNeed).length;}
+function tosWait(o){return o.dd?Math.max(0,dd(o.dd,today())):null;}
+function tosQ(){const e=document.getElementById("tosq");return e?e.value.trim().toLowerCase():"";}
+function tosHit(o,q){if(!q)return true;return [o.seq,o.eq,o.loc,o.rep,o.cont,o.insp,o.rdone].join(" ").toLowerCase().indexOf(q)>=0;}
+function tosRows(f){const q=tosQ();return C.filter(function(o){return (f==="done"?tosDoneR(o.r):tosNeed(o.r))&&tosHit(o,q);})
+  .sort(function(a,b){if(f==="done")return String(b.r.tosOk.t||"").localeCompare(String(a.r.tosOk.t||""));return (a.dd||0)-(b.dd||0)||String(a.seq).localeCompare(String(b.seq));});}
+function tosSetF(f){TOSF=f;TOSSEL.clear();rTos();}
+function tosTog(id,on){if(on)TOSSEL.add(id);else TOSSEL.delete(id);tosBar();const t=document.querySelector('#tost tr[data-id="'+id+'"]');if(t)t.classList.toggle("sel",on);}
+function tosAll(on){tosRows(TOSF).forEach(function(o){if(on)TOSSEL.add(o.seq);else TOSSEL.delete(o.seq);});rTos();}
+function tosBar(){const n=TOSSEL.size,b=document.getElementById("tosbtn");if(!b)return;
+  if(TOSF==="need")b.innerHTML='<button class="btn" onclick="tosCopy()" title="TOS 입력용: TOS번호·완료일·점검내용·수리완료내용을 탭으로 구분해 복사">'+(n?"선택 "+n+"건":"목록 전체")+' 복사</button>'
+    +'<button class="btn d" '+(n?"":"disabled ")+'onclick="tosDel()">선택 '+n+'건 TOS 완료 → 삭제</button>';
+  else b.innerHTML='<button class="btn" '+(n?"":"disabled ")+'onclick="tosBack()">선택 '+n+'건 필요 목록으로 되돌리기</button>';
+  if(n)b.insertAdjacentHTML("beforeend",'<button class="btn" onclick="TOSSEL.clear();rTos()">선택 해제</button>');}
+function rTos(){
+  const nN=C.filter(function(o){return tosNeed(o.r);}).length,nD=C.filter(function(o){return tosDoneR(o.r);}).length;
+  document.getElementById("tosqc").innerHTML=[["need","TOS 완료처리 필요",nN,"접수관리에서 완료 저장 · TOS 미처리","qc-over"],["done","TOS 처리 완료",nD,"삭제한 건 · 되돌리기 가능","qc-done"]]
+    .map(function(x){return '<button class="qc '+x[4]+(x[0]===TOSF?" on":"")+'" onclick="tosSetF(\''+x[0]+'\')" aria-pressed="'+(x[0]===TOSF)+'"><span class="l">'+x[1]+'</span><b>'+x[2]+'</b><span class="d">'+x[3]+'</span></button>';}).join("");
+  const L=tosRows(TOSF),q=tosQ();
+  Array.from(TOSSEL).forEach(function(id){if(!L.some(function(o){return o.seq===id;}))TOSSEL.delete(id);});
+  document.getElementById("toscnt").textContent=L.length+"건";
+  document.getElementById("toshint").innerHTML=TOSF==="need"
+    ?'접수관리에서 [저장 후 A/S 이관]한 건이 자동으로 여기에 쌓입니다. TOS에서 완료 처리를 마친 건은 체크하고 <b>[TOS 완료 → 삭제]</b>를 누르세요. 삭제한 건은 \'TOS 처리 완료\'에 남아 되돌릴 수 있고, 접수관리·A/S리스트 데이터는 그대로 유지됩니다. 대기일 = 완료일부터 오늘까지.'
+    :'TOS 완료 처리 후 삭제한 기록입니다. 잘못 삭제했으면 체크 후 [필요 목록으로 되돌리기]를 누르세요.';
+  const all=L.length&&L.every(function(o){return TOSSEL.has(o.seq);});
+  let h='<thead><tr><th class="c"><input type="checkbox" '+(all?"checked":"")+' onchange="tosAll(this.checked)" aria-label="전체 선택"></th><th>TOS번호</th><th>장비</th><th class="c">완료일</th>'+(TOSF==="need"?'<th class="c">대기</th>':'<th class="c">TOS 처리</th>')+'<th>점검내용</th><th>수리완료내용</th><th></th></tr></thead><tbody>';
+  L.forEach(function(o){const id=esc(o.seq),on=TOSSEL.has(o.seq),w=tosWait(o);
+    h+='<tr data-id="'+id+'" class="'+(on?"sel":"")+'">'
+     +'<td class="c"><input type="checkbox" '+(on?"checked":"")+' onchange="tosTog(\''+id+'\',this.checked)" aria-label="선택"></td>'
+     +'<td style="white-space:nowrap" data-l="TOS번호"><a href="#" onclick="showDet(\''+id+'\');return false">'+hl(o.seq,q)+'</a><div class="sub">'+fd(o.rcv)+' 접수</div></td>'
+     +'<td data-l="장비"><div class="eqn">'+hl(o.eq,q)+'</div><div class="sub cl1">'+hl(o.loc,q)+'</div></td>'
+     +'<td class="c" style="white-space:nowrap" data-l="완료일">'+(o.dd?fd(o.dd):'<span class="tag t-warn">미입력</span>')+'</td>'
+     +(TOSF==="need"?'<td class="c" data-l="대기">'+(w==null?"":'<span class="'+(w>3?"over":"")+'">'+w+'일</span>')+'</td>'
+       :'<td class="c" style="white-space:nowrap" data-l="TOS 처리">'+esc(o.r.tosOk.at||"")+'</td>')
+     +'<td data-l="점검내용"><div class="cl">'+(o.insp?hl(o.insp,q):'<span class="muted">-</span>')+'</div></td>'
+     +'<td data-l="수리완료내용"><div class="cl">'+(o.rdone?hl(o.rdone,q):'<span class="muted">-</span>')+'</div></td>'
+     +'<td class="act" style="white-space:nowrap">'+(TOSF==="need"
+        ?'<button class="btn sm" onclick="tosCopy(\''+id+'\')">복사</button> <button class="btn sm d" onclick="tosDel(\''+id+'\')">TOS 완료 → 삭제</button>'
+        :'<button class="btn sm" onclick="tosBack(\''+id+'\')">되돌리기</button>')+'</td></tr>';});
+  if(!L.length)h+='<tr><td colspan="8" class="muted" style="text-align:center;padding:28px">'+(TOSF==="need"?"TOS에서 완료 처리할 건이 없습니다.":"TOS 처리 완료 기록이 없습니다.")+'</td></tr>';
+  document.getElementById("tost").innerHTML=h+'</tbody>';tosBar();}
+function tosIds(id){return id?[id]:Array.from(TOSSEL);}
+function tosDel(id){const ids=tosIds(id).filter(function(x){return tosNeed(findRec(x));});if(!ids.length){toast("삭제할 건을 선택하세요.");return;}
+  if(!confirm((ids.length===1?"TOS "+ids[0]:ids.length+"건")+"을(를) TOS에서 완료 처리하셨나요?\n\n[확인]을 누르면 'TOS 완료처리 필요' 목록에서 삭제합니다.\n· 접수관리·A/S리스트 데이터는 그대로 남습니다.\n· 'TOS 처리 완료' 탭에서 되돌릴 수 있습니다."))return;
+  const n=new Date(),at=fd(today());ids.forEach(function(x){const r=findRec(x);if(r)r.tosOk={at:at,t:n.toISOString()};TOSSEL.delete(x);});
+  save();recompute();hdr();rTos();toast("TOS 완료 처리 "+ids.length+"건을 목록에서 삭제했습니다. 남은 건: "+tosCount()+"건");}
+function tosBack(id){const ids=tosIds(id).filter(function(x){return tosDoneR(findRec(x));});if(!ids.length){toast("되돌릴 건을 선택하세요.");return;}
+  if(!confirm(ids.length+"건을 'TOS 완료처리 필요' 목록으로 되돌릴까요?"))return;
+  ids.forEach(function(x){const r=findRec(x);if(r)delete r.tosOk;TOSSEL.delete(x);});
+  save();recompute();hdr();rTos();toast(ids.length+"건을 TOS 완료처리 필요 목록으로 되돌렸습니다.");}
+function tosClip(txt,msg){const ok=function(){toast(msg);};
+  const fb=function(){const t=document.createElement("textarea");t.value=txt;t.style.position="fixed";t.style.opacity="0";document.body.appendChild(t);t.select();try{document.execCommand("copy");ok();}catch(e){toast("복사하지 못했습니다.");}t.remove();};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(ok,fb);else fb();}
+function tosCopy(id){let L=tosRows("need");if(id)L=L.filter(function(o){return o.seq===id;});else if(TOSSEL.size)L=L.filter(function(o){return TOSSEL.has(o.seq);});
+  if(!L.length){toast("복사할 건이 없습니다.");return;}
+  const cl=function(v){return String(v==null?"":v).replace(/[\t\r\n]+/g," ").trim();};
+  const txt=L.map(function(o){return [o.seq,o.dd?fd(o.dd):"",cl(o.insp),cl(o.rdone)].join("\t");}).join("\n");
+  tosClip(txt,L.length===1?"TOS "+L[0].seq+" 내용을 복사했습니다 (TOS번호·완료일·점검내용·수리완료내용).":L.length+"건을 복사했습니다 (TOS번호·완료일·점검내용·수리완료내용).");}
+(function(){const q=document.getElementById("tosq");if(q)q.addEventListener("input",deb(function(){rTos();},200));})();
+const _render59=render;
+render=function(p){if(p==="tos"){recompute();hdr();rTos();return;}_render59(p);};
+/* 접수관리로 되돌리거나 A/S 행을 지워 이관이 풀린 건은 TOS 처리 기록도 함께 정리 */
+function tosClean(){let ch=0;S.recs.forEach(function(r){if(!r.asMv&&r.tosOk){delete r.tosOk;ch++;}});if(ch)save();}
+const _asUnmove59=asUnmove;asUnmove=function(id){_asUnmove59(id);tosClean();if(CUR==="tos")rTos();hdr();};
+const _asDel59=asDel;asDel=function(){_asDel59();tosClean();hdr();};
+/* 완료 저장 시 안내 */
+const _rpSave59=rpSave;
+rpSave=function(){const b=tosCount(),res=_rpSave59(),a=tosCount();
+  if(a>b)setTimeout(function(){toast("TOS 완료처리 필요 목록에 올렸습니다 · TOS에서도 완료 처리하세요 (대기 "+a+"건)");},2600);
+  return res;};
+const _hdr59=hdr;hdr=function(){_hdr59();try{const e=document.getElementById("nb-tos");if(e){const n=tosCount();e.textContent=n?n:"";e.className=n?"nb r":"nb";e.title=n?"TOS 완료처리 필요 "+n+"건":"";}
+  const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v5\.\d 웹 UI/,"v5.9 웹 UI");}catch(e){}};
 /* 부팅: 클라우드를 먼저 받은 뒤 저장을 연다 */
 function ldjAfterBoot(){LDJ_BOOTED=true;const s=ldjState();
   if(ldjHas()){LDJ_OK=true;ldjReload();}
