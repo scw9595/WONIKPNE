@@ -25,7 +25,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos/_lges_dj_fault";   /* [v5.8.1] 기존 규칙이 허용하는 wonikpne_tos 아래 하위 경로 (v16 데이터와 섞이지 않음: v16은 _ 로 시작하는 항목을 무시) */
-window.APP_VER = "LGES-v5.9";   /* 기기별 버전 확인용 */
+window.APP_VER = "LGES-v6.1";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -1208,6 +1208,49 @@ button.tag{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600}
 #p-as .astop.on{display:inline-block}
 @media(max-width:760px){#p-as .tw.cw{height:auto;min-height:0}#p-as .astop{position:fixed;right:12px;bottom:12px;margin:0;float:none}}
 @media print{#p-as .tw.cw{height:auto!important}#p-as .astop{display:none!important}}
+
+/* v6.0 점검요청서 작업자 입력 */
+.wkbar{align-items:center;flex-wrap:wrap;gap:8px;border:1px solid var(--ln);border-left:3px solid var(--red);border-radius:6px;padding:8px 10px;margin-bottom:10px}
+.wkbar input{height:32px}
+.wkbar .wkst{font-size:13px}.wkbar .wkst.dirty{color:var(--warn);font-weight:700}
+.wkth{display:block;font-size:10px;font-weight:400;opacity:.8}
+.dlist td textarea.wkin{width:100%;min-height:54px;border:1px solid #E0C766;background:#FFFBE6;color:#1D1D22;font:inherit;font-size:12px;padding:3px 4px;resize:vertical;box-sizing:border-box}
+.dlist td input.wkin{width:100%;border:1px solid #E0C766;background:#FFFBE6;color:#1D1D22;font:inherit;font-size:12px;padding:3px 4px;box-sizing:border-box}
+.dlist tr.wkd td{background:#FFF4D6!important}.dlist tr.wkd td:first-child{box-shadow:inset 3px 0 0 #E8A100}
+.dlist .wkmeta{font-size:10px;color:#2E7D32;margin-top:2px}.dlist .wklock{font-size:11px;color:#777}
+.dlist .wkpv{display:none;white-space:pre-wrap}
+.dlist .wksn0{font-size:10px;color:#888;margin-top:2px}
+@media print{.dlist .wkin{display:none!important}.dlist .wkpv{display:block!important}.dlist .wksn0,.dlist .wkmeta{display:none}.dlist tr.wkd td{background:#fff!important;box-shadow:none!important}}
+.wknote{border:1px solid var(--ln);border-left:3px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:13px}
+
+/* v6.1 점검요청서 카드형 작업자 입력 */
+#p-req .wkbar{display:flex;position:sticky;top:56px;z-index:20;background:var(--sf)}
+.wkby{display:flex;align-items:center;gap:6px;font-weight:700}.wkby input{width:130px}
+.wkfil{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.wkprog{width:140px;height:8px;background:var(--sf2);border:1px solid var(--ln);border-radius:4px;overflow:hidden}.wkprog i{display:block;height:100%;width:0;background:var(--ok)}
+.wkcards{display:flex;flex-direction:column;gap:10px}
+.wkc{background:var(--sf);border:1px solid var(--ln);border-left:4px solid var(--g3);border-radius:8px;padding:10px 14px}
+.wkc.s-no{border-left-color:var(--red)}.wkc.s-dr{border-left-color:var(--warn);background:var(--warnl)}.wkc.s-in{border-left-color:var(--ok)}.wkc.s-mv{opacity:.72}
+.wkc-h{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-bottom:6px}
+.wkno{min-width:24px;height:22px;line-height:22px;text-align:center;border-radius:4px;background:var(--sf2);font-size:12px;font-weight:700;color:var(--fg2)}
+.wkid{font-size:15px}.wkeq{font-weight:600}
+.wkc-r{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px}
+.wkc-q{background:var(--sf2);border-radius:6px;padding:6px 10px;margin-bottom:8px}.wkc-q .tx{white-space:pre-wrap}
+.wkc .lh{display:block;font-size:12px;font-weight:700;color:var(--fg2);margin-bottom:3px}
+.wkc-g{display:grid;grid-template-columns:1fr 1fr 250px;gap:10px}
+.wkc-g textarea.wkin{width:100%;min-height:64px;resize:vertical;background:var(--yl);line-height:1.45;display:block}
+.wkc-g input{width:100%}.wkc-g input.wkin{background:var(--yl)}
+.wkc-g.ro .pre{white-space:pre-wrap;min-height:20px}
+.wkchips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;align-items:center;font-size:11px}
+.wkchip{border:1px solid var(--ln);background:var(--sf);color:var(--fg2);border-radius:4px;padding:2px 7px;font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
+.wkchip:hover{border-color:var(--red);color:var(--red)}.wkchip.tos{margin-top:5px;font-weight:600}
+.wksn0{font-size:12px;color:var(--fg2);margin-top:5px}
+.wkc-f{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px}
+.t-no{background:var(--redl);color:var(--red)}
+.wkempty{padding:36px 16px;text-align:center;border:1px dashed var(--ln);border-radius:8px;color:var(--fg2);background:var(--sf)}
+@media(max-width:1000px){.wkc-g{grid-template-columns:1fr}.wkc-r{margin-left:0;width:100%}}
+@media(max-width:760px){.wkc-g textarea,.wkc-g input,.wkby input,#wkq{font-size:16px}.wkc{padding:10px}.wkc-f .btn.p{flex:1;padding:10px}.wkprog{display:none}}
+@media print{#p-req .wkc{break-inside:avoid}.wkchips,.wkchip,.wkc-f button{display:none!important}}
 </style></head><body>
 <div class="app">
 <aside id="side" aria-label="메뉴"><div class="brand"><span class="lg">LG Energy Solution</span><div class="t">대전 고장접수<br>관리 시스템</div><div class="s">Fault Report &amp; Inspection</div></div>
@@ -1248,7 +1291,7 @@ button.tag{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600}
  </div>
  <div class="mhint muted np">행을 누르면 고장내용·점검내용 전체가 펼쳐집니다. 왼쪽 색 띠: <i class="lg-bad"></i>7일 초과 <i class="lg-warn"></i>4~7일 <i class="lg-ok"></i>3일 이내</div>
  <div class="tw cw"><table id="mt" class="cards mlist"></table></div>
- <div class="selbox np"><b>점검요청 선택 <span id="scnt">0</span>/30</b><div class="chips" id="chips"></div><button class="btn p" onclick="go('req')">▶ 점검요청서 작성</button></div>
+ <div class="selbox np"><b>점검요청 선택 <span id="scnt">0</span>/30</b><div class="chips" id="chips"></div><button class="btn p" onclick="go('req')">▶ 점검요청서로 보내기</button></div>
 </section>
 <!-- 접수관리 -->
 <section class="page" id="p-rec">
@@ -1268,23 +1311,11 @@ button.tag{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600}
 </section>
 <!-- 점검요청서 -->
 <section class="page" id="p-req">
- <div class="toolbar np"><button class="btn" onclick="go('main')">◀ 메인화면에서 대상 선택</button><button class="btn p" onclick="window.print()">인쇄 / PDF 저장</button><button class="btn" onclick="clearReqForm()">입력값 초기화</button><span class="muted">인쇄 대화상자에서 「PDF로 저장」 선택 시 PDF로 저장됩니다. (A4 가로)</span></div>
- <div class="docwrap"><div id="doc">
-  <div class="dh"><div><h1>설비 점검 요청서</h1><div class="sub">LG Energy Solution · 대전 사업장 고장접수시스템</div></div>
-   <table class="appr"><tr><td class="t" rowspan="2">결재</td><td>담 당</td><td>검 토</td><td>승 인</td></tr><tr><td></td><td></td><td></td></tr></table></div>
-  <table class="dinfo">
-   <tr><td class="k">문서번호</td><td id="dno"></td><td class="k">작 성 일</td><td id="ddt"></td></tr>
-   <tr><td class="k">수 신</td><td><input data-f="to"></td><td class="k">발 신</td><td><input data-f="from"></td></tr>
-   <tr><td class="k">요 청 자</td><td><input data-f="who"></td><td class="k">연 락 처</td><td><input data-f="tel"></td></tr>
-   <tr><td class="k">요청 건수</td><td id="dcnt"></td><td class="k">점검 희망일</td><td><input data-f="wish" type="date"></td></tr>
-   <tr><td class="k">요청 사항</td><td colspan="3"><textarea data-f="req" rows="2"></textarea></td></tr>
-  </table>
-  <div style="display:flex;justify-content:space-between;margin:6px 0"><b>■ 점검 대상 목록</b><span class="muted">메인화면에서 선택한 순서대로 표시</span></div>
-  <table class="dlist"><thead><tr><th style="width:34px">No</th><th style="width:90px">TOS번호</th><th style="width:110px">장비명</th><th>장비위치</th><th>고장내용</th><th>점검내용</th><th style="width:110px">채널</th><th style="width:78px">접수일</th><th style="width:56px">상태</th><th style="width:48px">경과(일)</th><th style="width:110px">비고</th></tr></thead><tbody id="dl"></tbody></table>
-  <div class="dfoot">위와 같이 설비 점검을 요청하오니 확인 후 조치하여 주시기 바랍니다.<br><span id="dday"></span><br><span id="dsign"></span></div>
- </div>
- </div>
- <div class="pf">LG Energy Solution · 대전 사업장 고장접수시스템 · 설비 점검 요청서</div>
+ <h2>점검요청서 <span class="muted" style="font-weight:400">메인화면에서 보낸 건 · 작업자가 점검내용·수리내용·S/N 입력 → 저장하면 메인화면·접수관리에 바로 반영</span></h2>
+ <div class="wkbar np" id="wkbar"></div>
+ <div class="wkfil np"><div class="seg" id="wkseg"></div><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="wkq" placeholder="TOS번호·장비·위치 검색" style="width:220px" aria-label="검색"></div><span style="flex:1"></span><div class="wkprog" title="입력됨 + 완료 / 전체"><i id="wkpb"></i></div><span class="muted" id="wkpt"></span><button class="btn sm" onclick="go('main')">+ 대상 추가 (메인화면)</button></div>
+ <div class="wkcards" id="wkcards"></div>
+ <div class="mhint muted np" style="margin-top:10px">Ctrl+Enter = 이 건 저장하고 다음 건으로 · Ctrl+S = 저장 안 된 건 모두 저장 · 저장 전 입력값은 이 기기에 임시 보관되어 화면을 나갔다 와도 남아 있습니다.</div>
 </section>
 <!-- 작업완료보고서 -->
 <section class="page" id="p-rpt">
@@ -1357,7 +1388,7 @@ button.tag{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600}
 <h3>1. 기본 흐름</h3>
 <b>① 접수</b> — 접수관리 → 「TOS 데이터 붙여넣기」에서 TOS 엑셀의 데이터 행(A~AE열)을 복사해 붙여넣습니다. 이미 있는 TOS번호는 자동으로 건너뜁니다.<br>
 <b>② 현황 확인</b> — 메인화면 위쪽 카드(진행중·7일 초과·점검내용 미입력·완료·전체)로 목록을 거릅니다. 행 왼쪽 색 띠는 처리 시급도입니다.<br>
-<b>③ 점검 요청</b> — 메인화면 체크박스로 대상을 고르고(최대 30건) 점검요청서에서 노란 칸을 채운 뒤 「인쇄 / PDF 저장」을 누릅니다.<br>
+<b>③ 점검 요청</b> — 메인화면 체크박스로 대상을 고르고(최대 30건) 점검요청서로 보내면 작업자가 건별 입력칸에 점검내용·수리내용·S/N을 입력하고 저장합니다. 저장한 내용은 메인화면·접수관리에 반영되고, 관리자가 접수관리에서 확인한 뒤 완료 처리합니다.<br>
 <b>④ 완료 처리</b> — 접수관리에서 건을 고르고 오른쪽 입력창의 ① 완료 처리 · ② 작업 내용 · ③ 자재·비용을 입력합니다. ↑ ↓ 키로 다음 건으로 넘어갑니다.<br>
 <b>⑤ 작업완료보고서</b> — 작업완료보고서 메뉴에서 정산월(또는 기간)을 고르면 완료건이 자동으로 채워집니다. Comp. 압력과 사진을 넣고 인쇄 / PDF 또는 엑셀로 내보냅니다.<br>
 <b>⑤-1 TOS 완료처리</b> — 접수관리에서 완료 저장한 건은 「TOS 완료처리」 메뉴에 쌓입니다. TOS에서도 완료 처리한 뒤 체크하고 [TOS 완료 → 삭제]를 누르세요. 삭제한 건은 「TOS 처리 완료」 탭에서 되돌릴 수 있습니다.<br>
@@ -1663,7 +1694,7 @@ const SVG=function(p){return '<svg viewBox="0 0 24 24" fill="none" stroke="curre
 const PG={
   home:["홈","대시보드 · 현황 요약",'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>'],
   main:["메인화면","고장접수 현황 · 점검요청 대상 선택",'<path d="M4 6h16M4 12h16M4 18h10"/>'],
-  req:["점검요청서","선택 건 요청서 작성 · 인쇄",'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>'],
+  req:["점검요청서","작업자 점검내용·수리내용·S/N 입력",'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>'],
   rec:["접수관리","TOS 붙여넣기 · 완료 처리 입력",'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'],
   eq:["장비마스터","S/N · 자산번호 기준표",'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/>'],
   cfg:["설정","기본값 · 백업 · 분류표",'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'],
@@ -2902,6 +2933,242 @@ rpSave=function(){const b=tosCount(),res=_rpSave59(),a=tosCount();
   return res;};
 const _hdr59=hdr;hdr=function(){_hdr59();try{const e=document.getElementById("nb-tos");if(e){const n=tosCount();e.textContent=n?n:"";e.className=n?"nb r":"nb";e.title=n?"TOS 완료처리 필요 "+n+"건":"";}
   const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v5\.\d 웹 UI/,"v5.9 웹 UI");}catch(e){}};
+
+/* ===== v6.0 점검요청서 작업자 입력 =====
+   · 점검요청서에서 작업자가 점검내용(insp)·수리내용(rdone)·S/N(sn)을 입력 → [작업 내용 저장] → 접수 1건(ldj_r_)에 기록
+     → 메인화면·접수관리에 바로 반영(클라우드 공유) · r.wk={by,at,f,ok} 로 '작업자 입력' 표시 → 접수관리에서 확인 후 완료 처리
+   · 저장 전 입력값은 이 기기에만 임시 보관(S.wkd) · 작업자 이름(S.wkBy)도 이 기기에만 보관
+   · 점검요청 대상 목록(sel)과 요청서 머리칸(form)은 ldj_req 로 모든 기기에 공유 → 작업자 휴대폰에서도 같은 요청서가 보임 */
+LDJ_LOC_F.push("wkd","wkBy");
+const LDJ_REQ=LDJ+"req";
+const WK_F=["insp","rdone","sn"],WK_N={insp:"점검내용",rdone:"수리내용",sn:"S/N"};
+function wkReqApply(s){let v=null;try{v=localStorage.getItem(LDJ_REQ);}catch(e){}if(v==null)return s;
+  LDJ_LAST[LDJ_REQ]=v;let o=null;try{o=JSON.parse(v);}catch(e){}
+  if(o){if(Array.isArray(o.sel))s.sel=o.sel;if(o.form&&typeof o.form==="object")s.form=o.form;}
+  if(!s.form||typeof s.form!=="object")s.form={};if(!s.form.note||typeof s.form.note!=="object")s.form.note={};
+  return s;}
+const _load60=load;
+load=function(){const s=_load60();wkReqApply(s);if(!s.wkd||typeof s.wkd!=="object")s.wkd={};return s;};
+const _save60=save;
+save=function(){_save60();if(!LDJ_OK)return;
+  try{const v=JSON.stringify({sel:S.sel||[],form:S.form||{}});if(LDJ_LAST[LDJ_REQ]!==v){localStorage.setItem(LDJ_REQ,v);LDJ_LAST[LDJ_REQ]=v;}}catch(e){}};
+wkReqApply(S);if(!S.wkd||typeof S.wkd!=="object")S.wkd={};
+function wkLocal(){try{const loc=JSON.parse(localStorage.getItem(LDJ_LOCAL)||"{}")||{};loc.wkd=S.wkd;loc.wkBy=S.wkBy||"";localStorage.setItem(LDJ_LOCAL,JSON.stringify(loc));}catch(e){}}
+const wkLocalD=deb(wkLocal,300);
+/* S/N: 작업자·현장 확인값(r.sn)이 있으면 장비마스터 값보다 우선 */
+function snMaster(o){return o.ei>=0?String(S.eq[o.ei].sn||"").trim():"";}
+const _calc60=calc;
+calc=function(r){const o=_calc60(r);o.snM=snMaster(o);const v=String(r.sn==null?"":r.sn).trim();if(v){o.sn=v;o.snIn=true;}return o;};
+const _asMvRow60=asMvRow;
+asMvRow=function(o){const m=_asMvRow60(o),v=String(o.r.sn==null?"":o.r.sn).trim();
+  if(v){m.v[AC("O")]=v;m.sn=v;m.w=v+"|"+(o.rcv?fd(o.rcv):"");}return m;};
+asAutoList=function(){const a=S.cfg.as,from=pd(a.from),keys=asKeySet(),out=[];
+  C.forEach(function(o){if(!o.rcv||o.r.asMv)return;const sn=String(o.r.sn||"").trim()||snMaster(o);if(!sn)return;
+    if(from&&o.rcv<from)return;if(a.timing==="완료 후"&&o.st!=="완료")return;if(keys.has(sn+"|"+fd(o.rcv)))return;
+    const x=o.r.as||{},v=new Array(42).fill("");
+    const put=function(L,val){v[AC(L)]=val==null?"":String(val);};
+    put("A",o.r.cost||"");put("D",a.reg);put("E",a.recv);put("F",a.method);put("G",a.grade);put("J",a.sido);put("K",a.region);put("L",a.cust);put("N",a.cs);put("AB",a.staff);
+    Object.keys(x).forEach(function(L){if(x[L]!==""&&x[L]!=null&&AS_COMP.indexOf(L)<0&&AS_LINK.indexOf(L)<0)put(L,x[L]);});
+    put("H",fd(o.rcv));put("I",o.st==="완료"?fd(o.dd):"");put("O",sn);put("U",o.cont);put("AA",o.rdone);
+    out.push({k:"a:"+o.seq,auto:true,id:o.seq,raw:v});});
+  return out;};
+/* 작업자 입력 표시 */
+function wkMark(r){return !!(r&&r.wk&&!r.wk.ok&&!r.asMv);}
+function wkInfo(r){const w=r.wk||{};return (w.by?w.by+" · ":"")+(w.at||"")+((w.f&&w.f.length)?" ("+w.f.map(function(f){return WK_N[f]||f;}).join("·")+")":"");}
+function wkNow(){const n=new Date();return fd(n)+" "+String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0");}
+/* 임시 입력 */
+function wkDraftN(){return Object.keys(S.wkd||{}).filter(function(id){const d=S.wkd[id];return d&&Object.keys(d).length;}).length;}
+function wkVal(r,f){const d=S.wkd[r.id];if(d&&d[f])return d[f].v;return r[f]==null?"":String(r[f]);}
+function wkIn(el){const id=el.dataset.id,f=el.dataset.wf,r=findRec(id);if(!r)return;const v=el.value,cur=r[f]==null?"":String(r[f]);
+  const d=S.wkd[id]=S.wkd[id]||{};
+  if(d[f]){if(v===d[f].b)delete d[f];else d[f].v=v;}else if(v!==cur)d[f]={v:v,b:cur};
+  if(!Object.keys(d).length)delete S.wkd[id];
+  const pv=el.parentNode.querySelector(".wkpv");if(pv)pv.textContent=v||(f==="insp"?String(r.t[T.inspT]||""):"");
+  const tr=el.closest("tr");if(tr)tr.classList.toggle("wkd",!!S.wkd[id]);
+  wkLocalD();wkBarUI();}
+function wkBarUI(){const n=wkDraftN(),st=document.getElementById("wkst"),b=document.getElementById("wkSave"),u=document.getElementById("wkUndo");if(!st)return;
+  if(n){st.textContent="저장하지 않은 입력 "+n+"건 · 이 기기에 임시 보관 중";st.className="wkst dirty";}
+  else{st.textContent=S.wkLast?"저장됨 "+S.wkLast+" · 메인화면·접수관리에 반영":"노란 칸에 입력한 뒤 [작업 내용 저장]을 누르세요 (Ctrl+S)";st.className="wkst muted";}
+  if(b){b.disabled=!n;b.textContent="작업 내용 저장"+(n?" ("+n+"건)":"");}if(u)u.disabled=!n;}
+function wkBar(){const e=document.getElementById("wkbar");if(!e)return;
+  e.innerHTML='<b>작업자 입력</b><label style="display:flex;align-items:center;gap:6px">작업자 <input id="wkby" placeholder="이름" style="width:110px" value="'+esc(S.wkBy||"")+'" oninput="S.wkBy=this.value;wkLocalD()"></label>'
+   +'<button class="btn p" id="wkSave" onclick="wkSave()">작업 내용 저장</button><button class="btn sm" id="wkUndo" onclick="wkUndo()">입력 취소</button>'
+   +'<span id="wkst" class="wkst muted"></span>'
+   +'<span class="muted" style="flex-basis:100%;font-size:12px">점검내용·수리내용·S/N을 입력하고 저장하면 메인화면과 접수관리에 바로 반영됩니다. 완료 처리는 관리자가 접수관리에서 내용을 확인한 뒤 합니다.</span>';
+  wkBarUI();}
+function wkUndo(){const n=wkDraftN();if(!n)return;if(!confirm("저장하지 않은 입력 "+n+"건을 버릴까요?"))return;S.wkd={};wkLocal();rReq();toast("입력을 취소했습니다.");}
+function wkSave(only){const ae=document.activeElement;if(ae&&ae.classList&&ae.classList.contains("wkin"))ae.blur();
+  wkLocal();
+  const ids=Object.keys(S.wkd||{}).filter(function(id){return S.wkd[id]&&Object.keys(S.wkd[id]).length&&(!only||String(id)===String(only));});
+  if(!ids.length){toast("저장할 입력이 없습니다.");return true;}
+  const by=String(S.wkBy||"").trim();
+  if(!by){alert("작업자 이름을 입력하세요.\n접수관리에서 누가 입력했는지 확인할 때 쓰입니다.");const i=document.getElementById("wkby");if(i)i.focus();return false;}
+  if(!LDJ_OK){toast("클라우드 데이터를 아직 받지 못해 저장할 수 없습니다. 입력값은 이 기기에 남아 있습니다.");return false;}
+  if(LDJ_RQ){LDJ_RQ=false;clearTimeout(LDJ_RT);S=load();}       /* 다른 기기 변경을 먼저 받아 덮어쓰기 방지 */
+  const conf=[],lock=[],gone=[];
+  ids.forEach(function(id){const r=findRec(id),d=S.wkd[id];if(!r){gone.push(id);return;}if(r.asMv){lock.push(id);return;}
+    Object.keys(d).forEach(function(f){const cur=r[f]==null?"":String(r[f]);if(cur!==d[f].b&&cur!==d[f].v)conf.push("TOS "+id+" "+WK_N[f]);});});
+  let msg="";
+  if(conf.length)msg+="입력하는 사이 다른 기기에서 아래 내용이 바뀌었습니다. 저장하면 지금 입력한 값으로 바뀝니다.\n- "+conf.join("\n- ")+"\n\n";
+  if(lock.length)msg+="이미 완료 처리(A/S 이관)된 건은 저장하지 않습니다: TOS "+lock.join(", ")+"\n\n";
+  if(msg&&!confirm(msg+"계속 저장할까요?"))return false;
+  let n=0;const at=wkNow();
+  ids.forEach(function(id){const r=findRec(id),d=S.wkd[id];if(!r||r.asMv)return;const fs=[];
+    Object.keys(d).forEach(function(f){r[f]=d[f].v;fs.push(f);});
+    if(fs.length){const old=(r.wk&&!r.wk.ok&&Array.isArray(r.wk.f))?r.wk.f:[];r.wk={by:by,at:at,f:WK_F.filter(function(f){return fs.indexOf(f)>=0||old.indexOf(f)>=0;}),ok:false};n++;}
+    delete S.wkd[id];});
+  gone.forEach(function(id){delete S.wkd[id];});lock.forEach(function(id){delete S.wkd[id];});
+  S.wkLast=rpNow();save();recompute();hdr();rReq();
+  toast(n+"건 저장했습니다 · 메인화면·접수관리에 반영됐습니다.");return true;}
+/* 점검요청서 화면 */
+rReq=function(){const m={};C.forEach(function(o){m[o.seq]=o;});const L=S.sel.map(function(x){return m[x];}).filter(Boolean);const t=today();
+  document.getElementById("dno").textContent="DJ-INS-"+fd(t).replace(/-/g,"");document.getElementById("ddt").textContent=fd(t);document.getElementById("dcnt").textContent=L.length+" 건";
+  S.form=S.form||{};document.querySelectorAll("#p-req [data-f]").forEach(function(e){e.value=S.form[e.dataset.f]||"";e.oninput=function(){S.form[e.dataset.f]=e.value;save();sign();};});
+  S.form.note=S.form.note||{};
+  let h="";L.forEach(function(o,i){const r=o.r,id=esc(o.seq),mv=!!r.asMv,dr=!!S.wkd[r.id];
+    const tosI=String(r.t[T.inspT]||"").trim();
+    const cell=function(f,rows,ph){const v=wkVal(r,f),pv=v||(f==="insp"?tosI:"");
+      if(mv)return '<div style="white-space:pre-wrap">'+esc(f==="sn"?o.sn:(f==="insp"?o.insp:o.rdone))+'</div>';
+      return (rows?'<textarea class="wkin" rows="'+rows+'" data-id="'+id+'" data-wf="'+f+'" placeholder="'+esc(ph)+'" oninput="wkIn(this)">'+esc(v)+'</textarea>'
+                  :'<input class="wkin" data-id="'+id+'" data-wf="'+f+'" placeholder="'+esc(ph)+'" value="'+esc(v)+'" oninput="wkIn(this)">')
+        +'<div class="wkpv">'+esc(pv)+'</div>';};
+    const snPh=o.snM?o.snM:(o.ei>=0?"S/N 확인불가":"장비 미등록");
+    h+='<tr class="'+(dr?"wkd":"")+'" data-id="'+id+'"><td class="c">'+(i+1)+'</td><td class="c">'+id
+     +(mv?'<div class="wklock">완료(A/S 이관)</div>':(r.wk&&!r.wk.ok?'<div class="wkmeta">입력 '+esc(r.wk.by||"")+'</div>':''))+'</td>'
+     +'<td>'+esc(o.eq)+'</td><td>'+esc(o.loc)+(o.ch?'<div class="sub" style="font-size:11px;color:#666">'+esc(o.ch)+'</div>':'')+'</td>'
+     +'<td style="white-space:pre-wrap">'+esc(o.cont)+'</td>'
+     +'<td>'+cell("insp",3,tosI?"TOS: "+tosI:"점검 결과")+'</td>'
+     +'<td>'+cell("rdone",3,"수리·조치 내용")+'</td>'
+     +'<td>'+cell("sn",0,snPh)+(mv?'':'<div class="wksn0">'+(o.snM?"장비마스터: "+esc(o.snM):"장비마스터에 S/N 없음")+'</div>')+'</td>'
+     +'<td class="c">'+fd(o.rcv)+'<div class="'+(o.el>7?"over":"")+'">'+(o.el!=null?"("+o.el+"일)":o.lt!=null?"(LT "+o.lt+")":"")+'</div></td>'
+     +'<td><input value="'+esc(S.form.note[o.seq]||"")+'" oninput="S.form.note[\''+id+'\']=this.value;save()"></td></tr>';});
+  document.getElementById("dl").innerHTML=h||'<tr><td colspan="10" style="text-align:center;padding:24px;color:#999">선택된 대상이 없습니다. 메인화면에서 체크박스로 선택하세요.</td></tr>';
+  document.getElementById("dday").textContent=t.getFullYear()+"년 "+(t.getMonth()+1)+"월 "+t.getDate()+"일";sign();wkBar();};
+const _go60=go;go=function(p){if(CUR==="req"&&p!=="req"&&wkDraftN()){
+    if(confirm("점검요청서에 저장하지 않은 작업 입력 "+wkDraftN()+"건이 있습니다.\n\n[확인] 저장하고 이동\n[취소] 저장하지 않고 이동 (입력값은 이 기기에 남아 있어 다시 오면 이어서 입력 가능)")){if(!wkSave())return;}}
+  _go60(p);};
+document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&(e.key==="s"||e.key==="S")&&CUR==="req"){e.preventDefault();wkSave();}});
+/* 접수관리: 작업자 입력 표시 · S/N 입력칸 · '작업자 입력' 탭 */
+RD_F.push("sn");
+RSEG.splice(1,0,["wk","작업자 입력"]);
+const _rf60=recFilt;recFilt=function(o,st,q){if(st==="wk")return wkMark(o.r)&&_rf60(o,"all",q);return _rf60(o,st,q);};
+const _rl60=rRecList;rRecList=function(){_rl60();
+  document.querySelectorAll("#rt tr.rr").forEach(function(tr){const r=findRec(tr.dataset.id);if(!wkMark(r))return;const td=tr.children[1];
+    if(td&&!td.querySelector(".wktag"))td.insertAdjacentHTML("beforeend",' <span class="tag t-warn wktag" title="'+esc("점검요청서 작업자 입력 · "+wkInfo(r))+'">작업자 입력</span>');});};
+const _rpd60=rpDecorate;
+rpDecorate=function(r){const P=document.getElementById("rpanel");
+  if(P&&r&&!r.asMv){const B=P.querySelector(".rp-b"),id=esc(r.id);
+    if(B){const secs=B.querySelectorAll(".rp-sec");const s2=secs.length>2?secs[2]:null;   /* ② 작업 내용 */
+      const o=C.find(function(x){return x.seq===r.id;})||calc(r),ph=o.snM?"장비마스터: "+o.snM:"장비마스터에 S/N 없음 · 현장 S/N 입력";
+      const fld='<label class="fl"><span class="lh">S/N <span class="muted" style="font-weight:400">(비우면 장비마스터 값 사용 · A/S리스트 O열)</span></span><input class="yl" value="'+esc(rdv(r,"sn"))+'" placeholder="'+esc(ph)+'" onchange="recSet(\''+id+'\',\'sn\',this.value)"></label>';
+      if(s2)s2.insertAdjacentHTML("beforeend",fld);
+      if(wkMark(r))B.insertAdjacentHTML("afterbegin",'<div class="wknote"><b>점검요청서 작업자 입력</b> · '+esc(wkInfo(r))+'<div class="muted" style="margin-top:2px">아래 내용을 확인하고 고칠 곳은 고친 뒤 ① 완료 처리 → [저장 후 A/S 이관]을 누르세요.</div><button class="btn sm" style="margin-top:6px" onclick="wkOk(\''+id+'\')">확인함 (표시 지우기)</button></div>');}}
+  _rpd60(r);};
+function wkOk(id){const r=findRec(id);if(!r||!r.wk)return;if(rdDirty()&&RD&&RD.id===id&&!rpSave())return;r.wk.ok=true;r.wk.okAt=wkNow();save();recompute();hdr();rRecList();rPanel();toast("TOS "+id+" 작업자 입력을 확인했습니다.");}
+/* 메인화면: 작업자 입력 표시 · 수리내용 한 줄 */
+const _rMain60=rMain;rMain=function(){_rMain60();
+  document.querySelectorAll("#mt tr.mr").forEach(function(tr){const a=(tr.getAttribute("onclick")||"").match(/mRow\(event,'([^']+)'\)/);if(!a)return;const r=findRec(a[1]);if(!r)return;
+    const c=tr.children[5];if(!c)return;
+    if(r.rdone&&String(r.rdone).trim())c.insertAdjacentHTML("beforeend",'<div class="sub cl1" title="'+esc(r.rdone)+'">수리: '+esc(r.rdone)+'</div>');
+    if(wkMark(r))c.insertAdjacentHTML("beforeend",'<span class="tag t-warn" title="'+esc(wkInfo(r))+'">작업자 입력 · 확인 필요</span>');});};
+/* 메뉴 배지 · 버전 */
+const _hdr60=hdr;hdr=function(){_hdr60();try{
+  const e=document.getElementById("nb-rec");if(e){const n=S.recs.filter(wkMark).length;e.textContent=n?n:"";e.className=n?"nb r":"nb";e.title=n?"작업자 입력 확인 필요 "+n+"건":"";}
+  const q=document.getElementById("nb-req");if(q){const n=wkDraftN();q.textContent=n?n:"";q.className=n?"nb r":"nb";q.title=n?"저장하지 않은 작업 입력 "+n+"건":"";}
+  const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v\d\.\d+ 웹 UI/,"v6.1 웹 UI");}catch(x){}};
+
+/* ===== v6.1 점검요청서 → 카드형 작업자 입력 화면 =====
+   · 결재란·수신/발신 등 문서 양식을 없애고, 건마다 카드 1장에 고장내용(읽기) + 점검내용·수리내용·S/N(입력)
+   · 상태: 미입력 / 저장 안 됨 / 입력됨 / 완료(A/S 이관) · 필터·검색·진행률
+   · [저장하고 다음 ▶](Ctrl+Enter) = 이 건만 저장 후 다음 미입력 건으로 이동 · [전체 저장](Ctrl+S)
+   · TOS 점검내용 가져오기 · 장비마스터 S/N '같음' · 자주 쓰는 문구(기존 입력 2회 이상) 한 번에 넣기 */
+let WKF="all",WKQ="";
+sign=function(){};
+function wkHas(r){return WK_F.some(function(f){return String(r[f]==null?"":r[f]).trim()!=="";});}
+function wkStat(r){if(r.asMv)return "mv";const d=S.wkd[r.id];if(d&&Object.keys(d).length)return "dr";return wkHas(r)?"in":"no";}
+const WK_SN={mv:["완료(A/S 이관)","t-gray"],dr:["저장 안 됨","t-warn"],in:["입력됨","t-ok"],no:["미입력","t-no"]};
+function wkList(){const m={};C.forEach(function(o){m[o.seq]=o;});return (S.sel||[]).map(function(x){return m[x];}).filter(Boolean);}
+function wkPhr(f){const c={};C.forEach(function(o){const v=String((f==="insp"?o.r.insp:o.r.rdone)||"").trim();
+    if(v.length<2||v.length>40||v.indexOf("\n")>=0)return;c[v]=(c[v]||0)+1;});
+  return Object.keys(c).filter(function(k){return c[k]>=2;}).sort(function(a,b){return c[b]-c[a];}).slice(0,6);}
+function wkGrow(el){if(!el||el.tagName!=="TEXTAREA")return;el.style.height="auto";el.style.height=Math.max(64,el.scrollHeight+2)+"px";}
+function wkTop(){const L=wkList(),cnt={all:L.length,no:0,dr:0,in:0,mv:0};L.forEach(function(o){cnt[wkStat(o.r)]++;});
+  const sg=document.getElementById("wkseg");if(sg)sg.innerHTML=[["all","전체"],["no","미입력"],["dr","저장 안 됨"],["in","입력됨"],["mv","완료"]].map(function(x){
+    return '<button class="'+(WKF===x[0]?"on":"")+'" onclick="wkFilt(\''+x[0]+'\')">'+x[1]+' <i>'+cnt[x[0]]+'</i></button>';}).join("");
+  const dn=cnt.in+cnt.mv,pb=document.getElementById("wkpb"),pt=document.getElementById("wkpt");
+  if(pb)pb.style.width=(L.length?Math.round(dn/L.length*100):0)+"%";if(pt)pt.textContent=dn+" / "+L.length+"건 입력";
+  return cnt;}
+function wkFilt(f){WKF=f;rReq();}
+rReq=function(){const L=wkList();S.form=S.form||{};S.form.note=S.form.note||{};
+  const ae=document.activeElement;let fk=null;
+  if(ae&&ae.dataset&&ae.dataset.wf&&ae.closest&&ae.closest("#wkcards"))fk={id:ae.dataset.id,f:ae.dataset.wf,s:ae.selectionStart,e:ae.selectionEnd};
+  const q=WKQ.trim().toLowerCase();
+  const V=L.map(function(o,i){return {o:o,i:i};}).filter(function(x){
+    if(WKF!=="all"&&wkStat(x.o.r)!==WKF)return false;
+    if(q&&[x.o.seq,x.o.eq,x.o.loc,x.o.ch,x.o.cont].join(" ").toLowerCase().indexOf(q)<0)return false;return true;});
+  const PI=wkPhr("insp"),PR=wkPhr("rdone");
+  const chips=function(P,f){return P.length?'<div class="wkchips"><span class="muted">자주 쓰는 문구</span>'+P.map(function(v){
+    return '<button type="button" class="wkchip" data-v="'+esc(v)+'" title="'+esc(v)+'" onclick="wkAdd(this,\''+f+'\')">'+esc(v.length>18?v.slice(0,18)+"…":v)+'</button>';}).join("")+'</div>':"";};
+  let h="";
+  V.forEach(function(x){const o=x.o,r=o.r,id=esc(o.seq),st=wkStat(r),sn=WK_SN[st],tosI=String(r.t[T.inspT]||"").trim();
+    const ela=o.el!=null?'<span class="'+(o.el>7?"over":"")+'">'+o.el+'일 경과</span>':(o.lt!=null?"LT "+o.lt+"일":"");
+    h+='<article class="wkc s-'+st+'" data-id="'+id+'">'
+     +'<div class="wkc-h"><span class="wkno">'+(x.i+1)+'</span><b class="wkid">TOS '+id+'</b><span class="wkeq">'+esc(o.eq||"")+'</span>'
+     +'<span class="muted">'+esc(o.loc||"")+(o.ch?" · "+esc(o.ch):"")+'</span>'
+     +'<span class="wkc-r"><span class="muted">접수 '+(o.rcv?fd(o.rcv):"-")+(ela?" · ":"")+ela+'</span><span class="tag '+sn[1]+' wkst1">'+sn[0]+'</span></span></div>'
+     +'<div class="wkc-q"><span class="lh">고장내용</span><div class="tx">'+(esc(o.cont)||'<span class="muted">내용 없음</span>')+'</div></div>';
+    if(st==="mv"){
+      h+='<div class="wkc-g ro"><div><span class="lh">점검내용</span><div class="pre">'+esc(o.insp)+'</div></div><div><span class="lh">수리내용</span><div class="pre">'+esc(o.rdone)+'</div></div><div><span class="lh">S/N</span><div>'+esc(o.sn)+'</div></div></div>'
+       +'<div class="wkc-f muted">완료 처리(A/S 이관)된 건이라 여기서는 고칠 수 없습니다. 고치려면 접수관리에서 되돌린 뒤 수정하세요.<span style="flex:1"></span><button type="button" class="btn sm" onclick="wkDrop(\''+id+'\')">목록에서 빼기</button></div></article>';
+      return;}
+    const by=(r.wk&&r.wk.by&&!r.wk.ok)?'<span class="muted">마지막 저장: '+esc(r.wk.by)+' · '+esc(r.wk.at||"")+'</span>':"";
+    h+='<div class="wkc-g">'
+     +'<div><label class="lh" for="wi-'+id+'">점검내용</label><textarea id="wi-'+id+'" class="wkin" rows="3" data-id="'+id+'" data-wf="insp" placeholder="점검 결과 (원인·확인한 내용)" oninput="wkIn(this)">'+esc(wkVal(r,"insp"))+'</textarea>'
+       +(tosI?'<button type="button" class="wkchip tos" data-v="'+esc(tosI)+'" title="'+esc(tosI)+'" onclick="wkPut(this,\'insp\')">TOS 점검내용 가져오기</button>':'')+chips(PI,"insp")+'</div>'
+     +'<div><label class="lh" for="wr-'+id+'">수리내용</label><textarea id="wr-'+id+'" class="wkin" rows="3" data-id="'+id+'" data-wf="rdone" placeholder="수리·조치 내용 (교체 부품 등)" oninput="wkIn(this)">'+esc(wkVal(r,"rdone"))+'</textarea>'+chips(PR,"rdone")+'</div>'
+     +'<div><label class="lh" for="ws-'+id+'">S/N</label><input id="ws-'+id+'" class="wkin" autocomplete="off" data-id="'+id+'" data-wf="sn" placeholder="'+esc(o.snM?"비우면 장비마스터 값 사용":"현장 S/N 입력")+'" value="'+esc(wkVal(r,"sn"))+'" oninput="wkIn(this)">'
+       +'<div class="wksn0">'+(o.snM?'장비마스터: <b>'+esc(o.snM)+'</b> <button type="button" class="wkchip" data-v="'+esc(o.snM)+'" onclick="wkPut(this,\'sn\')">같음</button>':'장비마스터에 S/N 없음 · 명판 확인 후 입력')+'</div>'
+       +'<label class="lh" for="wn-'+id+'" style="margin-top:8px">메모 (선택)</label><input id="wn-'+id+'" placeholder="전달할 내용" value="'+esc(S.form.note[o.seq]||"")+'" oninput="S.form.note[\''+id+'\']=this.value;wkNoteD()"></div>'
+     +'</div>'
+     +'<div class="wkc-f">'+by+'<span style="flex:1"></span><button type="button" class="btn sm" onclick="wkDrop(\''+id+'\')">목록에서 빼기</button><button type="button" class="btn p" onclick="wkSaveNext(\''+id+'\')">저장하고 다음 ▶</button></div></article>';});
+  if(!L.length)h='<div class="wkempty"><b>점검요청서로 보낸 건이 없습니다.</b><br>메인화면에서 체크박스로 대상을 고른 뒤 「점검요청서로 보내기」를 누르세요.<br><button class="btn p" style="margin-top:12px" onclick="go(\'main\')">메인화면으로</button></div>';
+  else if(!V.length)h='<div class="wkempty">조건에 맞는 건이 없습니다. <button class="btn sm" onclick="WKQ=\'\';document.getElementById(\'wkq\').value=\'\';wkFilt(\'all\')">전체 보기</button></div>';
+  document.getElementById("wkcards").innerHTML=h;
+  document.querySelectorAll("#wkcards textarea.wkin").forEach(wkGrow);
+  if(fk){const el=document.querySelector('#wkcards [data-id="'+fk.id+'"][data-wf="'+fk.f+'"]');if(el){el.focus();try{el.setSelectionRange(fk.s,fk.e);}catch(x){}}}
+  wkTop();wkBar();};
+const wkNoteD=deb(function(){save();},600);
+const _wkIn61=wkIn;
+wkIn=function(el){_wkIn61(el);wkGrow(el);const c=el.closest(".wkc");if(c){const r=findRec(c.dataset.id);
+    if(r){const st=wkStat(r),sn=WK_SN[st];c.className="wkc s-"+st;const t=c.querySelector(".wkst1");if(t){t.className="tag "+sn[1]+" wkst1";t.textContent=sn[0];}}}
+  wkTop();hdr();};
+function wkField(btn,f){const c=btn.closest(".wkc");return c?c.querySelector('[data-wf="'+f+'"]'):null;}
+function wkPut(btn,f){const el=wkField(btn,f);if(!el)return;const v=btn.dataset.v||"";
+  if(el.value.trim()&&el.value.trim()!==v&&!confirm("지금 입력된 내용을 바꿀까요?"))return;el.value=v;wkIn(el);el.focus();}
+function wkAdd(btn,f){const el=wkField(btn,f);if(!el)return;const v=btn.dataset.v||"";
+  el.value=el.value.trim()?el.value.replace(/\s+$/,"")+"\n"+v:v;wkIn(el);el.focus();}
+wkBar=function(){const e=document.getElementById("wkbar");if(!e)return;
+  e.innerHTML='<label class="wkby">작업자 <input id="wkby" placeholder="이름 (필수)" value="'+esc(S.wkBy||"")+'" oninput="S.wkBy=this.value;wkLocalD()"></label>'
+   +'<span id="wkst" class="wkst muted"></span><span style="flex:1"></span>'
+   +'<button class="btn sm" id="wkUndo" onclick="wkUndo()">입력 취소</button><button class="btn p" id="wkSave" onclick="wkSave()">전체 저장</button>';
+  wkBarUI();};
+const _wkBarUI61=wkBarUI;
+wkBarUI=function(){_wkBarUI61();const n=wkDraftN(),b=document.getElementById("wkSave"),st=document.getElementById("wkst");
+  if(b)b.textContent="전체 저장"+(n?" ("+n+"건)":"");
+  if(st&&!n)st.textContent=S.wkLast?"저장됨 "+S.wkLast+" · 메인화면·접수관리에 반영":"건마다 입력하고 [저장하고 다음 ▶]을 누르세요";};
+function wkNextFrom(id){const L=wkList(),ix=L.findIndex(function(o){return String(o.seq)===String(id);});
+  for(let k=1;k<=L.length;k++){const o=L[(ix+k)%L.length];if(!o||String(o.seq)===String(id))continue;const st=wkStat(o.r);if(st!=="no"&&st!=="dr")continue;
+    const c=document.querySelector('#wkcards .wkc[data-id="'+esc(o.seq)+'"]');if(!c)continue;
+    c.scrollIntoView({behavior:"smooth",block:"center"});const t=c.querySelector("textarea.wkin");if(t)setTimeout(function(){t.focus({preventScroll:true});},250);return true;}
+  toast("입력할 건이 더 없습니다. 수고하셨습니다.");return false;}
+function wkSaveNext(id){const d=S.wkd[id];if(d&&Object.keys(d).length){if(wkSave(id)===false)return;}wkNextFrom(id);}
+function wkDrop(id){const d=S.wkd[id];
+  if(d&&Object.keys(d).length){if(!confirm("TOS "+id+"에 저장하지 않은 입력이 있습니다. 목록에서 빼면 입력값도 버립니다. 계속할까요?"))return;delete S.wkd[id];wkLocal();}
+  else if(!confirm("TOS "+id+"을(를) 점검요청서 목록에서 뺄까요? (접수 데이터는 그대로 남습니다)"))return;
+  S.sel=(S.sel||[]).filter(function(x){return String(x)!==String(id);});save();rReq();hdr();toast("TOS "+id+"을(를) 목록에서 뺐습니다.");}
+(function(){const q=document.getElementById("wkq");if(q)q.addEventListener("input",deb(function(){WKQ=q.value;rReq();},200));})();
+document.addEventListener("keydown",function(e){if(CUR!=="req")return;
+  if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){const c=e.target&&e.target.closest&&e.target.closest(".wkc");if(c){e.preventDefault();wkSaveNext(c.dataset.id);}}});
 /* 부팅: 클라우드를 먼저 받은 뒤 저장을 연다 */
 function ldjAfterBoot(){LDJ_BOOTED=true;const s=ldjState();
   if(ldjHas()){LDJ_OK=true;ldjReload();}
