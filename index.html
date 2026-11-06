@@ -25,7 +25,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos/_lges_dj_fault";   /* [v5.8.1] 기존 규칙이 허용하는 wonikpne_tos 아래 하위 경로 (v16 데이터와 섞이지 않음: v16은 _ 로 시작하는 항목을 무시) */
-window.APP_VER = "LGES-v6.3.1";   /* 기기별 버전 확인용 */
+window.APP_VER = "LGES-v6.3.2";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -1440,7 +1440,7 @@ button.fb-k{cursor:pointer}button.fb-k:hover{border-color:var(--g3)}
 <section class="page" id="p-req">
  <h2>점검요청서 <span class="muted" style="font-weight:400">메인화면에서 보낸 건 · 작업자가 점검내용·수리내용·S/N 입력 → 저장하면 메인화면·접수관리에 바로 반영</span></h2>
  <div class="wkbar np" id="wkbar"></div>
- <div class="wkfil np"><div class="seg" id="wkseg"></div><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="wkq" placeholder="TOS번호·장비·위치 검색" style="width:220px" aria-label="검색"></div><span style="flex:1"></span><div class="wkprog" title="입력됨 + 완료 / 전체"><i id="wkpb"></i></div><span class="muted" id="wkpt"></span><button class="btn sm" onclick="go('main')">+ 대상 추가 (메인화면)</button></div>
+ <div class="wkfil np"><div class="seg" id="wkseg"></div><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="wkq" placeholder="TOS번호·장비·위치 검색" style="width:220px" aria-label="검색"></div><span style="flex:1"></span><div class="wkprog" title="입력됨 + 완료 / 전체"><i id="wkpb"></i></div><span class="muted" id="wkpt"></span><button class="btn p sm" type="button" onclick="reqPrint()">인쇄 / PDF 저장</button><button class="btn sm" onclick="go('main')">+ 대상 추가 (메인화면)</button></div>
  <div class="wkcards" id="wkcards"></div>
  <div class="mhint muted np" style="margin-top:10px">Ctrl+Enter = 이 건 저장하고 다음 건으로 · Ctrl+S = 저장 안 된 건 모두 저장 · 저장 전 입력값은 이 기기에 임시 보관되어 화면을 나갔다 와도 남아 있습니다.</div>
 </section>
@@ -3334,7 +3334,7 @@ document.addEventListener("keydown",function(e){if(CUR!=="req")return;
    ① 진행 보드  ② 접수관리 여러 건 한꺼번에 처리  ③ 건별 메모·댓글  ④ 비슷한 증상 수리내용 추천
    ⑦ 장비 이력 카드  ⑧ 사용 부품 기록·재고  ⑨ 고장 채널 자동 집계(고장율)  ⑬ 오프라인 입력(연결되면 자동 전송)
    저장 위치: 접수 1건(ldj_r_) 안에 cm(메모)·parts(부품) / ldj_meta 안에 stock(재고) / ldj_cfg 안에 totCh */
-window.APP_VER="LGES-v6.3.1";
+window.APP_VER="LGES-v6.3.2";
 const V62={rcv:0};
 const SRCH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
 function v62Fresh(){try{if(LDJ_RQ){LDJ_RQ=false;clearTimeout(LDJ_RT);S=load();recompute();}}catch(e){}}
@@ -3910,5 +3910,37 @@ if(window.FBSync&&typeof FBSync.boot==="function")FBSync.boot(ldjAfterBoot);else
 
 
 if(CUR)render(CUR);
+
+
+/* v6.3.2 점검요청서 인쇄: 메인화면에서 선택한 전체 대상, 현재 임시 입력 반영 */
+function reqPrintHTML(L){
+  const safe=function(v){return esc(v==null?"":v);};
+  const box=function(label,v){return '<div class="field"><b>'+safe(label)+'</b><div class="value">'+(safe(v)||'&nbsp;')+'</div></div>';};
+  const cards=L.map(function(o,i){
+    const r=o.r,d=(S.wkd||{})[r.id]||{};
+    const val=function(f,fallback){if(d[f])return d[f].v;const v=wkVal(r,f);return v? v : (fallback||'');};
+    const draft=Object.keys(d).length>0;
+    return '<article><div class="cardhead"><strong>'+safe(i+1)+'. TOS '+safe(o.seq)+'</strong><span>접수일 '+safe(o.rcv?fd(o.rcv):'-')+(draft?' · 저장 전 입력 포함':'')+'</span></div>'+
+      '<div class="meta"><div><b>장비</b> '+safe(o.eq||'-')+'</div><div><b>위치</b> '+safe(o.loc||'-')+'</div><div><b>채널</b> '+safe(o.ch||'-')+'</div><div><b>S/N</b> '+safe(val('sn',o.snM||'' )||'________________')+'</div></div>'+
+      box('고장내용',o.cont)+box('점검내용',val('insp',o.insp))+box('수리내용',val('rdone',o.rdone))+
+      '<div class="hand">작업자: ____________________　 점검일: ________년 ____월 ____일</div></article>';
+  }).join('');
+  return '<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>설비 점검 요청서</title><style>'+
+    '@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font:11px "Malgun Gothic",sans-serif;color:#111;margin:0}'+
+    'h1{font-size:20px;margin:0 0 4px} .top{border-bottom:2px solid #a50034;padding-bottom:6px;margin-bottom:9px} .sub{font-size:10px;color:#444}'+
+    'article{border:1px solid #777;margin:0 0 9px;padding:8px;break-inside:avoid;page-break-inside:avoid} .cardhead{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #bbb;padding-bottom:4px;font-size:12px}.cardhead span{font-size:10px}'+
+    '.meta{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;margin:6px 0}.meta b{display:inline-block;min-width:38px}.field{border-top:1px solid #ddd;padding:4px 0}.field b{font-size:10px}.value{white-space:pre-wrap;overflow-wrap:anywhere;min-height:23px;padding:3px 0}.hand{border-top:1px solid #ccc;padding-top:6px;margin-top:2px}.notice{font-size:10px;color:#444}'+
+    '</style></head><body><div class="top"><h1>설비 점검 요청서</h1><div class="sub">LG Energy Solution · 대전 사업장　|　출력일 '+safe(fd(today()))+'　|　선택 '+L.length+'건</div><div class="notice">메인화면에서 선택한 전체 대상입니다. 저장 전 입력은 해당 건에 표시되며 시스템에 자동 저장되지 않습니다.</div></div>'+cards+'</body></html>';
+}
+function reqPrint(){
+  const L=wkList();
+  if(!L.length){alert('출력할 점검 대상이 없습니다. 메인화면에서 대상 건을 선택해 주세요.');return;}
+  const drafts=L.filter(function(o){const d=(S.wkd||{})[o.r.id];return d&&Object.keys(d).length;}).length;
+  if(drafts&&!confirm('선택한 대상 중 저장하지 않은 입력이 '+drafts+'건 있습니다.\n현재 입력 내용으로 출력하시겠습니까?\n인쇄해도 메인화면과 접수관리에 저장되지는 않습니다.'))return;
+  let f=document.getElementById('reqPrintFrame');
+  if(!f){f=document.createElement('iframe');f.id='reqPrintFrame';f.setAttribute('title','점검요청서 인쇄');f.style.cssText='position:fixed;width:1px;height:1px;left:-10000px;top:0;border:0';document.body.appendChild(f);}
+  const doc=f.contentWindow.document;doc.open();doc.write(reqPrintHTML(L));doc.close();
+  setTimeout(function(){try{f.contentWindow.focus();f.contentWindow.print();}catch(e){alert('인쇄창을 열지 못했습니다. 브라우저 인쇄 설정을 확인해 주세요.');}},200);
+}
 
 </script></body></html>
