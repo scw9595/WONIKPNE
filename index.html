@@ -25,7 +25,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos/_lges_dj_fault";   /* [v5.8.1] 기존 규칙이 허용하는 wonikpne_tos 아래 하위 경로 (v16 데이터와 섞이지 않음: v16은 _ 로 시작하는 항목을 무시) */
-window.APP_VER = "LGES-v6.5.1";   /* 기기별 버전 확인용 */
+window.APP_VER = "LGES-v6.6";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -2362,12 +2362,12 @@ function rAs(){asBuild();
   const Q=asCur(),q=Q.q;
   document.getElementById("asqc").innerHTML=ASFL.map(function(x){const n=Q.base.filter(ASFN[x[0]]).length;return '<button class="qc qc-a'+x[0]+(ASF===x[0]?" on":"")+'" onclick="asSetF(\''+x[0]+'\')"><span class="l">'+x[1]+'</span><b>'+n+'</b><span class="d">'+x[2]+'</span></button>';}).join("");
   const G=function(r,L){return r.v[AC(L)]||"";};
-  let h='<thead><tr><th>구분</th><th>접수일</th><th>고객 · 지역</th><th>S/N · 모델</th><th>고장 유형</th><th class="hc">접수 내용</th><th>조치 내용</th><th>교체 부품</th><th class="c">L/T</th><th>확인</th></tr></thead><tbody>';
+  let h='<thead><tr><th>구분</th><th>접수일</th><th>완료일</th><th>고객 · 지역</th><th>S/N · 모델</th><th>고장 유형</th><th class="hc">접수 내용</th><th>조치 내용</th><th>교체 부품</th><th class="c">L/T</th><th>확인</th></tr></thead><tbody>';
   Q.list.slice(0,ASLIM).forEach(function(r){const ak=G(r,"AK");
     const lt=r.aj==null?'<span class="muted">-</span>':'<span class="age '+(ak==="대응중"?"a-warn":ak==="1달초과"?"a-bad":"a-ok")+'"><b>'+r.aj+'</b>일</span><div class="sub2">'+esc(ak)+'</div>';
     h+='<tr class="asr" onclick="openAs(\''+r.k+'\')">'
      +'<td>'+(r.auto?'<span class="tag t-red">자동</span>':'<span class="tag t-gray">이력</span>')+'<div class="sub2">'+(G(r,"A")?hl(G(r,"A"),q):"유무상 -")+'</div></td>'
-     +'<td class="nw">'+fd(r.H)+'<div class="sub2">'+(r.I?"완료 "+fd(r.I):'<span style="color:var(--warn)">대응중</span>')+'</div></td>'
+     +'<td class="nw">'+fd(r.H)+'</td><td class="nw">'+(r.I?'<b>'+fd(r.I)+'</b>':'<span class="tag t-warn">대응중</span>')+'</td>'
      +'<td>'+hl(G(r,"L"),q)+'<div class="sub2">'+hl(G(r,"K"),q)+'</div></td>'
      +'<td class="nw"><b>'+hl(G(r,"O"),q)+'</b><div class="sub2">'+hl([G(r,"P"),G(r,"Q")].filter(Boolean).join(" · ")||"-",q)+'</div></td>'
      +'<td>'+(G(r,"T")?hl(G(r,"T"),q):'<span class="muted">-</span>')+'<div class="sub2">'+hl(G(r,"Y"),q)+'</div></td>'
@@ -4463,5 +4463,232 @@ function prtGo(){const L=wkList().filter(function(o){return PRT.has(o.seq);});
   setTimeout(function(){try{f.contentWindow.focus();f.contentWindow.print();}catch(e){alert("인쇄창을 열지 못했습니다. 브라우저 인쇄 설정을 확인해 주세요.");}},200);}
 const _hdr651=hdr;hdr=function(){_hdr651();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.5.1 웹 UI");}catch(x){}};
 try{hdr();}catch(e){}
+</script>
+<script>
+/* ===== v6.6 =====
+   ① A/S리스트: 완료일 열 따로 표시 + 머리글(항목별) 필터
+   ② A/S리스트 「고장 · 조치」: 고장 유형 · 에러코드 추천 (기존 처리 이력 유사도 + AI 추천)
+   ③ 최초 점검일(Z열): 비어 있으면 접수일(H열)로 자동 설정 */
+window.APP_VER="LGES-v6.6";
+(function(){const st=document.createElement("style");st.textContent=
+ "#ast th .hf{margin-left:4px;border:1px solid var(--ln);background:var(--sf);color:var(--g3);border-radius:4px;width:20px;height:20px;padding:0;cursor:pointer;vertical-align:middle;display:inline-flex;align-items:center;justify-content:center}"
++"#ast th .hf svg{width:11px;height:11px}#ast th .hf.on{background:var(--red);border-color:var(--red);color:#fff}"
++"#hfPop{position:fixed;z-index:200;width:290px;max-height:70vh;overflow:auto;background:var(--sf);color:var(--fg);border:1px solid var(--ln);border-radius:8px;padding:10px 12px;font-size:12.5px}"
++"#hfPop .hfs{margin-bottom:10px}#hfPop .hfs+.hfs{border-top:1px solid var(--ln);padding-top:8px}"
++"#hfPop .hft{font-weight:700;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}"
++"#hfPop input[type=text]{width:100%;padding:5px 7px;border:1px solid var(--ln);border-radius:4px;font:inherit;color:var(--fg);background:var(--sf)}"
++"#hfPop .hfl{max-height:210px;overflow:auto;margin-top:5px;border:1px solid var(--ln);border-radius:4px}"
++"#hfPop .hfl label{display:flex;gap:6px;align-items:center;padding:4px 7px;cursor:pointer}#hfPop .hfl label:hover{background:var(--hover)}"
++"#hfPop .hfl .n{margin-left:auto;color:var(--g3);font-size:11px}#hfPop .hfb{display:flex;gap:4px;margin-top:5px}"
++"#ashf{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}#ashf:empty{display:none}"
++"#ashf .fc{border:1px solid var(--red);color:var(--red);background:var(--redl);border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer}"
++".rcm{margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;grid-column:2/-1}"
++".rcm .rl{font-size:11px;color:var(--g3)}"
++".rcm button{border:1px solid var(--ok);color:var(--ok);background:var(--okl);border-radius:4px;padding:2px 8px;font:inherit;font-size:12px;cursor:pointer}"
++".rcm button.ai{border-color:var(--red);color:var(--red);background:var(--sf)}.rcm button[disabled]{opacity:.5;cursor:wait}"
++".rcm button.cur{border-color:var(--ln);color:var(--g3);background:var(--sf2);cursor:default}"
++".rcbox{grid-column:1/-1;border:1px solid var(--ln);border-left:3px solid var(--ok);border-radius:6px;padding:8px 10px;font-size:12.5px;background:var(--sf)}"
++".rcbox table{width:100%;border-collapse:collapse;font-size:12px}.rcbox th,.rcbox td{border-bottom:1px solid var(--ln);padding:4px 6px;text-align:left;vertical-align:top}"
++".rcbox .aib{border-left-color:var(--red)}"
++".zhint{grid-column:1/-1;font-size:11.5px;color:var(--g3);margin-top:-4px}";
+ document.head.appendChild(st);})();
+
+/* ---------- ③ 최초 점검일 = 접수일 (비어 있을 때만) ---------- */
+const _asFill66=asFill;
+asFill=function(raw,hs){const o=(raw||[]).slice();while(o.length<42)o.push("");
+  const z=String(o[AC("Z")]==null?"":o[AC("Z")]).trim(),h=pd(o[AC("H")]);
+  let zAuto=false;if(!z&&h){o[AC("Z")]=fd(h);zAuto=true;}
+  const f=_asFill66(o,hs);f.zAuto=zAuto;return f;};
+const _asBuild66=asBuild;
+asBuild=function(){const rows=_asBuild66();const hs=new Set(S.asdb.hol||[]);
+  rows.forEach(function(r){const z=String((r.raw||[])[AC("Z")]||"").trim();r.zAuto=!z&&!!r.H;});return rows;};
+
+/* ---------- ① 머리글 필터 ---------- */
+function hfMon(d){return d?ym(d):"(빈칸)";}
+function hfV(r,L){const v=String(r.v[AC(L)]==null?"":r.v[AC(L)]).trim();return v||"(빈칸)";}
+const HF={
+  src:{lab:"구분",get:function(r){return r.auto?"자동":"이력";}},
+  A:{lab:"유무상"},
+  H:{lab:"접수월",get:function(r){return hfMon(r.H);}},
+  I:{lab:"완료월",get:function(r){return r.I?ym(r.I):"(대응중)";}},
+  L:{lab:"고객명"},K:{lab:"지역"},
+  O:{lab:"S/N",text:1},P:{lab:"모델"},Q:{lab:"스펙"},
+  T:{lab:"고장 유형"},Y:{lab:"에러코드"},
+  U:{lab:"접수 내용",text:1},AA:{lab:"조치 내용",text:1},
+  AC:{lab:"교체 부품"},AD:{lab:"중분류"},
+  AK:{lab:"L/T 구분"},AN:{lab:"정보누락"}};
+const HF_COL={"구분":["src","A"],"접수일":["H"],"완료일":["I"],"고객 · 지역":["L","K"],"S/N · 모델":["O","P","Q"],"고장 유형":["T","Y"],"접수 내용":["U"],"조치 내용":["AA"],"교체 부품":["AC","AD"],"L/T":["AK"],"확인":["AN"]};
+let ASHF={},HFOPEN=null;
+function hfGet(id,r){const d=HF[id];return d.get?d.get(r):hfV(r,id);}
+function hfActive(id){const f=ASHF[id];return !!(f&&(f.text?f.text.trim():f.vals&&f.vals.size));}
+function hfPass(r,skip){for(const id in ASHF){if(id===skip||!hfActive(id))continue;const f=ASHF[id];
+    if(f.text){if(String(r.v[AC(id)]||"").toLowerCase().indexOf(f.text.trim().toLowerCase())<0)return false;}
+    else if(!f.vals.has(hfGet(id,r)))return false;}
+  return true;}
+const _asCur66=asCur;
+asCur=function(){const Q=_asCur66();Q.base0=Q.base;Q.base=Q.base.filter(function(r){return hfPass(r);});Q.list=Q.list.filter(function(r){return hfPass(r);});return Q;};
+function hfCount(){return Object.keys(ASHF).filter(hfActive).length;}
+function hfChips(){let el=document.getElementById("ashf");
+  if(!el){const tw=document.getElementById("ast");if(!tw||!tw.parentNode)return;el=document.createElement("div");el.id="ashf";el.className="np";tw.parentNode.parentNode.insertBefore(el,tw.parentNode);}
+  const ids=Object.keys(ASHF).filter(hfActive);
+  el.innerHTML=ids.length?'<span class="muted">머리글 필터:</span>'+ids.map(function(id){const f=ASHF[id];
+      const t=f.text?'「'+esc(f.text)+'」 포함':(function(){const a=Array.from(f.vals);return esc(a.slice(0,2).join(", "))+(a.length>2?" 외 "+(a.length-2):"");})();
+      return '<button class="fc" title="눌러서 이 필터 해제" onclick="hfClear(\''+id+'\')">'+esc(HF[id].lab)+': '+t+' ✕</button>';}).join("")
+     +'<button class="btn sm" onclick="hfClear()">필터 모두 해제</button>':"";}
+function hfClear(id){if(id)delete ASHF[id];else ASHF={};hfClose();rAs();}
+function hfClose(){const p=document.getElementById("hfPop");if(p)p.remove();HFOPEN=null;}
+const HF_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg>';
+function hfHead(){const ths=document.querySelectorAll("#ast thead th");
+  ths.forEach(function(th){if(th.classList.contains("ck"))return;const k=th.textContent.trim(),ids=HF_COL[k];if(!ids)return;
+    const b=document.createElement("button");b.type="button";b.className="hf np"+(ids.some(hfActive)?" on":"");b.innerHTML=HF_SVG;
+    b.setAttribute("aria-label",k+" 필터");b.title=k+" 항목별 필터";
+    b.onclick=function(e){e.stopPropagation();if(HFOPEN===k){hfClose();return;}hfOpen(k,b);};th.appendChild(b);});}
+function hfOpen(k,btn){hfClose();HFOPEN=k;const p=document.createElement("div");p.id="hfPop";p.className="np";
+  p.onclick=function(e){e.stopPropagation();};document.body.appendChild(p);p._btn=btn;hfDraw();
+  const rc=btn.getBoundingClientRect(),w=290;let x=Math.min(rc.left,window.innerWidth-w-8);x=Math.max(8,x);
+  p.style.left=x+"px";p.style.top=Math.min(rc.bottom+4,window.innerHeight-120)+"px";
+  const q=p.querySelector("input[type=text]");if(q)q.focus();}
+function hfDraw(){const p=document.getElementById("hfPop");if(!p||!HFOPEN)return;const ids=HF_COL[HFOPEN];
+  const Q=_asCur66(),pool=Q.base.filter(ASFN[ASF]);const keep={};
+  p.querySelectorAll("input[data-q]").forEach(function(i){keep[i.dataset.q]=i.value;});
+  let h='';
+  ids.forEach(function(id){const d=HF[id],f=ASHF[id]||{};
+    h+='<div class="hfs"><div class="hft"><span>'+esc(d.lab)+'</span>'+(hfActive(id)?'<button class="btn sm" onclick="hfClear(\''+id+'\')">해제</button>':'')+'</div>';
+    if(d.text){h+='<input type="text" data-t="'+id+'" placeholder="포함할 글자 입력" value="'+esc(f.text||"")+'" oninput="hfText(\''+id+'\',this.value)">';h+='</div>';return;}
+    const cnt=new Map();pool.forEach(function(r){if(!hfPass(r,id))return;const v=hfGet(id,r);cnt.set(v,(cnt.get(v)||0)+1);});
+    if(f.vals)f.vals.forEach(function(v){if(!cnt.has(v))cnt.set(v,0);});
+    let vals=Array.from(cnt.keys());
+    if(id==="H"||id==="I")vals.sort(function(a,b){return a<b?1:a>b?-1:0;});else vals.sort(function(a,b){return (cnt.get(b)-cnt.get(a))||(a<b?-1:1);});
+    const q=(keep[id]||"").trim().toLowerCase();
+    const shown=vals.filter(function(v){return !q||v.toLowerCase().indexOf(q)>=0;});
+    h+='<input type="text" data-q="'+id+'" placeholder="값 찾기 ('+vals.length+'개)" value="'+esc(keep[id]||"")+'" oninput="hfDraw()">'
+      +'<div class="hfb"><button class="btn sm" onclick="hfAll(\''+id+'\',1)">보이는 값 모두 체크</button><button class="btn sm" onclick="hfAll(\''+id+'\',0)">체크 해제</button></div>'
+      +'<div class="hfl">'+(shown.length?shown.map(function(v){const on=f.vals&&f.vals.has(v);
+        return '<label><input type="checkbox" '+(on?"checked ":"")+'data-id="'+id+'" data-v="'+esc(v)+'" onchange="hfTog(this)"><span>'+esc(v)+'</span><span class="n">'+cnt.get(v)+'</span></label>';}).join(""):'<div class="muted" style="padding:6px">값이 없습니다.</div>')+'</div></div>';});
+  h+='<div class="muted" style="font-size:11px">체크한 값만 보입니다 (여러 개 선택 가능). 숫자는 다른 필터를 적용한 뒤의 건수입니다.</div>'
+    +'<div style="text-align:right;margin-top:6px"><button class="btn sm p" onclick="hfClose()">닫기</button></div>';
+  const act=document.activeElement,aq=act&&act.dataset?(act.dataset.q||act.dataset.t):null,pos=act&&act.selectionStart;
+  p.innerHTML=h;
+  if(aq){const n=p.querySelector('input[data-q="'+aq+'"],input[data-t="'+aq+'"]');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(x){}}}}
+function hfTog(el){const id=el.dataset.id,v=el.dataset.v;const f=ASHF[id]=ASHF[id]||{vals:new Set()};if(!f.vals)f.vals=new Set();
+  if(el.checked)f.vals.add(v);else f.vals.delete(v);if(!f.vals.size)delete ASHF[id];rAs();hfDraw();}
+function hfAll(id,on){const p=document.getElementById("hfPop");if(!p)return;const f=ASHF[id]=ASHF[id]||{vals:new Set()};
+  p.querySelectorAll('input[type=checkbox][data-id="'+id+'"]').forEach(function(c){if(on)f.vals.add(c.dataset.v);else f.vals.delete(c.dataset.v);});
+  if(!f.vals.size)delete ASHF[id];rAs();hfDraw();}
+let _hfT=null;
+function hfText(id,v){if(v.trim())ASHF[id]={text:v};else delete ASHF[id];clearTimeout(_hfT);_hfT=setTimeout(function(){rAs();},200);}
+document.addEventListener("click",function(){if(HFOPEN)hfClose();});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&HFOPEN){hfClose();}});
+window.addEventListener("resize",function(){if(HFOPEN)hfClose();});
+const _rAs66=rAs;
+rAs=function(){_rAs66();hfHead();hfChips();
+  if(!document.querySelector("#ast thead")&&hfCount()){const t=document.getElementById("ast");if(t)t.innerHTML='<tr><td class="muted" style="padding:24px">머리글 필터 조건에 맞는 행이 없습니다. 위의 「필터 모두 해제」를 누르세요.</td></tr>';}};
+const _asSetF66=asSetF;asSetF=function(f){hfClose();_asSetF66(f);};
+
+/* ---------- ② 고장 유형 · 에러코드 추천 ---------- */
+const RC_ALIAS={"S/W":"SW","PC 고장":"PC고장"};
+function rcLab(v){v=String(v==null?"":v).trim();return RC_ALIAS[v]||v;}
+function rcTok(t){t=String(t==null?"":t).toLowerCase().replace(/_x000d_/g," ").replace(/[^0-9a-z\uac00-\ud7a3]+/g," ");const out=[];
+  t.split(" ").forEach(function(w){if(!w||/^\d+$/.test(w))return;if(w.length>=2)out.push("w:"+w);
+    if(/[\uac00-\ud7a3]/.test(w)&&w.length>=2)for(let i=0;i<w.length-1;i++)out.push("b:"+w.slice(i,i+2));});return out;}
+function rcFeat(parts){const f=new Map();parts.forEach(function(p){rcTok(p[0]).forEach(function(t){f.set(t,(f.get(t)||0)+p[1]);});});return f;}
+const RCI={src:null,rows:[],idf:null,N:0};
+function rcVec(f){const v=new Map();let n=0;f.forEach(function(x,t){const w=(1+Math.log(x))*(RCI.idf.get(t)||Math.log(RCI.N+1));v.set(t,w);n+=w*w;});n=Math.sqrt(n)||1;v.forEach(function(x,t){v.set(t,x/n);});return v;}
+function rcInsp(r){try{let rec=null;if(r.auto)rec=findRec(r.id);else if(typeof asMvRecOf==="function")rec=asMvRecOf(r.i);return rec?String(rec.insp||""):"";}catch(e){return "";}}
+function rcIndex(){if(RCI.src===ASR)return;const G=function(r,L){return String(r.v[AC(L)]||"");};
+  const rows=ASR.filter(function(r){return G(r,"T").trim()||G(r,"Y").trim();});
+  const F=rows.map(function(r){return rcFeat([[G(r,"U"),1],[G(r,"AA"),1.2],[G(r,"AC"),1]]);});
+  const df=new Map();F.forEach(function(f){f.forEach(function(x,t){df.set(t,(df.get(t)||0)+1);});});
+  RCI.N=rows.length;RCI.idf=new Map();df.forEach(function(c,t){RCI.idf.set(t,Math.log((RCI.N+1)/(c+0.5)));});
+  RCI.rows=rows.map(function(r,i){return {r:r,v:rcVec(F[i])};});RCI.src=ASR;}
+function rcSuggest(r){rcIndex();const G=function(L){return String(r.v[AC(L)]||"");};
+  const q=rcVec(rcFeat([[G("U"),1],[G("AA"),1.2],[G("AC"),1],[rcInsp(r),1]]));
+  const B=String(G("B")).trim(),U=G("U");const sims=[];
+  if(q.size)RCI.rows.forEach(function(x){if(x.r.k===r.k)return;
+    if(B&&String(x.r.v[AC("B")]||"").trim()===B&&String(x.r.v[AC("U")]||"")===U)return;
+    let sc=0;q.forEach(function(w,t){const u=x.v.get(t);if(u)sc+=w*u;});if(sc>0.05)sims.push({sc:sc,r:x.r});});
+  sims.sort(function(a,b){return b.sc-a.sc;});const top=sims.slice(0,10);
+  const vote=function(L){const m=new Map();let tot=0;top.forEach(function(s){const l=rcLab(s.r.v[AC(L)]);if(!l)return;const e=m.get(l)||{l:l,w:0,n:0};e.w+=s.sc;e.n++;m.set(l,e);tot+=s.sc;});
+    return Array.from(m.values()).sort(function(a,b){return b.w-a.w;}).slice(0,3).map(function(e){e.p=tot?Math.round(e.w/tot*100):0;return e;});};
+  return {T:vote("T"),Y:vote("Y"),top:top,empty:!q.size};}
+let RCS={k:null,res:null,ai:null,busy:false,open:false};
+function rcApply(L,v){asSet(L,v);toast((L==="T"?"고장 유형":"에러코드")+"을(를) 「"+v+"」(으)로 넣었습니다.");}
+function rcChips(L,list,cur){if(!list.length)return '<span class="rl">비슷한 처리 이력이 없습니다.</span>';
+  return list.map(function(e){const isCur=rcLab(cur)===e.l;return '<button type="button" class="'+(isCur?"cur":"")+'" '+(isCur?'disabled title="현재 값과 같습니다"':'title="눌러서 넣기 · 유사 이력 '+e.n+'건"')
+    +' onclick="rcApply(\''+L+'\',\''+aiQ(e.l)+'\')">'+esc(e.l)+' <span style="opacity:.75">'+e.p+'%</span></button>';}).join("");}
+function rcDraw(){const r=asRow(ASK),B=document.getElementById("asBody");if(!r||!B)return;
+  if(RCS.k!==r.k){RCS={k:r.k,res:null,ai:null,busy:false,open:false};}
+  if(!RCS.res)RCS.res=rcSuggest(r);const R=RCS.res,G=function(L){return String(r.v[AC(L)]||"");};
+  ["T","Y"].forEach(function(L){const inp=B.querySelector('input[onchange*="asSet(\''+L+'\'"]');if(!inp)return;
+    const old=B.querySelector('.rcm[data-l="'+L+'"]');if(old)old.remove();
+    const d=document.createElement("div");d.className="rcm";d.dataset.l=L;
+    let h='<span class="rl">추천</span>'+(R.empty?'<span class="rl">접수 내용 · 조치 내용을 입력하면 추천합니다.</span>':rcChips(L,R[L],G(L)));
+    if(RCS.ai){const a=RCS.ai,v=L==="T"?a.type:a.error,alt=L==="T"?a.type_alt:a.error_alt;
+      if(v)h+='<span class="rl" style="margin-left:6px">AI</span><button type="button" class="ai'+(rcLab(G(L))===v?" cur":"")+'" onclick="rcApply(\''+L+'\',\''+aiQ(v)+'\')">'+esc(v)+'</button>'
+        +(alt||[]).map(function(x){return '<button type="button" class="ai" onclick="rcApply(\''+L+'\',\''+aiQ(x)+'\')">'+esc(x)+'</button>';}).join("");}
+    if(L==="T")h+='<button type="button" class="ai" style="margin-left:auto" '+(RCS.busy?"disabled":"")+' onclick="rcAI()">'+(RCS.busy?"AI 분석 중…":(RCS.ai?"AI 다시 추천":"AI 추천받기"))+'</button>'
+      +(R.top.length?'<button type="button" onclick="rcOpen()" style="border-color:var(--ln);color:var(--fg2);background:var(--sf)">'+(RCS.open?"근거 닫기":"근거 이력 "+R.top.length+"건")+'</button>':'');
+    d.innerHTML=h;inp.insertAdjacentElement("afterend",d);});
+  const ob=B.querySelector(".rcbox");if(ob)ob.remove();
+  const yIn=B.querySelector('input[onchange*="asSet(\'Y\'"]');
+  if(yIn&&(RCS.open||RCS.ai||RCS.err)){const box=document.createElement("div");box.className="rcbox";let h="";
+    if(RCS.err)h+='<div class="aierr">'+esc(RCS.err)+'</div>';
+    if(RCS.ai){const a=RCS.ai;h+='<div style="margin-bottom:6px"><b>AI 추천</b> <span class="tag '+(a.confidence==="높음"?"t-ok":a.confidence==="보통"?"t-warn":"t-gray")+'">신뢰도 '+esc(a.confidence)+'</span>'
+      +(a.basis&&a.basis.length?' <span class="muted">근거 이력 #'+a.basis.join(", #")+'</span>':' <span class="muted">근거로 쓴 이력 없음</span>')
+      +'<div style="margin-top:4px;white-space:pre-wrap">'+esc(a.reason||"")+'</div><div class="muted" style="font-size:11px;margin-top:3px">AI 추천은 참고용입니다. 버튼을 눌러야 입력되며, 내용을 확인한 뒤 넣으세요.</div></div>';}
+    if(RCS.open&&R.top.length){h+='<table><thead><tr><th>#</th><th>유사</th><th>접수일</th><th>고장 유형</th><th>에러코드</th><th>접수 내용 · 조치 내용</th></tr></thead><tbody>'
+      +R.top.map(function(s,i){const v=s.r.v;return '<tr><td>'+(i+1)+'</td><td>'+Math.round(Math.min(s.sc,0.99)*100)+'%</td><td class="nw">'+fd(s.r.H)+'</td><td>'+esc(v[AC("T")]||"-")+'</td><td>'+esc(v[AC("Y")]||"-")+'</td><td><div class="cl1" style="max-width:340px" title="'+esc(v[AC("U")]||"")+'">'+esc(String(v[AC("U")]||"").slice(0,80))+'</div><div class="sub2">'+esc(String(v[AC("AA")]||"").slice(0,100))+'</div></td></tr>';}).join("")+'</tbody></table>';}
+    box.innerHTML=h;const anchor=B.querySelector('.rcm[data-l="Y"]')||yIn;anchor.insertAdjacentElement("afterend",box);}
+  const zIn=B.querySelector('input[onchange*="asSet(\'Z\'"]');
+  if(zIn&&r.zAuto){const old=B.querySelector(".zhint");if(old)old.remove();zIn.title="비어 있어 접수일로 자동 설정됨";
+    zIn.insertAdjacentHTML("afterend",'<div class="zhint">최초 점검일이 비어 있어 접수일('+fd(r.H)+')로 자동 표시합니다. 다른 날이면 직접 고치세요.</div>');}}
+function rcOpen(){RCS.open=!RCS.open;rcDraw();}
+function rcAI(){const r=asRow(ASK);if(!r||RCS.busy)return;if(AI.busy){toast("AI가 다른 요청을 처리하는 중입니다. 잠시 후 누르세요.");return;}
+  const G=function(L){return String(r.v[AC(L)]||"");};
+  if(!G("U").trim()&&!G("AA").trim()){toast("접수 내용 또는 조치 내용을 먼저 입력하세요.");return;}
+  if(!RCS.res)RCS.res=rcSuggest(r);
+  const keys=[G("O")].concat(r.auto?[]:[]).map(function(x){return String(x||"").trim();}).filter(function(x){return x.length>=4;});
+  const mk=function(t,n){return aiMask(t,keys,n);};
+  const db=S.asdb,types=Array.from(new Set((db.types||[]).filter(Boolean).concat(RCI.rows.map(function(x){return rcLab(x.r.v[AC("T")]);}).filter(Boolean))));
+  const errs=Array.from(new Set((db.errs||[]).map(function(x){return x[0];}).filter(Boolean).concat(RCI.rows.map(function(x){return rcLab(x.r.v[AC("Y")]);}).filter(Boolean))));
+  const hist=RCS.res.top.map(function(s,i){const v=s.r.v,ks=[String(v[AC("O")]||"").trim()].filter(function(x){return x.length>=4;});
+    return {no:i+1,sim:Math.round(s.sc*100),fault:aiMask(v[AC("U")],ks,300),action:aiMask(v[AC("AA")],ks,300),parts:String(v[AC("AC")]||"").slice(0,120),type:rcLab(v[AC("T")]),error:rcLab(v[AC("Y")])};});
+  const data={fault:mk(G("U"),1000),insp:mk(rcInsp(r),800),action:mk(G("AA"),1000),parts:G("AC").slice(0,200),model:G("P").slice(0,40),types:types.slice(0,40),errors:errs.slice(0,120),hist:hist};
+  RCS.busy=true;RCS.err=null;AI.busy=true;rcDraw();
+  aiCall("classify",data).then(function(j){
+      const ok=function(v,list){v=rcLab(v);return list.indexOf(v)>=0?v:"";};
+      RCS.ai={type:ok(j.type,types),error:ok(j.error,errs),type_alt:(j.type_alt||[]).map(function(x){return ok(x,types);}).filter(Boolean).slice(0,2),
+        error_alt:(j.error_alt||[]).map(function(x){return ok(x,errs);}).filter(Boolean).slice(0,2),confidence:j.confidence||"낮음",basis:j.basis||[],reason:String(j.reason||"")};
+      if(!RCS.ai.type&&!RCS.ai.error)RCS.err="AI가 목록에 있는 값으로 답하지 못했습니다. 위의 이력 추천을 참고하세요.";})
+    .catch(function(e){let m=aiErr(e);if(/알 수 없는 AI 요청/.test(m))m="PC 연동 프로그램이 옛 버전(v1.1)입니다. 함께 드린 crm_bridge.py(v1.2)로 바꾼 뒤 연동 프로그램을 다시 켜세요. 위의 이력 추천은 그대로 쓸 수 있습니다.";RCS.err=m;})
+    .then(function(){RCS.busy=false;AI.busy=false;rcDraw();});}
+const _asModal66=asModal;
+asModal=function(){_asModal66();try{const r=asRow(ASK);if(r&&RCS.k===r.k)RCS.res=null;rcDraw();}catch(e){console.warn(e);}};
+
+/* 일괄 추천: 현재 목록에서 고장 유형 · 에러코드가 빈 행 */
+function rcBulk(){const L=asCur().list.filter(function(r){return !String(r.v[AC("T")]||"").trim()||!String(r.v[AC("Y")]||"").trim();});
+  let m=document.getElementById("mRcb");if(!m){m=document.createElement("div");m.className="modal";m.id="mRcb";m.innerHTML='<div class="mbox" style="width:min(980px,96vw)" id="rcbBody"></div>';document.body.appendChild(m);}
+  const R=L.map(function(r){const s=rcSuggest(r);const t=String(r.v[AC("T")]||"").trim(),y=String(r.v[AC("Y")]||"").trim();
+    return {r:r,t:!t&&s.T[0]?s.T[0]:null,y:!y&&s.Y[0]?s.Y[0]:null};}).filter(function(x){return x.t||x.y;});
+  window._RCB=R;
+  let h='<h2 style="margin:0 0 4px">고장 유형 · 에러코드 일괄 추천</h2><div class="muted" style="margin-bottom:10px">현재 목록(필터 적용)에서 고장 유형 또는 에러코드가 빈 행 '+L.length+'건 중, 비슷한 처리 이력이 있는 '+R.length+'건입니다. 체크한 행의 빈칸만 채웁니다(이미 입력된 값은 바꾸지 않음). 비율이 낮은 건은 체크를 빼고 행을 열어 직접 확인하세요.</div>';
+  if(R.length){h+='<div class="tw" style="max-height:56vh"><table><thead><tr><th class="ck"><input type="checkbox" checked onchange="document.querySelectorAll(\'#rcbBody tbody input\').forEach(function(c){c.checked=this.checked;}.bind(this))"></th><th>접수일</th><th>S/N</th><th>접수 내용</th><th>조치 내용</th><th>고장 유형 추천</th><th>에러코드 추천</th></tr></thead><tbody>'
+    +R.map(function(x,i){const v=x.r.v,ok=Math.min(x.t?x.t.p:100,x.y?x.y.p:100)>=50;return '<tr><td class="ck"><input type="checkbox" data-i="'+i+'" '+(ok?"checked":"")+'></td><td class="nw">'+fd(x.r.H)+'</td><td class="nw">'+esc(v[AC("O")]||"")+'</td><td><div class="cl1" style="max-width:220px">'+esc(String(v[AC("U")]||"").slice(0,70))+'</div></td><td><div class="cl1" style="max-width:220px">'+esc(String(v[AC("AA")]||"").slice(0,70))+'</div></td>'
+      +'<td>'+(x.t?'<b>'+esc(x.t.l)+'</b> <span class="muted">'+x.t.p+'%</span>':'<span class="muted">입력됨</span>')+'</td><td>'+(x.y?'<b>'+esc(x.y.l)+'</b> <span class="muted">'+x.y.p+'%</span>':'<span class="muted">입력됨</span>')+'</td></tr>';}).join("")+'</tbody></table></div>';}
+  else h+='<p class="muted">채울 행이 없습니다.</p>';
+  h+='<div class="toolbar" style="margin-top:12px"><span style="margin-left:auto"></span><button class="btn" onclick="closeM(\'mRcb\')">닫기</button>'+(R.length?'<button class="btn p" onclick="rcBulkApply()">체크한 행 채우기</button>':'')+'</div>';
+  document.getElementById("rcbBody").innerHTML=h;m.classList.add("on");}
+function rcBulkApply(){const R=window._RCB||[];let n=0;
+  document.querySelectorAll("#rcbBody tbody input[type=checkbox]").forEach(function(c){if(!c.checked)return;const x=R[+c.dataset.i];if(!x)return;const r=x.r;
+    const put=function(L,val){if(r.auto){const rec=findRec(r.id);if(!rec)return;rec.as=rec.as||{};rec.as[L]=val;}else{const row=S.asHist[r.i];if(!row)return;while(row.length<=AC(L))row.push("");row[AC(L)]=val;}};
+    if(x.t)put("T",x.t.l);if(x.y)put("Y",x.y.l);n++;});
+  if(!n){toast("체크한 행이 없습니다.");return;}save();closeM("mRcb");rAs();toast(n+"행의 고장 유형 · 에러코드 빈칸을 채웠습니다.");}
+(function(){const tb=document.querySelector("#p-as .toolbar");if(!tb)return;const b=document.createElement("button");b.className="btn";b.type="button";
+  b.textContent="유형 · 에러코드 일괄 추천";b.title="현재 목록에서 고장 유형 · 에러코드가 빈 행을 기존 처리 이력으로 추천해 채웁니다";b.onclick=rcBulk;
+  const crm=document.getElementById("crmClr");if(crm&&crm.nextSibling)tb.insertBefore(b,crm.nextSibling);else tb.appendChild(b);})();
+
+const _hdr66=hdr;hdr=function(){_hdr66();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.6 웹 UI");}catch(x){}};
+try{hdr();}catch(e){}
+try{if(document.getElementById("p-as")&&document.getElementById("p-as").classList.contains("on"))rAs();}catch(e){}
 </script>
 </body></html>
