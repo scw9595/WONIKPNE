@@ -25,7 +25,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos/_lges_dj_fault";   /* [v5.8.1] 기존 규칙이 허용하는 wonikpne_tos 아래 하위 경로 (v16 데이터와 섞이지 않음: v16은 _ 로 시작하는 항목을 무시) */
-window.APP_VER = "LGES-v6.6";   /* 기기별 버전 확인용 */
+window.APP_VER = "LGES-v6.6.4";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -4690,5 +4690,182 @@ function rcBulkApply(){const R=window._RCB||[];let n=0;
 const _hdr66=hdr;hdr=function(){_hdr66();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.6 웹 UI");}catch(x){}};
 try{hdr();}catch(e){}
 try{if(document.getElementById("p-as")&&document.getElementById("p-as").classList.contains("on"))rAs();}catch(e){}
+</script>
+<script>
+/* ===== v6.6.1 / v6.6.2 / v6.6.3 =====
+   A/S리스트: 필수정보 누락 모아보기 (수주번호 · S/N · 고장 유형 · 에러코드)
+   v6.6.2: F당 총 채널 · 고장 채널은 누락 확인 대상에서 제외
+   v6.6.3: 모델 · 스펙도 누락 확인 대상에서 제외 */
+window.APP_VER="LGES-v6.6.3";
+(function(){const st=document.createElement("style");st.textContent=
+ "#askey{border:1px solid var(--ln);border-radius:8px;padding:10px 12px;margin:8px 0}"
++"#askey .kh{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}"
++"#askey .kc{display:flex;flex-wrap:wrap;gap:6px}"
++"#askey .kc .btn b{margin-left:6px}"
++"#askey .kc .btn.z{opacity:.45}"
++".kmiss{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px}"
++".kmiss .tag{font-size:11px}"
++".kmiss .tag.on{outline:2px solid var(--bad)}"
++".asf .kmz{outline:2px solid var(--bad);outline-offset:1px}"
++"#asKeyNote{border:1px solid var(--ln);border-left:4px solid var(--bad);border-radius:6px;padding:8px 10px;margin-bottom:10px}";
+ document.head.appendChild(st);})();
+const KEYF=[["M","수주번호"],["O","S/N"],["T","고장 유형"],["Y","에러코드"]];
+const KEYLAB={};KEYF.forEach(function(x){KEYLAB[x[0]]=x[1];});
+function keyEmpty(v){v=String(v==null?"":v).trim();return v===""||v==="-";}
+function keyMissL(r){if(!r||!r.v)return [];return KEYF.filter(function(x){return keyEmpty(r.v[AC(x[0])]);}).map(function(x){return x[0];});}
+let ASKF=null,ASKSNAP=null;
+(function(){let p=ASFL.findIndex(function(x){return x[0]==="miss";});if(p<0)p=ASFL.length-1;
+  ASFL.splice(p+1,0,["key","필수정보 누락","수주번호·S/N·고장 유형·에러코드"]);})();
+ASFN.key=function(r){const m=keyMissL(r);return ASKF?m.indexOf(ASKF)>=0:m.length>0;};
+const _asSetF661=asSetF;
+asSetF=function(f){if(f!=="key")ASKF=null;_asSetF661(f);};
+function asKeyF(L){ASKF=(L&&ASKF!==L)?L:null;ASF="key";ASLIM=1e9;rAs();}
+function asKeyGo(){const L=asCur().list;if(!L.length){toast("빠진 항목이 있는 행이 없습니다.");return;}ASKSNAP=L.map(function(r){return r.k;});openAs(L[0].k);}
+function asKeyPanel(){let el=document.getElementById("askey");
+  if(!el){const qc=document.getElementById("asqc");if(!qc)return;el=document.createElement("div");el.id="askey";el.className="np";qc.insertAdjacentElement("afterend",el);}
+  if(ASF!=="key"){el.style.display="none";el.innerHTML="";return;}
+  el.style.display="";
+  const Q=asCur(),pool=Q.base;
+  const all=pool.filter(function(r){return keyMissL(r).length>0;}).length;
+  const cnt={};KEYF.forEach(function(x){cnt[x[0]]=0;});
+  pool.forEach(function(r){keyMissL(r).forEach(function(L){cnt[L]++;});});
+  let h='<div class="kh"><b>빠진 항목 골라 보기</b><span class="muted">항목을 누르면 그 항목이 빈 행만 보입니다. 한 번 더 누르면 해제됩니다.</span>'
+   +'<span style="margin-left:auto"></span><button class="btn sm p" type="button" onclick="asKeyGo()">첫 행부터 차례로 입력 ('+Q.list.length+'행)</button></div><div class="kc">'
+   +'<button type="button" class="btn sm'+(!ASKF?" p":"")+'" onclick="asKeyF(null)">빠진 항목 전체<b>'+all+'</b></button>';
+  KEYF.forEach(function(x){const n=cnt[x[0]];
+    h+='<button type="button" class="btn sm'+(ASKF===x[0]?" p":"")+(n?"":" z")+'" onclick="asKeyF(\''+x[0]+'\')" title="'+esc(x[1])+' 빈칸 '+n+'행">'+esc(x[1])+'<b>'+n+'</b></button>';});
+  h+='</div>';el.innerHTML=h;}
+const _rAs661=rAs;
+rAs=function(){_rAs661();try{asKeyPanel();
+  if(ASF==="key"){document.querySelectorAll("#ast tr.asr").forEach(function(tr){const k=tr.dataset.k||((tr.getAttribute("onclick")||"").match(/openAs\('([^']+)'\)/)||[])[1];
+      const r=k&&asRow(k);if(!r)return;const m=keyMissL(r);if(!m.length)return;const td=tr.lastElementChild;if(!td)return;
+      td.insertAdjacentHTML("beforeend",'<div class="kmiss">'+m.map(function(L){return '<span class="tag t-warn'+(ASKF===L?" on":"")+'">'+esc(KEYLAB[L])+'</span>';}).join("")+'</div>');});}
+  }catch(e){console.error(e);}};
+const _openAs661=openAs;
+openAs=function(k){if(ASF==="key"){if(!ASKSNAP||ASKSNAP.indexOf(k)<0)ASKSNAP=asCur().list.map(function(r){return r.k;});}else ASKSNAP=null;_openAs661(k);};
+const _asMove661=asMove;
+asMove=function(d){if(ASF!=="key"||!ASKSNAP){_asMove661(d);return;}
+  let i=ASKSNAP.indexOf(ASK);if(i<0)return;i+=d;
+  if(i<0||i>=ASKSNAP.length){toast(d>0?"마지막 행입니다.":"첫 행입니다.");return;}
+  ASK=ASKSNAP[i];asModal();};
+const _asModal661=asModal;
+asModal=function(){_asModal661();try{const r=asRow(ASK),B=document.getElementById("asBody");if(!r||!B)return;
+  const m=keyMissL(r);const old=document.getElementById("asKeyNote");if(old)old.remove();
+  m.forEach(function(L){const e=B.querySelector('[onchange^="asSet(\''+L+'\'"]');if(e){e.classList.add("miss","kmz");}});
+  if(!m.length&&ASF!=="key")return;
+  let pos="";if(ASF==="key"&&ASKSNAP){const i=ASKSNAP.indexOf(ASK);if(i>=0)pos=' <span class="muted">('+(i+1)+' / '+ASKSNAP.length+'행)</span>';}
+  const ro=r.auto?m.filter(function(L){const e=B.querySelector('[onchange^="asSet(\''+L+'\'"]');return !e||e.readOnly;}):[];
+  const html=m.length?'<b>빠진 필수정보 '+m.length+'개:</b> '+m.map(function(L){return '<a href="#" onclick="event.preventDefault();asKeyFocus(\''+L+'\')">'+esc(KEYLAB[L])+'</a>';}).join(" · ")+pos
+      +(ro.length?'<div class="muted" style="margin-top:4px">'+ro.map(function(L){return KEYLAB[L];}).join(", ")+'은(는) 접수관리에서 입력합니다.</div>':'')
+      +(ASF==="key"?'<div class="muted" style="margin-top:4px">입력 후 「다음 ▶」으로 다음 행으로 넘어가세요.</div>':'')
+    :'<b style="color:var(--ok)">빠진 필수정보가 모두 채워졌습니다.</b>'+pos+' <span class="muted">「다음 ▶」으로 다음 행으로 넘어가세요.</span>';
+  const ash=B.querySelector(".ash");const d=document.createElement("div");d.id="asKeyNote";d.innerHTML=html;
+  if(ash&&ash.nextSibling)B.insertBefore(d,ash.nextSibling);else B.insertBefore(d,B.firstChild);
+  if(ASF==="key"&&m.length)setTimeout(function(){asKeyFocus(m[0],true);},30);
+  }catch(e){console.error(e);}};
+function asKeyFocus(L,quiet){const B=document.getElementById("asBody");if(!B)return;const e=B.querySelector('[onchange^="asSet(\''+L+'\'"]');if(!e)return;
+  e.scrollIntoView({block:"center"});if(!e.readOnly)e.focus();else if(!quiet)toast(KEYLAB[L]+"은(는) 접수관리에서 입력합니다.");}
+const _closeM661=closeM;
+closeM=function(id){_closeM661(id);if(id==="mAs")ASKSNAP=null;};
+const _hdr661=hdr;hdr=function(){_hdr661();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.6.3 웹 UI");}catch(x){}};
+try{hdr();}catch(e){}
+try{if(document.getElementById("p-as")&&document.getElementById("p-as").classList.contains("on"))rAs();}catch(e){}
+</script>
+<script>
+/* ===== v6.6.4 =====
+   A/S리스트에서 S/N 입력 후 장비마스터 자동 등록 (S/N 기준)
+   - A/S리스트 입력창에서 S/N·수주번호·모델·스펙·F당 총 채널을 입력하면 장비마스터에 자동 반영
+   - 장비마스터에 없는 S/N : 새 장비로 등록 (구분 = A/S리스트 자동, 장비번호는 비워 둠)
+   - 이미 있는 S/N : 장비마스터의 빈칸만 채움 (기존 값은 바꾸지 않음)
+   - 다음에 같은 S/N을 입력하면 수주번호·모델·스펙·F당 총 채널 빈칸을 자동으로 채움 */
+window.APP_VER="LGES-v6.6.4";
+const EQ_AS_KIND="A/S리스트 자동";
+(function(){[["asModel","A/S 모델"],["asSpec","A/S 스펙"],["asCh","F당 총 채널"]].forEach(function(f){
+  if(!EQF.some(function(x){return x[0]===f[0];}))EQF.push(f);});})();
+function eqAsT(x){const t=String(x==null?"":x).trim();return t==="-"?"":t;}
+function eqAsVal(r,L){return r&&r.v?eqAsT(r.v[AC(L)]):"";}
+function eqAsSnOk(v){v=eqAsT(v);if(v.length<4)return false;const u=v.toUpperCase();
+  return u!=="미등록"&&u.indexOf("확인불가")<0&&u.indexOf("확인 불가")<0;}
+function eqAsFindSn(sn){const k=ptK(sn);if(!k)return -1;return S.eq.findIndex(function(e){return ptK(e.sn)===k;});}
+function eqAsSpecOf(m,q){return [m,q].filter(Boolean).join(" ");}
+function eqAsPut(r,L,val){
+  if(r.auto){const rec=findRec(r.id);if(!rec)return;rec.as=rec.as||{};rec.as[L]=val;}
+  else{const row=S.asHist[r.i];if(!row)return;while(row.length<=AC(L))row.push("");row[AC(L)]=val;}}
+/* 같은 S/N의 장비마스터 값(없으면 가장 최근 A/S리스트 행)으로 빈칸 채우기 */
+function eqAsFillFrom(r){const sn=eqAsVal(r,"O");if(!eqAsSnOk(sn))return [];
+  const i=eqAsFindSn(sn),e=i>=0?S.eq[i]:null;let h=null;
+  ASR.forEach(function(x){if(x===r||x.k===r.k||ptK(eqAsVal(x,"O"))!==ptK(sn))return;if(!h||(x.H||0)>(h.H||0))h=x;});
+  const src={M:(e&&eqAsT(e.ord))||(h?eqAsVal(h,"M"):""),P:(e&&eqAsT(e.asModel))||(h?eqAsVal(h,"P"):""),
+             Q:(e&&eqAsT(e.asSpec))||(h?eqAsVal(h,"Q"):""),R:(e&&eqAsT(e.asCh))||(h?eqAsVal(h,"R"):"")};
+  const out=[];Object.keys(src).forEach(function(L){if(src[L]&&!eqAsVal(r,L)){eqAsPut(r,L,src[L]);out.push(L);}});return out;}
+/* A/S리스트 행 → 장비마스터 등록·보완 */
+function eqAsSync(r,oldSn){if(!r||!r.v)return {act:""};
+  const sn=eqAsVal(r,"O");if(!eqAsSnOk(sn))return {act:""};
+  const d={ord:eqAsVal(r,"M"),asModel:eqAsVal(r,"P"),asSpec:eqAsVal(r,"Q"),asCh:eqAsVal(r,"R")};
+  let i=eqAsFindSn(sn);
+  if(i<0&&oldSn&&ptK(oldSn)!==ptK(sn)){
+    /* S/N 오타 수정: 이 행 때문에 자동 등록된 장비이고, 장비번호가 없고, 다른 행이 쓰지 않으면 S/N만 고침 */
+    const j=eqAsFindSn(oldSn);
+    if(j>=0){const e=S.eq[j];
+      const used=ASR.some(function(x){return x.k!==r.k&&ptK(eqAsVal(x,"O"))===ptK(oldSn);});
+      if(e.kind===EQ_AS_KIND&&!eqAsT(e.no)&&!used){e.sn=sn;
+        ["ord","asModel","asSpec","asCh"].forEach(function(f){if(d[f])e[f]=d[f];});
+        if(d.asModel||d.asSpec)e.spec=eqAsSpecOf(d.asModel,d.asSpec);
+        return {act:"ren",sn:sn,old:oldSn};}}}
+  if(i<0){S.eq.unshift({no:"",spec:eqAsSpecOf(d.asModel,d.asSpec),sn:sn,ord:d.ord,asset:"",year:"",loc:"",kind:EQ_AS_KIND,
+      asModel:d.asModel,asSpec:d.asSpec,asCh:d.asCh});
+    try{recompute();}catch(x){}
+    return {act:"new",sn:sn};}
+  const e=S.eq[i];let ch=false;
+  [["ord",d.ord],["asModel",d.asModel],["asSpec",d.asSpec],["asCh",d.asCh]].forEach(function(p){
+    if(p[1]&&!eqAsT(e[p[0]])){e[p[0]]=p[1];ch=true;}});
+  if(!eqAsT(e.spec)&&(d.asModel||d.asSpec)){e.spec=eqAsSpecOf(d.asModel,d.asSpec);ch=true;}
+  return {act:ch?"upd":"",sn:sn};}
+const EQ_AS_WATCH=["O","M","P","Q","R"];
+const _asSet664=asSet;
+asSet=function(L,val){
+  let oldSn="";try{asBuild();const r0=asRow(ASK);oldSn=r0?eqAsVal(r0,"O"):"";}catch(x){}
+  const res=_asSet664(L,val);
+  if(EQ_AS_WATCH.indexOf(L)<0)return res;
+  try{asBuild();let r=asRow(ASK);if(!r)return res;
+    let fill=[];
+    if(L==="O"&&ptK(eqAsVal(r,"O"))!==ptK(oldSn)){fill=eqAsFillFrom(r);if(fill.length){asBuild();r=asRow(ASK);}}
+    const sy=eqAsSync(r,L==="O"?oldSn:"");
+    if(!fill.length&&!sy.act)return res;
+    save();rAs();asModal();
+    const msg=[];
+    if(fill.length)msg.push("같은 S/N의 장비 정보로 "+fill.map(function(x){return String(ASH[AC(x)]||x).replace(/\s+/g," ");}).join("·")+" 빈칸을 채웠습니다.");
+    if(sy.act==="new")msg.push("장비마스터에 S/N "+sy.sn+" 을(를) 새로 등록했습니다. TOS 장비번호는 장비마스터에서 입력하세요.");
+    else if(sy.act==="ren")msg.push("장비마스터의 S/N을 "+sy.old+" → "+sy.sn+" 로 고쳤습니다.");
+    else if(sy.act==="upd")msg.push("장비마스터("+sy.sn+")의 빈칸을 채웠습니다.");
+    if(msg.length)toast(msg.join(" "));
+  }catch(e){console.error("v6.6.4 장비마스터 자동 등록",e);}
+  return res;};
+/* 엑셀 붙여넣기로 추가·갱신된 행도 장비마스터에 반영 */
+if(typeof aspApply==="function"){const _aspApply664=aspApply;
+  aspApply=function(){const before=new Set((S.asHist||[]).map(function(v){return JSON.stringify(v);}));
+    const res=_aspApply664.apply(this,arguments);
+    try{asBuild();let n=0,u=0;
+      ASR.forEach(function(r){if(r.auto||before.has(JSON.stringify(S.asHist[r.i])))return;
+        const sy=eqAsSync(r,"");if(sy.act==="new")n++;else if(sy.act==="upd")u++;});
+      if(n||u){save();rAs();toast("장비마스터 자동 반영 : 새 장비 "+n+"대 · 빈칸 보완 "+u+"대");}
+    }catch(e){console.error("v6.6.4 붙여넣기 장비마스터 반영",e);}
+    return res;};}
+/* 자동 등록(접수관리 연동) 행 : 장비마스터의 수주번호·모델·스펙·F당 총 채널로 빈칸 표시 */
+const _asAuto664=asAutoList;
+asAutoList=function(){const L=_asAuto664();
+  try{L.forEach(function(r){const i=eqAsFindSn(r.raw[AC("O")]);if(i<0)return;const e=S.eq[i];
+    [["M","ord"],["P","asModel"],["Q","asSpec"],["R","asCh"]].forEach(function(p){
+      if(!eqAsT(r.raw[AC(p[0])])&&eqAsT(e[p[1]]))r.raw[AC(p[0])]=eqAsT(e[p[1]]);});});}catch(e){}
+  return L;};
+/* 장비마스터 화면 : A/S리스트 자동 등록 현황 */
+const _rEq664=rEq;
+rEq=function(){_rEq664();
+  try{const el=document.getElementById("unreg");if(!el)return;
+    const A=S.eq.filter(function(e){return e.kind===EQ_AS_KIND;}),nn=A.filter(function(e){return !eqAsT(e.no);}).length;
+    el.insertAdjacentHTML("beforeend",'<div class="muted" style="margin-top:8px">A/S리스트에서 자동 등록된 장비 <b>'+A.length+'대</b>'
+      +(nn?' · 장비번호(TOS 장비명) 입력 필요 <b style="color:var(--bad)">'+nn+'대</b> — 장비번호를 넣어야 다음 접수 때 S/N이 자동으로 붙습니다.':'')+'</div>');}catch(e){}};
+const _hdr664=hdr;hdr=function(){_hdr664();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.6.4 웹 UI");}catch(x){}};
+try{hdr();}catch(e){}
 </script>
 </body></html>
