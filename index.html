@@ -2387,7 +2387,7 @@ function asModal(){asBuild();const r=asRow(ASK);if(!r){closeM("mAs");return;}con
   const LIST={A:db.costs,D:db.regs,F:db.methods,T:db.types,K:db.regions.map(function(x){return x[1];}),L:db.sites,P:db.models,Y:db.errs.map(function(x){return x[0];}),AC:db.parts.map(function(x){return x[2];}),V:db.contacts.map(function(x){return x[0];})};
   const DATE={C:1,H:1,I:1,Z:1},TA={U:1,AA:1};
   let h='<div class="ash"><div><h2 style="margin:0">A/S리스트 '+(r.auto?'<span class="tag t-red">자동 등록</span>':'<span class="tag t-gray">누적 이력 '+(r.i+2)+'행</span>')+'</h2>'
-   +'<div class="muted" style="margin-top:4px">'+(r.auto?'접수관리 TOS '+esc(r.id)+'에서 자동으로 만들어진 행입니다. 회색 칸(접수일·완료일·S/N·접수 내용·조치 내용)은 접수관리에서 고칩니다. 나머지 칸에 입력한 값은 이 건에 저장됩니다.':'변경 즉시 저장됩니다. 회색 칸은 자동 계산됩니다.')+'</div></div>'
+   +'<div class="muted" style="margin-top:4px">'+(r.auto?'접수관리 TOS '+esc(r.id)+'에서 자동으로 만들어진 행입니다. 회색 칸(접수일·완료일·S/N·접수 내용·조치 내용)은 접수관리에서 고칩니다. 나머지 칸에 입력한 값은 이 건에 저장됩니다.':'수정 후 저장 버튼을 눌러 주세요. 회색 칸은 자동 계산됩니다.')+'</div></div>'
    +(r.miss?'<span class="tag t-warn" title="'+esc(r.missL.join(", "))+'">누락 '+r.missL.length+'개 : '+esc(r.missL.slice(0,4).join(", "))+(r.missL.length>4?" …":"")+'</span>':'<span class="tag t-ok">정보누락 없음</span>')+'</div><div class="form asf">';
   GR.forEach(function(g){h+='<div class="fsec">'+g[0]+'</div>';
     g[1].forEach(function(L){const i=AC(L),val=v[i]==null?"":String(v[i]),ro=AS_COMP.indexOf(L)>=0||(r.auto&&AS_LINK.indexOf(L)>=0);
@@ -5133,5 +5133,94 @@ asAutoList=function(){const L=_asAuto667(),have=new Set(L.map(function(x){return
   return L;};
 const _hdr667=hdr;hdr=function(){_hdr667();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.6.7 웹 UI");}catch(x){}};
 try{hdr();}catch(e){}
+</script>
+<script>
+/* v6.6.8: A/S 상세 편집은 임시 보관 후 저장 버튼으로 반영 */
+(function(){
+  let D=null, writing=false;
+  const oldSet=asSet, oldEq=asEqSet, oldModal=asModal, oldMove=asMove, oldClose=closeM;
+  asLiveFlush=function(){clearTimeout(AS_PT);AS_PEND=null;};
+  asCommitFocused=function(){clearTimeout(AS_PT);AS_PEND=null;return false;};
+  function snapshot(r){return JSON.stringify(r.auto ? (findRec(r.id)||null) : (S.asHist[r.i]||null));}
+  function begin(){
+    if(D&&D.key===ASK)return true;
+    asBuild();const r=asRow(ASK);if(!r)return false;
+    D={key:ASK,auto:r.auto,base:snapshot(r),values:{},eq:null,
+      asLocal:localStorage.getItem(LDJ+'as'),recLocal:r.auto?localStorage.getItem(ldjRid(r.id)):null,id:r.id};
+    return true;
+  }
+  function dirty(){return !!(D&&(Object.keys(D.values).length||D.eq!==null));}
+  function field(el){return el&&el.id==='asEqIn'?'__EQ__':asElL(el);}
+  function status(text){const n=document.getElementById('asManualStatus');if(n)n.textContent=text;}
+  function drawControls(){
+    const b=document.getElementById('asBody');if(!b)return;
+    const prev=document.getElementById('asManualBar');if(prev)prev.remove();
+    const bar=document.createElement('div');bar.id='asManualBar';bar.className='toolbar';
+    bar.style.cssText='position:sticky;top:0;z-index:3;background:var(--bg);padding:8px;border:1px solid var(--ln)';
+    bar.innerHTML='<button type="button" class="btn p" id="asManualSave">수정 내용 저장</button><button type="button" class="btn" id="asManualDiscard">변경 취소</button><span id="asManualStatus" class="muted"></span>';
+    b.insertBefore(bar,b.firstChild);
+    bar.querySelector('#asManualSave').onclick=commit;
+    bar.querySelector('#asManualDiscard').onclick=discard;
+    const hint=b.querySelector('.ash .muted');if(hint)hint.textContent='수정 후 [수정 내용 저장]을 눌러 주세요. 회색 칸은 수정할 수 없습니다.';
+    const legacy=document.getElementById('asAutoSt');if(legacy)legacy.textContent='저장 버튼을 눌러야 변경 사항이 반영됩니다.';
+    if(D&&D.key===ASK){b.querySelectorAll('input,textarea,select').forEach(function(el){const l=field(el);if(l==='__EQ__'&&D.eq!==null)el.value=D.eq;else if(l&&Object.prototype.hasOwnProperty.call(D.values,l))el.value=D.values[l];});}
+    status(dirty()?'저장하지 않은 변경이 있습니다.':'변경 후 저장 버튼을 눌러 주세요.');
+  }
+  asModal=function(){const x=oldModal.apply(this,arguments);drawControls();return x;};
+  asSet=function(L,v){if(writing)return oldSet(L,v);if(!begin())return;D.values[L]=String(v==null?'':v);status('저장하지 않은 변경이 있습니다.');};
+  asEqSet=function(v){if(writing)return oldEq(v);if(!begin())return;D.eq=String(v==null?'':v);status('저장하지 않은 변경이 있습니다.');};
+  document.addEventListener('input',function(e){
+    const el=e.target,l=field(el);if(!l||el.readOnly||writing)return;
+    if(!begin())return;
+    if(l==='__EQ__')D.eq=el.value;else D.values[l]=el.value;
+    status('저장하지 않은 변경이 있습니다.');e.stopImmediatePropagation();
+  },true);
+  document.addEventListener('change',function(e){
+    const el=e.target,l=field(el);if(!l||el.readOnly||writing)return;
+    if(!begin())return;
+    if(l==='__EQ__')D.eq=el.value;else D.values[l]=el.value;
+    status('저장하지 않은 변경이 있습니다.');e.stopImmediatePropagation();
+  },true);
+  function leave(){if(!dirty()){D=null;return true;}if(!confirm('저장하지 않은 변경 내용이 있습니다. 저장하지 않고 나갈까요?'))return false;D=null;return true;}
+  closeM=function(id){if(id==='mAs'&&!writing&&!leave())return;return oldClose.apply(this,arguments);};
+  asMove=function(d){if(!leave())return;return oldMove(d);};
+  document.addEventListener('click',function(e){const el=e.target.closest&&e.target.closest('[onclick]');if(!el||!dirty())return;const a=el.getAttribute('onclick')||'';if(a.indexOf('closeM')>=0&&a.indexOf('openRec')>=0&&!leave()){e.preventDefault();e.stopImmediatePropagation();}},true);
+  const oldOpen= openAs;openAs=function(k){if(dirty()&&k!==ASK&&!leave())return;return oldOpen(k);};
+  const oldDel=asDel;asDel=function(){if(!leave())return;return oldDel();};
+  window.addEventListener('beforeunload',function(e){if(dirty()){e.preventDefault();e.returnValue='';}});
+  function discard(){if(!dirty())return;if(!confirm('저장하지 않은 변경을 취소할까요?'))return;D=null;asModal();}
+  function commit(){
+    if(!dirty()){status('변경된 내용이 없습니다.');return;}
+    if(!LDJ_OK){status('저장 실패: 클라우드 데이터를 먼저 받아야 합니다.');return;}
+    asBuild();const r=asRow(ASK);
+    if(!r||D.key!==ASK||snapshot(r)!==D.base||localStorage.getItem(LDJ+'as')!==D.asLocal||(D.auto&&localStorage.getItem(ldjRid(D.id))!==D.recLocal)){
+      status('다른 변경이 감지되어 저장하지 않았습니다. 내용을 복사한 뒤 취소하고 다시 열어 주세요.');return;
+    }
+    const fields=Object.keys(D.values);
+    for(const L of fields){const t=D.values[L].trim();
+      if((L==='R'||L==='AF')&&t&&!/^\d+$/.test(t)){status('총 채널과 수량은 숫자만 입력해 주세요.');return;}
+      if(L==='S'&&t&&isNaN(chParse(t))){status('고장 채널의 숫자 또는 범위를 확인해 주세요.');return;}
+    }
+    if(D.eq!==null&&D.eq.trim()){
+      const e=asEqName(r),v=D.eq.trim(),k=eqKey(v);
+      if(e.n||e.ei<0||!k||S.eq.some(function(x,j){return j!==e.ei&&eqKey(x.no)===k;})){
+        status('장비명을 저장할 수 없습니다. 장비마스터 또는 중복 장비번호를 확인해 주세요.');return;
+      }
+      if(Object.prototype.hasOwnProperty.call(D.values,'O')){status('S/N과 장비명은 각각 저장해 주세요.');return;}
+    }
+    const work=D;writing=true;clearTimeout(AS_PT);AS_PEND=null;AS_CHG=true;AS_DOWN=true;
+    try{
+      fields.forEach(function(L){oldSet(L,work.values[L]);});
+      if(work.eq!==null&&work.eq.trim())oldEq(work.eq);
+      D=null;AS_LAST=asNow();
+    }catch(e){console.error('A/S 수동 저장 실패',e);status('저장 중 오류가 발생했습니다. 일부 항목이 저장되었을 수 있으니 확인해 주세요.');writing=false;AS_CHG=false;AS_DOWN=false;return;}
+    writing=false;AS_CHG=false;AS_DOWN=false;clearTimeout(AS_RT);AS_NEED=false;
+    try{rAs();asModal();}catch(e){console.error(e);}
+    const fs=ldjState();
+    status(fs&&fs.connected&&!fs.blocked&&!fs.queue?'이 기기에 저장됨 · 클라우드 상태를 상단에서 확인하세요.':'이 기기에 저장됨 · 클라우드 전송 상태를 상단에서 확인하세요.');
+    toast('수정 내용을 저장했습니다. 클라우드 동기화 상태도 확인해 주세요.');
+  }
+  const oldHdr=hdr;hdr=function(){oldHdr();const x=document.getElementById('sfoot');if(x)x.innerHTML=x.innerHTML.replace(/v[\d.]+ 웹 UI/,'v6.6.8 웹 UI');};try{hdr();}catch(e){}
+})();
 </script>
 </body></html>
