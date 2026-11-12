@@ -25,7 +25,7 @@ window.FIREBASE_CONFIG = {
   measurementId:     "G-TKRDQ7TF4K"
 };
 window.FIREBASE_ROOT = "wonikpne_tos/_lges_dj_fault";   /* [v5.8.1] 기존 규칙이 허용하는 wonikpne_tos 아래 하위 경로 (v16 데이터와 섞이지 않음: v16은 _ 로 시작하는 항목을 무시) */
-window.APP_VER = "LGES-v6.6.5";   /* 기기별 버전 확인용 */
+window.APP_VER = "LGES-v6.6.6";   /* 기기별 버전 확인용 */
 </script>
 <script>
 (function () {
@@ -2362,14 +2362,14 @@ function rAs(){asBuild();
   const Q=asCur(),q=Q.q;
   document.getElementById("asqc").innerHTML=ASFL.map(function(x){const n=Q.base.filter(ASFN[x[0]]).length;return '<button class="qc qc-a'+x[0]+(ASF===x[0]?" on":"")+'" onclick="asSetF(\''+x[0]+'\')"><span class="l">'+x[1]+'</span><b>'+n+'</b><span class="d">'+x[2]+'</span></button>';}).join("");
   const G=function(r,L){return r.v[AC(L)]||"";};
-  let h='<thead><tr><th>구분</th><th>접수일</th><th>완료일</th><th>고객 · 지역</th><th>S/N · 모델</th><th>고장 유형</th><th class="hc">접수 내용</th><th>조치 내용</th><th>교체 부품</th><th class="c">L/T</th><th>확인</th></tr></thead><tbody>';
+  let h='<thead><tr><th>구분</th><th>접수일</th><th>완료일</th><th>고객 · 지역</th><th>장비명</th><th>S/N · 모델</th><th>고장 유형</th><th class="hc">접수 내용</th><th>조치 내용</th><th>교체 부품</th><th class="c">L/T</th><th>확인</th></tr></thead><tbody>';
   Q.list.slice(0,ASLIM).forEach(function(r){const ak=G(r,"AK");
     const lt=r.aj==null?'<span class="muted">-</span>':'<span class="age '+(ak==="대응중"?"a-warn":ak==="1달초과"?"a-bad":"a-ok")+'"><b>'+r.aj+'</b>일</span><div class="sub2">'+esc(ak)+'</div>';
     h+='<tr class="asr" onclick="openAs(\''+r.k+'\')">'
      +'<td>'+(r.auto?'<span class="tag t-red">자동</span>':'<span class="tag t-gray">이력</span>')+'<div class="sub2">'+(G(r,"A")?hl(G(r,"A"),q):"유무상 -")+'</div></td>'
      +'<td class="nw">'+fd(r.H)+'</td><td class="nw">'+(r.I?'<b>'+fd(r.I)+'</b>':'<span class="tag t-warn">대응중</span>')+'</td>'
      +'<td>'+hl(G(r,"L"),q)+'<div class="sub2">'+hl(G(r,"K"),q)+'</div></td>'
-     +'<td class="nw"><b>'+hl(G(r,"O"),q)+'</b><div class="sub2">'+hl([G(r,"P"),G(r,"Q")].filter(Boolean).join(" · ")||"-",q)+'</div></td>'
+     +(typeof asEqTd==="function"?asEqTd(r,q):'<td></td>')+'<td class="nw"><b>'+hl(G(r,"O"),q)+'</b><div class="sub2">'+hl([G(r,"P"),G(r,"Q")].filter(Boolean).join(" · ")||"-",q)+'</div></td>'
      +'<td>'+(G(r,"T")?hl(G(r,"T"),q):'<span class="muted">-</span>')+'<div class="sub2">'+hl(G(r,"Y"),q)+'</div></td>'
      +'<td class="hc"><div class="cl">'+hl(G(r,"U"),q)+'</div></td>'
      +'<td><div class="cl">'+(G(r,"AA")?hl(G(r,"AA"),q):'<span class="muted">-</span>')+'</div></td>'
@@ -4522,7 +4522,7 @@ let ASHF={},HFOPEN=null;
 function hfGet(id,r){const d=HF[id];return d.get?d.get(r):hfV(r,id);}
 function hfActive(id){const f=ASHF[id];return !!(f&&(f.text?f.text.trim():f.vals&&f.vals.size));}
 function hfPass(r,skip){for(const id in ASHF){if(id===skip||!hfActive(id))continue;const f=ASHF[id];
-    if(f.text){if(String(r.v[AC(id)]||"").toLowerCase().indexOf(f.text.trim().toLowerCase())<0)return false;}
+    if(f.text){if(String((HF[id].tget?HF[id].tget(r):r.v[AC(id)])||"").toLowerCase().indexOf(f.text.trim().toLowerCase())<0)return false;}
     else if(!f.vals.has(hfGet(id,r)))return false;}
   return true;}
 const _asCur66=asCur;
@@ -4896,6 +4896,7 @@ function asCommitFocused(){const a=document.activeElement,L=asElL(a);
     clearTimeout(AS_PT);AS_PEND=null;const v=a.value;AS_FOC.orig=v;asSet(L,v);return true;}
   asLiveFlush();return false;}
 /* 다시 그리기 : 커서 · 선택 범위 · 스크롤 유지 */
+const _asModal666=asModal;asModal=function(){_asModal666();try{if(typeof asEqBox==="function")asEqBox();}catch(e){console.warn("v6.6.6 장비명",e);}};
 const _asModal665=asModal;
 function asRenderNow(){AS_NEED=false;clearTimeout(AS_RT);
   const B=document.getElementById("asBody"),a=document.activeElement,L=asElL(a);let ss=null,se=null;
@@ -4968,6 +4969,61 @@ rEq=function(){_rEq665();
     el.insertAdjacentHTML("beforeend",'<div class="muted" style="margin-top:4px">A/S리스트 연동 : S/N이 있는 누적 이력 <b>'+H.length+'행</b> 중 <b>'+ok+'행</b>이 장비마스터와 연결됨'
       +(ok<H.length?' · <b style="color:var(--bad)">미연결 '+(H.length-ok)+'행</b>':'')+'</div>');}catch(e){}};
 const _hdr665=hdr;hdr=function(){_hdr665();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.6.5 웹 UI");}catch(x){}};
+try{hdr();}catch(e){}
+</script>
+<script>
+/* ===== v6.6.6 =====
+   A/S리스트에 장비명(TOS 장비명 · 장비마스터 장비번호) 표시
+   - 찾는 순서 : ① 연결된 접수(자동 등록 행 · 접수관리에서 이관된 행) ② 장비마스터(같은 S/N) ③ 같은 S/N의 다른 접수
+   - 목록 「장비명」 열 + 머리글 필터 + 검색, 입력창 「장비명」 칸
+   - 장비명을 찾지 못하고 장비마스터에 장비번호가 비어 있으면 입력창에서 바로 입력 → 장비마스터에 저장 */
+window.APP_VER="LGES-v6.6.6";
+let EQN_SN=null,EQN_K="",EQN_IX=null;
+function eqnFind(sn){const k=ptK(sn);if(!k)return -1;if(EQN_IX){const i=EQN_IX[k];return i==null?-1:i;}return eqAsFindSn(sn);}
+function eqnSnMap(){const k=S.recs.length+"|"+S.eq.length+"|"+C.length;if(EQN_SN&&k===EQN_K)return EQN_SN;EQN_K=k;EQN_SN={};
+  C.forEach(function(o){const sn=String(o.r.sn||"").trim()||(o.ei>=0?String(S.eq[o.ei].sn||"").trim():"");const n=eqAsT(o.eq);
+    if(!eqAsSnOk(sn)||!n)return;const kk=ptK(sn),p=EQN_SN[kk];if(!p||(o.rcv||0)>(p.d||0))EQN_SN[kk]={n:n,d:o.rcv,id:o.seq};});
+  return EQN_SN;}
+function asEqName(r){const out={n:"",src:"",ei:-1,id:""};if(!r||!r.v)return out;
+  const sn=eqAsVal(r,"O"),snOk=eqAsSnOk(sn);out.ei=snOk?eqnFind(sn):-1;
+  let rec=null;try{rec=r.auto?findRec(r.id):asMvRecOf(r.i);}catch(e){rec=null;}
+  const tn=rec&&rec.t?eqAsT(rec.t[T.eq]):"";
+  if(tn){out.n=tn;out.src="접수";out.id=rec.id;return out;}
+  if(out.ei>=0&&eqAsT(S.eq[out.ei].no)){out.n=eqAsT(S.eq[out.ei].no);out.src="장비마스터";return out;}
+  if(snOk){const m=eqnSnMap()[ptK(sn)];if(m){out.n=m.n;out.src="같은 S/N 접수";out.id=m.id;return out;}}
+  return out;}
+const _asBuild666=asBuild;
+asBuild=function(){const rows=_asBuild666();EQN_IX={};S.eq.forEach(function(e,i){const k=ptK(e.sn);if(k&&!(k in EQN_IX))EQN_IX[k]=i;});
+  rows.forEach(function(r){const e=asEqName(r);r.eqn=e.n;r.eqs=e.src;r.eqi=e.ei;r.eqid=e.id;if(e.n)r.s+=" "+e.n.toLowerCase();});
+  EQN_IX=null;return rows;};
+function asEqTd(r,q){
+  if(r.eqn)return '<td class="nw"><b>'+hl(r.eqn,q)+'</b><div class="sub2">'+esc(r.eqs)+'</div></td>';
+  return '<td class="nw"><span class="tag t-warn">미확인</span><div class="sub2">'+(r.eqi>=0?"장비번호 입력 필요":eqAsSnOk(eqAsVal(r,"O"))?"장비마스터 없음":"S/N 없음")+'</div></td>';}
+HF.EQN={lab:"장비명",text:1,tget:function(r){return r.eqn||"";}};
+HF_COL["장비명"]=["EQN"];
+/* 입력창 : 「고객 · 장비」 첫 칸에 장비명 */
+function asEqBox(){const r=asRow(ASK),B=document.getElementById("asBody");if(!r||!B)return;
+  const old=document.getElementById("asEqWrap");if(old)old.remove();
+  const sec=Array.from(B.querySelectorAll(".fsec")).find(function(x){return x.textContent.trim()==="고객 · 장비";});if(!sec)return;
+  let h;
+  if(r.eqn){
+    const hint=r.eqs==="접수"?"접수관리 TOS "+esc(r.eqid)+"의 장비명입니다. 접수관리에서 고칩니다."
+      :r.eqs==="장비마스터"?"장비마스터에서 같은 S/N 장비의 장비번호입니다. 장비마스터에서 고칩니다."
+      :"같은 S/N으로 들어온 접수(TOS "+esc(r.eqid)+")의 장비명입니다.";
+    h='<label>장비명 <span class="cl-l">TOS</span></label><input class="ro" readonly value="'+esc(r.eqn)+'"><div class="zhint">'+hint+'</div>';}
+  else if(r.eqi>=0){
+    h='<label>장비명 <span class="cl-l">TOS</span></label><input class="yl miss" id="asEqIn" placeholder="예: 15CYCBA005" onchange="asEqSet(this.value)">'
+     +'<div class="zhint">장비마스터에 이 S/N 장비는 있으나 장비번호가 비어 있습니다. 입력하면 장비마스터에 저장되고, 다음 접수 때 S/N이 자동으로 붙습니다.</div>';}
+  else{
+    h='<label>장비명 <span class="cl-l">TOS</span></label><input class="ro" readonly value="" placeholder="확인 불가"><div class="zhint">'+(eqAsSnOk(eqAsVal(r,"O"))?"장비마스터에 이 S/N 장비가 없습니다.":"S/N을 입력하면 장비마스터에서 장비명을 찾습니다.")+'</div>';}
+  const w=document.createElement("div");w.id="asEqWrap";w.style.display="contents";w.innerHTML=h;sec.insertAdjacentElement("afterend",w);}
+function asEqSet(v){v=String(v==null?"":v).trim();if(!v)return;const r=asRow(ASK);if(!r)return;const e=asEqName(r);
+  if(e.n){toast("이미 장비명이 있습니다 : "+e.n);return;}if(e.ei<0){toast("장비마스터에서 이 S/N 장비를 찾지 못했습니다.");return;}
+  const k=eqKey(v);if(!k){toast("장비번호 형식을 확인해 주세요.");return;}
+  const d=S.eq.findIndex(function(x,j){return j!==e.ei&&eqKey(x.no)===k;});
+  if(d>=0){toast("장비마스터에 같은 장비번호가 이미 있습니다 (S/N "+(S.eq[d].sn||"없음")+"). 장비마스터에서 확인해 주세요.");return;}
+  S.eq[e.ei].no=v;save();recompute();EQN_SN=null;rAs();asModal();toast("장비마스터에 장비번호 "+v+" 을(를) 저장했습니다.");}
+const _hdr666=hdr;hdr=function(){_hdr666();try{const f=document.getElementById("sfoot");if(f)f.innerHTML=f.innerHTML.replace(/v[\d.]+ 웹 UI/,"v6.6.6 웹 UI");}catch(x){}};
 try{hdr();}catch(e){}
 </script>
 </body></html>
